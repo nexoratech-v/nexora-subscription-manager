@@ -121,7 +121,7 @@ Get up and build it by hand — they're happy, you're exhausted. Stay asleep —
 
 ```bash
 git clone https://github.com/nexoratech-v/nexora-subscription-manager.git
-cd nexora && sudo bash install.sh
+cd nexora-subscription-manager && sudo bash install.sh
 ```
 
 SSL، nginx، systemd و بیلد پنل — همه خودکار.
