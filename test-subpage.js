@@ -1,0 +1,181 @@
+const { JSDOM } = require('jsdom');
+const fs = require('fs');
+
+const HTML_PATH = process.env.TEST_HTML || require('path').join(__dirname, 'sub-page-index.html');
+
+// تنظیمات نمونه‌ای که بک‌اند برمی‌گرداند
+const MOCK_CONFIG = {
+  downloadApps: {
+    android: [
+      { id:'a1', name:'Happ', url:'https://x/happ.apk', recommended:true, scheme:'happ' },
+      { id:'a2', name:'v2rayNG', url:'https://x/ng.apk', recommended:false, scheme:'v2rayng' },
+      { id:'a3', name:'اپ سوم', url:'https://x/3.apk', recommended:false, scheme:'none' },
+    ],
+    ios: [{ id:'i1', name:'Happ iOS', url:'https://x/ios', recommended:true, scheme:'happ' }],
+    desktop: [{ id:'d1', name:'Happ Win', url:'https://x/win', recommended:true, scheme:'happ' }],
+  },
+  faq: {
+    fa: [
+      { q:'سوال اول تستی', a:'پاسخ اول تستی' },
+      { q:'سوال دوم تستی', a:'پاسخ دوم تستی' },
+      { q:'سوال سوم تستی', a:'پاسخ سوم تستی' },
+    ],
+    en: [{ q:'Q1', a:'A1' }],
+    tr: [], ar: [],
+  },
+  banners: { enabled:true, lowQuotaDaysThreshold:5, lowQuotaPercentThreshold:20,
+             disabledTitle:'عنوان سفارشی قطعی', lowQuotaTitle:'عنوان سفارشی اتمام' },
+  referral: { enabled:true },
+  links: { supportUsername:'test_sup', channelUsername:'test_ch' },
+  videos: [{ id:'v1', title:'ویدیو تستی', telegramUrl:'https://t.me/x/1', platform:'all' }],
+  popup: { enabled:true, icon:'💡', title:'پاپ‌آپ سفارشی', description:'توضیح سفارشی',
+           primaryButtonText:'تماس', dismissButtonText:'بعداً', delaySeconds:5, autoCloseSeconds:20 },
+  advanced: {
+    brandName:'TESTBRAND', pageTitle:'عنوان تست', accentColor:'#FF0000', accentColor2:'#00FF00',
+    defaultLanguage:'fa', defaultTheme:'dark', showBrandStrip:true, showReferralCard:true,
+    showFaqSection:true, showNotificationPopup:true, notificationDelaySeconds:5,
+    allowThemeToggle:true, allowLanguageToggle:true, hideConfigsList:false,
+    customCss:'.test{color:red}', customFooterText:'پاورقی تستی',
+  },
+};
+
+async function run() {
+  let html = fs.readFileSync(HTML_PATH, 'utf8');
+
+  const dom = new JSDOM(html, {
+    runScripts: 'dangerously',
+    pretendToBeVisual: true,
+    url: 'https://sub.test.com/sub/abc123',
+    beforeParse(window) {
+      // شبیه‌سازی پاسخ بک‌اند
+      window.fetch = (url) => {
+        if (String(url).includes('/api/public/config')) {
+          return Promise.resolve({ ok:true, json:()=>Promise.resolve(MOCK_CONFIG) });
+        }
+        // درخواست live data صفحه ساب
+        return Promise.resolve({ ok:false, status:404, json:()=>Promise.resolve({}) });
+      };
+      window.AbortSignal = { timeout: () => null };
+      // ثبت خطاها
+      window.__errors = [];
+      window.addEventListener('error', e => window.__errors.push(e.message));
+    },
+  });
+
+  const { window } = dom;
+  const errors = [];
+  window.onerror = (msg) => { errors.push(msg); };
+  const origErr = console.error;
+  console.error = (...a) => { errors.push(a.join(' ')); };
+
+  // صبر برای اجرای DOMContentLoaded و promiseهای async
+  await new Promise(r => setTimeout(r, 1500));
+
+  console.error = origErr;
+  const doc = window.document;
+
+  console.log('╔══════════════════════════════════════════╗');
+  console.log('║   تست واقعی با DOM (مثل مرورگر)          ║');
+  console.log('╚══════════════════════════════════════════╝\n');
+
+  const results = [];
+  const check = (name, cond, detail='') => {
+    results.push(cond);
+    console.log(`${cond ? '✅' : '❌'} ${name}${detail ? ' — ' + detail : ''}`);
+  };
+
+  // ═══ خطاهای جاوااسکریپت ═══
+  const jsErrors = [...errors, ...(window.__errors||[])].filter(e =>
+    !String(e).includes('Not implemented') && !String(e).includes('css')
+  );
+  check('بدون خطای جاوااسکریپت', jsErrors.length === 0,
+        jsErrors.length ? jsErrors.slice(0,2).join(' | ') : '');
+
+  // ═══ ۱. سوالات متداول ═══
+  const faqSection = doc.getElementById('faq-section');
+  const faqItems = faqSection ? faqSection.querySelectorAll('.faq-item') : [];
+  check('سوالات متداول رندر شد', faqItems.length === 3, `${faqItems.length} سوال (انتظار: 3)`);
+  if (faqItems.length > 0) {
+    const firstQ = faqItems[0].querySelector('.faq-question span')?.textContent;
+    check('  متن سوال درست است', firstQ === 'سوال اول تستی', firstQ || 'خالی');
+  }
+
+  // ═══ ۲. اپلیکیشن‌ها ═══
+  const appCards = doc.querySelectorAll('#client-cards-container .client-card-item');
+  check('اپلیکیشن‌ها رندر شدند', appCards.length === 3, `${appCards.length} اپ (انتظار: 3)`);
+  if (appCards.length > 0) {
+    const hasRibbon = appCards[0].querySelector('.recommended-ribbon');
+    check('  نشان پیشنهادی روی اپ اول', !!hasRibbon);
+    const quickBtn = appCards[0].querySelector('.client-quickadd-btn');
+    check('  دکمه افزودن یک‌کلیک', !!quickBtn, quickBtn?.getAttribute('href')?.slice(0,25) || '');
+  }
+
+  // ═══ ۳. برند ═══
+  const brandName = doc.getElementById('nexora-brand-name')?.textContent;
+  check('نام برند اعمال شد', brandName === 'TESTBRAND', brandName || 'خالی');
+  check('عنوان صفحه اعمال شد', doc.title === 'عنوان تست', doc.title);
+
+  // ═══ ۴. رنگ سفارشی ═══
+  const styleEl = doc.getElementById('nexora-brand-colors');
+  check('استایل رنگ برند تزریق شد', !!styleEl && styleEl.textContent.includes('#FF0000'));
+
+  // ═══ ۵. CSS سفارشی ═══
+  check('CSS سفارشی تزریق شد', !!doc.getElementById('nexora-custom-css'));
+
+  // ═══ ۶. پاورقی ═══
+  const footer = doc.getElementById('nexora-custom-footer');
+  check('پاورقی سفارشی اضافه شد', footer?.textContent === 'پاورقی تستی', footer?.textContent || 'نیست');
+
+  // ═══ ۷. لینک‌ها ═══
+  const designerLink = doc.querySelector('.designer-name-title')?.textContent;
+  check('لینک کانال به‌روز شد', designerLink === '@test_ch', designerLink || 'خالی');
+
+  // ═══ ۸. ویدیوها ═══
+  const videoText = doc.getElementById('video-tutorial-text')?.textContent;
+  check('ویدیو آموزشی اعمال شد', videoText === 'ویدیو تستی', videoText || 'خالی');
+
+  // ═══ ۹. تنظیمات سراسری ═══
+  check('NEXORA_FAQ در window', !!window.NEXORA_FAQ?.fa?.length, `${window.NEXORA_FAQ?.fa?.length || 0} سوال`);
+  check('NEXORA_APPS در window', !!window.NEXORA_APPS?.android?.length, `${window.NEXORA_APPS?.android?.length || 0} اپ`);
+  check('NEXORA_POPUP در window', window.NEXORA_POPUP?.title === 'پاپ‌آپ سفارشی');
+  check('آستانه بنر اعمال شد', window.NEXORA_LOW_QUOTA_DAYS === 5, String(window.NEXORA_LOW_QUOTA_DAYS));
+  check('لینک پشتیبانی اعمال شد', window.NEXORA_SUPPORT_URL === 'https://t.me/test_sup', window.NEXORA_SUPPORT_URL || '');
+
+  // ═══ ۱۰. تعویض تب دانلود ═══
+  try {
+    window.switchDownloadTab('ios');
+    const iosCards = doc.querySelectorAll('#client-cards-container .client-card-item');
+    check('تعویض تب به iOS', iosCards.length === 1, `${iosCards.length} اپ`);
+    window.switchDownloadTab('android');
+  } catch(e) {
+    check('تعویض تب به iOS', false, e.message);
+  }
+
+  // ═══ ۱۱. تعویض زبان ═══
+  try {
+    window.selectLanguage('en');
+    const enFaq = doc.getElementById('faq-section').querySelectorAll('.faq-item');
+    check('تعویض زبان به انگلیسی', enFaq.length === 1, `${enFaq.length} سوال`);
+    window.selectLanguage('fa');
+    const faFaq = doc.getElementById('faq-section').querySelectorAll('.faq-item');
+    check('بازگشت به فارسی', faFaq.length === 3, `${faFaq.length} سوال`);
+  } catch(e) {
+    check('تعویض زبان', false, e.message);
+  }
+
+  // ═══ نتیجه ═══
+  const passed = results.filter(Boolean).length;
+  console.log('\n' + '─'.repeat(46));
+  console.log(`نتیجه: ${passed}/${results.length} تست پاس شد`);
+  console.log('─'.repeat(46));
+
+  if (passed < results.length) {
+    console.log('\n⚠️ خطاهای ثبت‌شده:');
+    jsErrors.slice(0,5).forEach(e => console.log('  •', String(e).slice(0,150)));
+    process.exit(1);
+  } else {
+    console.log('\n🎉 همه تست‌ها پاس شدند');
+  }
+}
+
+run().catch(e => { console.error('خطای تست:', e); process.exit(1); });

@@ -1,0 +1,3794 @@
+<!DOCTYPE html>
+<html lang="fa" dir="rtl" id="html-root">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title id="page-title">Subscription</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        /* ===== فونت‌ها و ریست ===== */
+        @import url('https://cdn.jsdelivr.net/gh/rastikerdar/vazirmatn@v33.003/vazirmatn-font-face.css');
+        @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&family=Chakra+Petch:wght@600;700&display=swap');
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            font-family: 'Vazirmatn', sans-serif;
+            -webkit-tap-highlight-color: transparent;
+        }
+
+        /* ===== متغیرهای تم ===== */
+        :root {
+            --bg: #090C11;
+            --bg-grid: rgba(255, 255, 255, 0.035);
+            --surface: #12161F;
+            --surface-alt: #171C27;
+            --text: #EDEFF3;
+            --text-muted: #838DA0;
+            --border: rgba(255, 255, 255, 0.07);
+            --accent: #2B7FD6;
+            --accent-rgb: 43, 127, 214;
+            --accent-2: #5AA9E6;
+            --accent-2-rgb: 90, 169, 230;
+            --alert: #F0655F;
+            --alert-rgb: 240, 101, 95;
+            --warn: #F4A94A;
+            --warn-rgb: 244, 169, 74;
+            --nav-bg: #0C0F15;
+            --hero-1: #101A28;
+            --hero-2: #05070B;
+            --hero-alert-1: #2A1214;
+            --hero-alert-2: #0B0505;
+            --shadow: rgba(0, 0, 0, 0.4);
+            --box-shadow-light: 0 4px 12px rgba(0,0,0,0.15);
+            --notification-bg: rgba(18, 22, 31, 0.85);
+        }
+
+        body.light-mode {
+            --bg: #EEF1F6;
+            --bg-grid: rgba(16, 21, 32, 0.05);
+            --surface: #FFFFFF;
+            --surface-alt: #F4F6FA;
+            --text: #10141C;
+            --text-muted: #6B7484;
+            --border: rgba(16, 21, 32, 0.08);
+            --accent: #1F6FC4;
+            --accent-rgb: 31, 111, 196;
+            --accent-2: #2D6CDF;
+            --accent-2-rgb: 45, 108, 223;
+            --alert: #DC4C43;
+            --alert-rgb: 220, 76, 67;
+            --warn: #DB8A2A;
+            --warn-rgb: 219, 138, 42;
+            --nav-bg: #FFFFFF;
+            --shadow: rgba(16, 21, 32, 0.08);
+            --box-shadow-light: 0 6px 18px rgba(0,0,0,0.12);
+            --notification-bg: rgba(255, 255, 255, 0.92);
+        }
+
+        body {
+            background-color: var(--bg);
+            background-image: radial-gradient(var(--bg-grid) 1px, transparent 1px);
+            background-size: 18px 18px;
+            color: var(--text);
+            padding: 20px 16px 100px 16px;
+            max-width: 480px;
+            margin: 0 auto;
+            transition: background-color 0.35s ease, color 0.35s ease;
+            position: relative;
+        }
+
+        html[dir="ltr"] body { direction: ltr; }
+        html[dir="rtl"] body { direction: rtl; }
+
+        .en-font {
+            font-family: 'JetBrains Mono', 'Segoe UI', Tahoma, Geneva, Verdana, monospace !important;
+            letter-spacing: 0.2px;
+        }
+
+        .app-screen { display: none; }
+        .app-screen.active-screen { display: block; }
+
+        /* ===== نوار برند Nexora ===== */
+        .nexora-brand-strip {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin-bottom: 18px;
+            padding: 0 2px;
+        }
+        .nexora-brand-logo {
+            width: 26px;
+            height: 26px;
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-family: 'Chakra Petch', sans-serif;
+            font-weight: 700;
+            font-size: 14px;
+            background: linear-gradient(135deg, var(--accent), var(--accent-2));
+            color: #06090F;
+            flex-shrink: 0;
+        }
+        .nexora-brand-name {
+            font-family: 'Chakra Petch', sans-serif;
+            font-weight: 600;
+            font-size: 14px;
+            letter-spacing: 1px;
+            color: var(--text-primary);
+        }
+
+        /* ===== هدر ===== */
+        .header {
+            margin-bottom: 24px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .profile-container { display: flex; align-items: center; flex: 1; min-width: 0; }
+        html[dir="rtl"] .profile-img-wrapper { margin-left: 12px; }
+        html[dir="ltr"] .profile-img-wrapper { margin-right: 12px; }
+
+        .profile-img-wrapper {
+            position: relative;
+            cursor: default;
+            width: 54px;
+            height: 54px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            flex-shrink: 0;
+        }
+
+        .profile-img {
+            width: 46px;
+            height: 46px;
+            border-radius: 50%;
+            background: var(--surface-alt);
+            border: 2.5px solid var(--border);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: border-color 0.35s ease;
+        }
+        .profile-img.online {
+            border-color: var(--accent);
+        }
+
+        .default-avatar-svg {
+            width: 24px;
+            height: 24px;
+            fill: var(--text-muted);
+            display: block;
+            border-radius: 50%;
+        }
+
+        .online-status-text {
+            font-size: 9px;
+            font-weight: 700;
+            color: var(--accent);
+            margin-top: 2px;
+            transition: color 0.3s;
+            letter-spacing: 0.3px;
+        }
+        .online-status-text.offline {
+            color: var(--text-muted);
+        }
+
+        .online-dot {
+            position: absolute;
+            bottom: 2px;
+            width: 11px;
+            height: 11px;
+            background-color: #555;
+            border-radius: 50%;
+            border: 2px solid var(--bg);
+            z-index: 3;
+            transition: background-color 0.3s ease;
+        }
+        .online-dot.online {
+            background-color: var(--accent);
+        }
+        html[dir="rtl"] .online-dot { left: 2px; }
+        html[dir="ltr"] .online-dot { right: 2px; }
+
+        .user-info {
+            display: flex;
+            align-items: center;
+            margin-top: 4px;
+            min-width: 0;
+        }
+        .user-name {
+            font-size: 16px;
+            font-weight: 700;
+            color: var(--text);
+            display: flex;
+            align-items: center;
+            gap: 5px;
+            flex-wrap: wrap;
+            min-width: 0;
+        }
+        html[dir="rtl"] .user-name { flex-direction: row-reverse; }
+        html[dir="ltr"] .user-name { flex-direction: row; }
+
+        .greeting-text {
+            color: var(--text);
+            transition: color 0.3s;
+            white-space: nowrap;
+        }
+        .username-text {
+            transition: color 0.3s;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+            max-width: 140px;
+        }
+        .username-text.online {
+            color: var(--accent);
+        }
+
+        .wave-icon-wrapper {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            width: 20px;
+            height: 20px;
+            transform-origin: bottom center;
+            animation: premiumSoftWave 3.5s ease-in-out infinite;
+            flex-shrink: 0;
+        }
+        .wave-icon-wrapper svg { width: 100%; height: 100%; }
+
+        @keyframes premiumSoftWave {
+            0% { transform: rotate(0deg) scale(1); }
+            15% { transform: rotate(10deg) scale(1.01); }
+            30% { transform: rotate(-6deg) scale(1.02); }
+            45% { transform: rotate(8deg) scale(1.01); }
+            60% { transform: rotate(-4deg) scale(1); }
+            75% { transform: rotate(4deg) scale(1); }
+            100% { transform: rotate(0deg) scale(1); }
+        }
+
+        .header-icons {
+            display: flex;
+            gap: 10px;
+            align-items: center;
+            flex-shrink: 0;
+        }
+        .lang-container { position: relative; }
+
+        .header-icon {
+            height: 42px;
+            padding: 0 14px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 14px;
+            cursor: pointer;
+            transition: border-color 0.25s;
+            gap: 6px;
+        }
+        .header-icon:hover { border-color: rgba(var(--accent-rgb), 0.4); }
+        .header-icon i { font-size: 16px; color: var(--text-muted); }
+
+        .lang-btn {
+            font-size: 13px;
+            font-weight: 700;
+            color: var(--text);
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .lang-dropdown-menu {
+            position: absolute;
+            top: 50px;
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            min-width: 110px;
+            box-shadow: 0 10px 25px var(--shadow);
+            z-index: 1000;
+            display: none;
+            text-align: right;
+        }
+        html[dir="rtl"] .lang-dropdown-menu { left: 0; }
+        html[dir="ltr"] .lang-dropdown-menu { right: 0; }
+        .lang-dropdown-menu.show { display: block; }
+
+        .lang-dropdown-item {
+            padding: 10px 14px;
+            font-size: 13px;
+            color: var(--text-muted);
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+        .lang-dropdown-item:hover { background: rgba(var(--accent-rgb), 0.12); color: var(--text); }
+
+        /* ===== کارت اشتراک ===== */
+        .subscription-card {
+            border: 1px solid rgba(var(--accent-rgb), 0.15);
+            border-radius: 18px;
+            padding: 20px;
+            margin-bottom: 16px;
+            position: relative;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            background: linear-gradient(150deg, var(--hero-1) 0%, var(--hero-2) 100%);
+            box-shadow: inset 0 0 24px rgba(var(--accent-rgb), 0.06), var(--box-shadow-light);
+            overflow: hidden;
+            transition: background 0.4s ease, box-shadow 0.4s ease, border-color 0.4s ease;
+        }
+        .subscription-card::before {
+            content: '';
+            position: absolute;
+            inset: 0;
+            background-image: linear-gradient(rgba(255,255,255,0.025) 1px, transparent 1px),
+                               linear-gradient(90deg, rgba(255,255,255,0.025) 1px, transparent 1px);
+            background-size: 16px 16px;
+            pointer-events: none;
+        }
+        .subscription-card.disconnected {
+            background: linear-gradient(150deg, var(--hero-alert-1) 0%, var(--hero-alert-2) 100%);
+            box-shadow: inset 0 0 24px rgba(var(--alert-rgb), 0.1), var(--box-shadow-light);
+            border-color: rgba(var(--alert-rgb), 0.18);
+        }
+
+        .status-right { display: flex; flex-direction: column; position: relative; z-index: 1; }
+        .active-badge {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin-bottom: 12px;
+            color: #fff;
+            font-size: 12px;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.6px;
+        }
+        .status-dot-green {
+            width: 16px;
+            height: 16px;
+            background-color: var(--accent);
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            animation: statusPulseGreen 2s infinite;
+        }
+        .status-dot-green i { font-size: 9px; color: #06110F; }
+        .subscription-card.disconnected .status-dot-green {
+            background-color: var(--alert);
+            animation: statusPulseRed 1.5s infinite;
+        }
+        .subscription-card.disconnected .status-dot-green i { color: #2A0B09; }
+
+        @keyframes statusPulseGreen {
+            0% { box-shadow: 0 0 0 0 rgba(var(--accent-rgb), 0.5); }
+            70% { box-shadow: 0 0 0 8px rgba(var(--accent-rgb), 0); }
+            100% { box-shadow: 0 0 0 0 rgba(var(--accent-rgb), 0); }
+        }
+        @keyframes statusPulseRed {
+            0% { box-shadow: 0 0 0 0 rgba(var(--alert-rgb), 0.6); }
+            70% { box-shadow: 0 0 10px rgba(var(--alert-rgb), 0); }
+            100% { box-shadow: 0 0 0 0 rgba(var(--alert-rgb), 0); }
+        }
+
+        .days-left {
+            font-size: 36px;
+            font-weight: 700;
+            color: #ffffff;
+            margin-bottom: 4px;
+            font-family: 'JetBrains Mono', monospace;
+        }
+        .days-left span {
+            color: var(--accent);
+            font-size: 18px;
+            font-weight: 600;
+            font-family: 'Vazirmatn', sans-serif;
+            margin-left: 6px;
+        }
+        .subscription-card.disconnected .days-left span { color: var(--alert); }
+        .expire-date { font-size: 12px; color: rgba(255,255,255,0.65) !important; font-weight: 600; }
+
+        .progress-circle {
+            position: relative;
+            width: 108px;
+            height: 108px;
+            border-radius: 50%;
+            background: conic-gradient(var(--accent) 0% 100%, rgba(255, 255, 255, 0.06) 100% 100%);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 1;
+            isolation: isolate;
+            transition: background 0.5s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+        .progress-circle::after {
+            content: '';
+            position: absolute;
+            width: 88px;
+            height: 88px;
+            background-color: var(--hero-2);
+            border-radius: 50%;
+            transition: background-color 0.3s;
+        }
+        .radar-sweep {
+            position: absolute;
+            inset: 0;
+            border-radius: 50%;
+            animation: radarSpin 3.2s linear infinite;
+            pointer-events: none;
+        }
+        .radar-sweep::before {
+            content: '';
+            position: absolute;
+            top: 1px;
+            left: 50%;
+            width: 5px;
+            height: 5px;
+            margin-left: -2.5px;
+            border-radius: 50%;
+            background: #fff;
+            box-shadow: 0 0 8px 2px rgba(var(--accent-rgb), 0.9);
+        }
+        @keyframes radarSpin { to { transform: rotate(360deg); } }
+        .subscription-card.disconnected .radar-sweep { animation-play-state: paused; opacity: 0.3; }
+        .subscription-card.disconnected .radar-sweep::before { box-shadow: 0 0 8px 2px rgba(var(--alert-rgb), 0.9); }
+
+        .progress-text { position: relative; z-index: 2; text-align: center; }
+        .progress-text .percent { font-size: 22px; font-weight: 700; color: #fff; font-family: 'JetBrains Mono', monospace; }
+        .progress-text .label { font-size: 10px; color: var(--text-muted); display: block; margin-top: 2px; }
+
+        /* ===== کارت آمار ===== */
+        .stats-card {
+            background-color: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 18px;
+            padding: 16px 14px;
+            margin-bottom: 16px;
+            display: flex;
+            justify-content: space-between;
+            box-shadow: var(--box-shadow-light);
+        }
+        .stat-item { flex: 1; display: flex; flex-direction: column; align-items: center; }
+        .stat-header-row {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            margin-bottom: 12px;
+            flex-direction: row-reverse;
+        }
+        html[dir="ltr"] .stat-header-row { flex-direction: row; }
+        .stat-icon-wrapper {
+            width: 26px;
+            height: 26px;
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: var(--surface-alt);
+            border: 1px solid var(--border);
+        }
+        .stat-title { font-size: 11px; color: var(--text-muted); }
+        .stat-value { font-size: 14px; font-weight: 700; color: var(--text); font-family: 'JetBrains Mono', monospace; }
+        .stat-value.purple-value { color: var(--accent); }
+        .stat-divider { height: 40px; width: 1px; background: var(--border); align-self: center; }
+
+        /* ===== کارت تبلیغاتی ===== */
+        .promo-card {
+            background: linear-gradient(135deg, rgba(var(--accent-rgb), 0.15), rgba(var(--accent-rgb), 0.05));
+            border: 1px solid rgba(var(--accent-rgb), 0.25);
+            border-radius: 18px;
+            padding: 16px;
+            margin-bottom: 16px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 14px;
+            box-shadow: var(--box-shadow-light);
+            text-align: center;
+        }
+        .promo-card .promo-text {
+            font-size: 16px;
+            font-weight: 500;
+            color: var(--text);
+            line-height: 1.8;
+        }
+        .promo-card .promo-text span {
+            color: var(--accent);
+            font-weight: 700;
+        }
+        .promo-buttons {
+            display: flex;
+            gap: 12px;
+            flex-wrap: wrap;
+            justify-content: center;
+        }
+        .promo-btn {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 8px 18px;
+            border-radius: 12px;
+            font-size: 13px;
+            font-weight: 700;
+            text-decoration: none;
+            transition: all 0.25s ease;
+            background: var(--surface);
+            border: 1px solid var(--border);
+            color: var(--text);
+            box-shadow: var(--box-shadow-light);
+        }
+        .promo-btn:hover {
+            transform: scale(1.03);
+            border-color: rgba(var(--accent-rgb), 0.4);
+        }
+        .promo-btn i { font-size: 18px; }
+        .promo-btn.telegram i { color: #0088cc; }
+
+        /* ===== نوتیفیکیشن ===== */
+        .notification-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 9999;
+            pointer-events: none;
+            opacity: 0;
+            transition: opacity 0.5s ease;
+        }
+        .notification-overlay.show {
+            opacity: 1;
+            pointer-events: auto;
+        }
+
+        .notification-box {
+            background: var(--notification-bg);
+            backdrop-filter: blur(16px);
+            -webkit-backdrop-filter: blur(16px);
+            border: 1.5px solid rgba(var(--accent-rgb), 0.5);
+            border-radius: 24px;
+            padding: 28px 24px 24px;
+            max-width: 360px;
+            width: 90%;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5), 0 0 40px rgba(var(--accent-rgb), 0.1);
+            text-align: center;
+            transform: scale(0.85) translateY(20px);
+            transition: transform 0.5s cubic-bezier(0.34, 1.56, 0.64, 1), opacity 0.5s ease;
+            opacity: 0;
+        }
+        .notification-overlay.show .notification-box {
+            transform: scale(1) translateY(0);
+            opacity: 1;
+        }
+
+        .notification-box .icon {
+            font-size: 32px;
+            color: var(--accent);
+            margin-bottom: 12px;
+            display: block;
+        }
+        .notification-box .title {
+            font-size: 17px;
+            font-weight: 700;
+            color: var(--text);
+            margin-bottom: 6px;
+        }
+        .notification-box .desc {
+            font-size: 14px;
+            color: var(--text-muted);
+            line-height: 1.6;
+            margin-bottom: 18px;
+        }
+        .notification-box .timer-bar {
+            width: 100%;
+            height: 3px;
+            background: rgba(var(--accent-rgb), 0.2);
+            border-radius: 4px;
+            margin-bottom: 18px;
+            overflow: hidden;
+        }
+        .notification-box .timer-bar .fill {
+            height: 100%;
+            width: 100%;
+            background: var(--accent);
+            border-radius: 4px;
+            transition: width 0.1s linear;
+        }
+
+        .notification-actions {
+            display: flex;
+            gap: 12px;
+            justify-content: center;
+        }
+        .notification-btn {
+            padding: 10px 24px;
+            border-radius: 14px;
+            font-size: 14px;
+            font-weight: 700;
+            border: none;
+            cursor: pointer;
+            transition: all 0.25s ease;
+            min-width: 100px;
+        }
+        .notification-btn:hover {
+            transform: scale(1.04);
+        }
+        .notification-btn:active {
+            transform: scale(0.96);
+        }
+        .notification-btn.danger {
+            background: rgba(var(--alert-rgb), 0.15);
+            color: var(--alert);
+            border: 1px solid rgba(var(--alert-rgb), 0.3);
+        }
+        .notification-btn.danger:hover {
+            background: rgba(var(--alert-rgb), 0.25);
+        }
+        .notification-btn.primary {
+            background: rgba(var(--accent-rgb), 0.2);
+            color: var(--accent);
+            border: 1px solid rgba(var(--accent-rgb), 0.4);
+        }
+        .notification-btn.primary:hover {
+            background: rgba(var(--accent-rgb), 0.35);
+        }
+
+        /* ===== گرید جزئیات ===== */
+        .details-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 10px;
+            margin-bottom: 16px;
+        }
+        .detail-card {
+            background-color: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 14px;
+            padding: 14px;
+            display: flex;
+            flex-direction: column;
+            align-items: flex-start;
+            justify-content: center;
+            min-height: 72px;
+            box-shadow: var(--box-shadow-light);
+        }
+        .detail-card .label {
+            font-size: 10px;
+            color: var(--text-muted);
+            text-transform: uppercase;
+            letter-spacing: 0.4px;
+            font-weight: 600;
+            margin-bottom: 4px;
+        }
+        .detail-card .value {
+            font-size: 16px;
+            font-weight: 700;
+            color: var(--text);
+            font-family: 'JetBrains Mono', monospace;
+        }
+        .detail-card .value.accent-value { color: var(--accent); }
+        .detail-card .value.alert-value { color: var(--alert); }
+
+        /* ===== بنرهای هشدار (قطعی / پایان حجم) ===== */
+        .alert-banner {
+            display: flex;
+            align-items: flex-start;
+            gap: 12px;
+            border-radius: 16px;
+            padding: 14px 16px;
+            margin-bottom: 14px;
+        }
+        .alert-banner-icon {
+            width: 34px;
+            height: 34px;
+            border-radius: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 15px;
+            flex-shrink: 0;
+        }
+        .danger-banner { background: rgba(248, 113, 113, 0.1); border: 1px solid rgba(248, 113, 113, 0.35); }
+        .danger-banner .alert-banner-icon { background: rgba(248, 113, 113, 0.2); color: #F87171; }
+        .warning-banner { background: rgba(251, 191, 36, 0.1); border: 1px solid rgba(251, 191, 36, 0.35); }
+        .warning-banner .alert-banner-icon { background: rgba(251, 191, 36, 0.2); color: #FBBF24; }
+        .alert-banner-text { flex: 1; }
+        .alert-banner-title { font-size: 13px; font-weight: 700; color: var(--text); margin-bottom: 3px; }
+        .alert-banner-desc { font-size: 11.5px; color: var(--text-muted); line-height: 1.7; margin-bottom: 10px; }
+        .alert-banner-btn {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            background: #F87171;
+            color: #1a0505;
+            padding: 7px 14px;
+            border-radius: 10px;
+            font-size: 11.5px;
+            font-weight: 700;
+            text-decoration: none;
+        }
+        .alert-banner-btn.warning-btn { background: #FBBF24; color: #2a1c02; }
+
+        /* ===== بخش کد رفرال ===== */
+        .referral-card {
+            background: linear-gradient(135deg, rgba(43,127,214,0.12), rgba(90,169,230,0.06));
+            border: 1px solid rgba(var(--accent-rgb), 0.3);
+            border-radius: 18px;
+            padding: 16px;
+            margin-bottom: 16px;
+        }
+        .referral-title { font-size: 13px; font-weight: 700; color: var(--text); display: flex; align-items: center; gap: 6px; margin-bottom: 4px; }
+        .referral-title i { color: var(--accent); }
+        .referral-desc { font-size: 11px; color: var(--text-muted); margin-bottom: 12px; line-height: 1.7; }
+        .referral-link-row {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            background: var(--surface-alt);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 8px 10px;
+        }
+        .referral-link-text {
+            flex: 1;
+            font-size: 11px;
+            color: var(--text);
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+            direction: ltr;
+            text-align: left;
+        }
+        .referral-copy-btn {
+            background: rgba(var(--accent-rgb), 0.15);
+            color: var(--accent);
+            border: none;
+            padding: 6px 12px;
+            border-radius: 8px;
+            font-size: 11px;
+            font-weight: 700;
+            cursor: pointer;
+            flex-shrink: 0;
+        }
+
+        /* ===== بخش سوالات متداول ===== */
+        .faq-section { margin-top: 6px; margin-bottom: 20px; }
+        .faq-item {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 14px;
+            margin-bottom: 10px;
+            overflow: hidden;
+        }
+        .faq-question {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 13px 16px;
+            cursor: pointer;
+            font-size: 12.5px;
+            font-weight: 600;
+            color: var(--text);
+        }
+        .faq-question i { color: var(--accent); transition: transform 0.25s ease; font-size: 12px; }
+        .faq-item.open .faq-question i { transform: rotate(180deg); }
+        .faq-answer {
+            max-height: 0;
+            overflow: hidden;
+            transition: max-height 0.25s ease;
+            font-size: 11.5px;
+            color: var(--text-muted);
+            line-height: 1.8;
+        }
+        .faq-answer-inner { padding: 0 16px 14px; }
+        .faq-item.open .faq-answer { max-height: 200px; }
+
+        .section-title {
+            font-size: 13px;
+            font-weight: 700;
+            color: var(--text-muted);
+            margin-bottom: 12px;
+            text-align: right;
+            text-transform: uppercase;
+            letter-spacing: 0.4px;
+        }
+        html[dir="ltr"] .section-title { text-align: left; }
+
+        /* ===== دکمه‌های عملیاتی ===== */
+        .actions-grid {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 12px;
+        }
+        .action-cell { flex: 1; }
+        .action-card {
+            background-color: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 16px;
+            padding: 18px 4px;
+            text-align: center;
+            cursor: pointer;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 10px;
+            height: 100%;
+            transition: transform 0.2s, border-color 0.2s, box-shadow 0.2s;
+            box-shadow: var(--box-shadow-light);
+        }
+        .action-card:active { transform: scale(0.96); }
+        .action-card:hover { border-color: rgba(var(--accent-rgb), 0.3); }
+        .action-card i { font-size: 20px; }
+        .action-card.renew i { color: var(--warn); }
+        .action-card.link i { color: var(--accent); }
+        .action-card.qr i { color: var(--accent-2); }
+        .action-card.config i { color: var(--accent); }
+        .action-label { font-size: 11px; color: var(--text); font-weight: 600; line-height: 1.3; }
+
+        .action-dropdown-container {
+            width: 100%;
+            margin-bottom: 24px;
+            display: none;
+        }
+        .action-dropdown-container.show { display: block; }
+        .action-dropdown-menu {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 16px;
+            padding: 10px;
+            box-shadow: 0 10px 25px var(--shadow);
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            min-height: 60px;
+            align-items: center;
+            justify-content: center;
+            color: var(--text-muted);
+            font-size: 13px;
+        }
+
+        .ip-row-item {
+            background: var(--surface-alt);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 10px 12px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            width: 100%;
+        }
+        .ip-details-left { display: flex; align-items: center; gap: 12px; text-align: right; }
+        html[dir="ltr"] .ip-details-left { text-align: left; flex-direction: row; }
+        html[dir="rtl"] .ip-details-left { flex-direction: row-reverse; }
+
+        .action-mini-flag {
+            width: 30px;
+            height: 30px;
+            border-radius: 50%;
+            background-size: cover;
+            background-position: center;
+            border: 1px solid var(--border);
+            flex-shrink: 0;
+        }
+        .ip-meta-block { display: flex; flex-direction: column; gap: 4px; }
+        .ip-address-text { font-size: 13px; font-weight: bold; color: var(--text); }
+
+        .ip-protocol-badge-box {
+            display: inline-flex;
+            gap: 3px;
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            padding: 2px 6px;
+            font-size: 10px;
+            text-transform: uppercase;
+            font-weight: 500;
+            line-height: 1.4;
+        }
+        .proto-part-1 { color: var(--warn); }
+        .proto-part-2 { color: var(--accent-2); }
+        .proto-part-3 { color: var(--accent); }
+
+        .ip-copy-btn {
+            background: rgba(var(--accent-rgb), 0.12);
+            border: 1px solid rgba(var(--accent-rgb), 0.25);
+            color: var(--accent);
+            padding: 6px 12px;
+            border-radius: 10px;
+            font-size: 11px;
+            font-weight: bold;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            transition: all 0.2s;
+        }
+        .ip-copy-btn:hover { background: var(--accent); color: #06110F; }
+
+        .copy-all-btn {
+            background: rgba(var(--accent-rgb), 0.15);
+            border: 1px solid rgba(var(--accent-rgb), 0.3);
+            color: var(--text);
+            padding: 8px 14px;
+            border-radius: 12px;
+            font-size: 13px;
+            font-weight: 700;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            width: 100%;
+            transition: all 0.25s;
+            margin-bottom: 8px;
+        }
+        .copy-all-btn:hover { background: var(--accent); color: #06110F; }
+
+        .qr-modern-wrapper {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 3px;
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            flex-shrink: 0;
+            margin: 0 4px;
+            transition: all 0.2s;
+            cursor: pointer;
+            position: relative;
+        }
+        .qr-modern-wrapper:hover { border-color: var(--accent); transform: scale(1.05); }
+        .qr-modern-wrapper::after {
+            content: "\f00e";
+            font-family: "Font Awesome 6 Free";
+            font-weight: 900;
+            position: absolute;
+            bottom: -4px;
+            left: -4px;
+            width: 16px;
+            height: 16px;
+            background: var(--accent);
+            color: #06090F;
+            border-radius: 50%;
+            font-size: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border: 1.5px solid var(--surface);
+        }
+        .qr-modern-wrapper img {
+            width: 38px;
+            height: 38px;
+            display: block;
+            border-radius: 4px;
+        }
+
+        /* ===== مودال بزرگ QR ===== */
+        .qr-modal-overlay {
+            position: fixed;
+            inset: 0;
+            background: rgba(3, 6, 12, 0.82);
+            backdrop-filter: blur(6px);
+            display: none;
+            align-items: center;
+            justify-content: center;
+            z-index: 999;
+            padding: 20px;
+        }
+        .qr-modal-overlay.active { display: flex; }
+        .qr-modal-box {
+            background: var(--surface);
+            border: 1px solid rgba(var(--accent-rgb), 0.3);
+            border-radius: 20px;
+            padding: 24px;
+            max-width: 320px;
+            width: 100%;
+            text-align: center;
+            box-shadow: 0 0 60px rgba(var(--accent-rgb), 0.15);
+            position: relative;
+        }
+        .qr-modal-close {
+            position: absolute;
+            top: 12px;
+            left: 12px;
+            width: 30px;
+            height: 30px;
+            border-radius: 50%;
+            border: none;
+            background: var(--surface-alt);
+            color: var(--text-muted);
+            font-size: 14px;
+            cursor: pointer;
+        }
+        .qr-modal-title { font-size: 14px; font-weight: 700; color: var(--text); margin-bottom: 16px; }
+        .qr-modal-img-wrap {
+            background: #ffffff;
+            border-radius: 14px;
+            padding: 16px;
+            display: inline-block;
+            margin-bottom: 16px;
+        }
+        .qr-modal-img-wrap img { width: 240px; height: 240px; display: block; }
+        .qr-modal-copy-btn {
+            width: 100%;
+            background: linear-gradient(135deg, var(--accent), var(--accent-2));
+            color: #06090F;
+            border: none;
+            padding: 12px;
+            border-radius: 12px;
+            font-size: 13px;
+            font-weight: 700;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+        }
+
+        /* ===== دانلود برنامه‌ها ===== */
+        .download-os-tabs {
+            display: grid;
+            grid-template-columns: repeat(3, minmax(0, 1fr));
+            gap: 8px;
+            background: var(--surface);
+            padding: 6px;
+            border-radius: 16px;
+            margin-bottom: 24px;
+            text-align: center;
+            border: 1px solid var(--border);
+            box-shadow: var(--box-shadow-light);
+        }
+        .os-tab-btn {
+            background: transparent;
+            border: none;
+            color: var(--text-muted);
+            padding: 10px 4px;
+            font-size: 12px;
+            font-weight: bold;
+            border-radius: 12px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 6px;
+            transition: all 0.25s ease;
+        }
+        .os-tab-btn.active-tab {
+            background-color: var(--accent);
+            color: #06110F;
+            box-shadow: 0 4px 12px rgba(var(--accent-rgb), 0.3);
+        }
+
+        .client-card-item {
+            background-color: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 14px;
+            padding: 14px;
+            margin-bottom: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            box-shadow: var(--box-shadow-light);
+            position: relative;
+            overflow: hidden;
+        }
+        .client-card-item.recommended-client {
+            border: 1px solid rgba(var(--accent-rgb), 0.5);
+            box-shadow: 0 0 24px rgba(var(--accent-rgb), 0.15);
+        }
+        .recommended-ribbon {
+            position: absolute;
+            top: 10px;
+            inset-inline-end: -28px;
+            background: linear-gradient(135deg, var(--accent), var(--accent-2));
+            color: #06090F;
+            font-size: 10px;
+            font-weight: 700;
+            padding: 3px 30px;
+            transform: rotate(35deg);
+        }
+        html[dir="ltr"] .recommended-ribbon { transform: rotate(-35deg); }
+        .happ-icon-box {
+            background: linear-gradient(135deg, rgba(var(--accent-rgb), 0.25), rgba(var(--accent-2-rgb), 0.25));
+            color: var(--accent);
+        }
+        .happ-recommend-banner {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            background: rgba(var(--accent-rgb), 0.1);
+            border: 1px solid rgba(var(--accent-rgb), 0.3);
+            border-radius: 12px;
+            padding: 10px 14px;
+            margin-bottom: 14px;
+            font-size: 12px;
+            color: var(--text);
+            line-height: 1.6;
+        }
+        .happ-recommend-banner i { color: var(--accent); font-size: 14px; flex-shrink: 0; }
+        /* ===== کارت‌های ویدیوی آموزشی ===== */
+        .video-card {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            background-color: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 14px;
+            padding: 14px;
+            margin-bottom: 10px;
+            text-decoration: none;
+            transition: all 0.2s ease;
+        }
+        .video-card:hover {
+            border-color: rgba(var(--accent-rgb), 0.45);
+            transform: translateY(-1px);
+        }
+        .video-card-icon {
+            width: 42px;
+            height: 42px;
+            border-radius: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            flex-shrink: 0;
+            background: linear-gradient(135deg, rgba(var(--accent-rgb), 0.22), rgba(var(--accent-2-rgb), 0.22));
+            color: var(--accent);
+            font-size: 16px;
+        }
+        .video-card-body { flex: 1; min-width: 0; }
+        .video-card-title {
+            font-size: 12.8px;
+            font-weight: 600;
+            color: var(--text);
+            margin-bottom: 3px;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+        .video-card-meta {
+            font-size: 10.5px;
+            color: var(--text-muted);
+            display: flex;
+            align-items: center;
+            gap: 5px;
+        }
+        .video-card-arrow { color: var(--text-muted); font-size: 12px; flex-shrink: 0; }
+
+
+        /* ═══════════════════════════════════════════
+           Template ها — فقط ظاهر عوض می‌شود، نه ترتیب.
+           هر Template حس کاملاً متفاوتی می‌سازد.
+           ═══════════════════════════════════════════ */
+
+        /* ───── CLASSIC ───── پیش‌فرض، بدون تغییر */
+
+        /* ───── ANALYTICS ─────
+           داده‌محور: کارت‌های KPI مانند، آمار برجسته */
+        body.tpl-analytics .stats-card {
+            background: linear-gradient(160deg,
+                rgba(var(--accent-rgb), 0.10), var(--surface) 70%) !important;
+            border: 1px solid rgba(var(--accent-rgb), 0.24) !important;
+            padding: 15px 12px;
+        }
+        body.tpl-analytics .stat-item {
+            background: rgba(var(--accent-rgb), 0.06);
+            border: 1px solid rgba(var(--accent-rgb), 0.10);
+            border-radius: 14px;
+            padding: 14px 10px;
+            margin: 3px;
+        }
+        body.tpl-analytics .stat-divider { display: none; }
+        body.tpl-analytics .stat-icon-wrapper {
+            background: rgba(var(--accent-rgb), 0.14) !important;
+            border-radius: 10px;
+        }
+        body.tpl-analytics .stat-title {
+            font-size: 10px;
+            letter-spacing: .3px;
+            opacity: .85;
+        }
+        body.tpl-analytics .subscription-card {
+            border: 1px solid rgba(var(--accent-rgb), 0.18) !important;
+        }
+        body.tpl-analytics .section-title {
+            font-size: 12.5px;
+            padding-right: 10px;
+            border-right: 3px solid var(--accent);
+        }
+        body.tpl-analytics .detail-card {
+            border-radius: 14px;
+            border: 1px solid rgba(var(--accent-rgb), 0.14) !important;
+        }
+        body.tpl-analytics .action-cell {
+            border-radius: 12px;
+            border: 1px solid rgba(var(--accent-rgb), 0.14) !important;
+        }
+
+        /* ───── WALLET ─────
+           کارت بانکی: کارت اصلی گرادینتی، اقدامات دایره‌ای */
+        body.tpl-wallet .subscription-card {
+            background: linear-gradient(135deg,
+                var(--accent), var(--accent-2) 58%,
+                rgba(var(--accent-rgb), 0.88)) !important;
+            border: none !important;
+            box-shadow: 0 12px 32px rgba(var(--accent-rgb), 0.30) !important;
+            padding: 20px 18px;
+            position: relative;
+            overflow: hidden;
+        }
+        body.tpl-wallet .subscription-card::before {
+            content: '';
+            position: absolute;
+            top: -38px; left: -38px;
+            width: 118px; height: 118px;
+            border-radius: 50%;
+            background: rgba(255,255,255,0.12);
+            pointer-events: none;
+        }
+        body.tpl-wallet .subscription-card * {
+            position: relative;
+            z-index: 1;
+        }
+        body.tpl-wallet .subscription-card .progress-text .value,
+        body.tpl-wallet .subscription-card .username-text,
+        body.tpl-wallet .subscription-card .expire-date {
+            color: var(--bg) !important;
+        }
+        body.tpl-wallet .subscription-card .progress-text .label {
+            color: rgba(0,0,0,0.52) !important;
+        }
+        body.tpl-wallet .action-cell {
+            border-radius: 16px !important;
+            padding: 14px 6px !important;
+        }
+        body.tpl-wallet .actions-grid { gap: 10px; }
+        body.tpl-wallet .detail-card,
+        body.tpl-wallet .stats-card {
+            border-radius: 16px;
+        }
+        body.tpl-wallet .client-card-item,
+        body.tpl-wallet .video-card,
+        body.tpl-wallet .faq-item {
+            border-radius: 16px;
+        }
+
+        /* ───── CONSOLE ─────
+           فنی: مونواسپیس، گوشه تیز، حس ترمینال */
+        body.tpl-console .subscription-card,
+        body.tpl-console .stats-card,
+        body.tpl-console .detail-card,
+        body.tpl-console .client-card-item,
+        body.tpl-console .video-card,
+        body.tpl-console .referral-card,
+        body.tpl-console .faq-item,
+        body.tpl-console .action-cell {
+            border-radius: 8px !important;
+            border: 1px solid rgba(var(--accent-rgb), 0.22) !important;
+        }
+        body.tpl-console .subscription-card {
+            position: relative;
+            padding-top: 28px;
+        }
+        body.tpl-console .subscription-card::before {
+            content: '● ● ●';
+            position: absolute;
+            top: 10px; right: 14px;
+            font-size: 9px;
+            letter-spacing: 3px;
+            color: rgba(var(--accent-rgb), 0.5);
+        }
+        body.tpl-console .stat-title,
+        body.tpl-console .detail-label {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 9.5px;
+            letter-spacing: 1px;
+            text-transform: uppercase;
+        }
+        body.tpl-console .section-title {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 11px;
+            letter-spacing: 2px;
+            text-transform: uppercase;
+            color: var(--accent) !important;
+        }
+        body.tpl-console .section-title::before {
+            content: '// ';
+            opacity: .5;
+        }
+        body.tpl-console .action-label {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 9.5px;
+            letter-spacing: .8px;
+        }
+        body.tpl-console .nexora-brand-name {
+            font-family: 'JetBrains Mono', monospace;
+            letter-spacing: 2px;
+        }
+        body.tpl-console .nexora-brand-logo { border-radius: 6px; }
+
+        /* ═══════════════════════════════════════════════════════
+           عمق و حرکت
+
+           یک منبع نور از بالا فرض شده: هر سطح لبه‌ی بالایش روشن و
+           زیرش سایه دارد. حلقه‌ی مصرف داخل چاله‌ای فرورفته نشسته —
+           عنصر امضای صفحه، و تنها جایی که جسارت خرج شده.
+
+           همه با box-shadow و گرادینت؛ بدون تصویر، بدون کتابخانه.
+           رنگ‌ها از متغیرهای پالت می‌آیند تا با هر ۸ طیف کار کند.
+           ═══════════════════════════════════════════════════════ */
+
+        .subscription-card,
+        .stats-card,
+        .detail-card,
+        .client-card-item,
+        .video-card,
+        .referral-card,
+        .faq-item {
+            box-shadow:
+                0 1px 0 rgba(255, 255, 255, 0.08) inset,
+                0 14px 32px -14px rgba(0, 0, 0, 0.65),
+                0 3px 10px -4px rgba(0, 0, 0, 0.45);
+        }
+
+        /* ویژگی دو کلاسه لازم است: .subscription-card.disconnected سایه‌ی
+           هشدار می‌دهد و اگر اینجا فقط یک کلاس بنویسیم، آن غالب می‌شود
+           و عمق در حالت قطع‌شده از بین می‌رود. */
+        .subscription-card,
+        .subscription-card.disconnected {
+            box-shadow:
+                0 1px 0 rgba(255, 255, 255, 0.10) inset,
+                0 0 0 1px rgba(var(--accent-rgb), 0.12),
+                0 18px 40px -14px rgba(0, 0, 0, 0.7),
+                0 4px 12px -4px rgba(0, 0, 0, 0.5),
+                inset 0 0 26px rgba(var(--accent-rgb), 0.05);
+        }
+        .subscription-card.disconnected {
+            box-shadow:
+                0 1px 0 rgba(255, 255, 255, 0.10) inset,
+                0 0 0 1px rgba(var(--alert-rgb), 0.18),
+                0 18px 40px -14px rgba(0, 0, 0, 0.7),
+                0 4px 12px -4px rgba(0, 0, 0, 0.5),
+                inset 0 0 26px rgba(var(--alert-rgb), 0.08);
+        }
+
+        /* ── عنصر امضا: حلقه به‌عنوان درجه‌سنج فیزیکی ──
+           یک چاله‌ی فرورفته پشت حلقه، براقی شیشه‌ای روی سطح، و
+           نوری که از پشتش می‌تابد. از دنیای موضوع می‌آید:
+           گیج‌های اندازه‌گیری تجهیزات شبکه. */
+        .progress-circle {
+            box-shadow:
+                0 4px 14px rgba(0, 0, 0, 0.5),
+                0 0 22px -6px rgba(var(--accent-rgb), 0.45);
+        }
+
+        /* چاله‌ی پشت حلقه */
+        .progress-circle::before {
+            content: '';
+            position: absolute;
+            inset: -7px;
+            border-radius: 50%;
+            background: linear-gradient(180deg,
+                        rgba(0, 0, 0, 0.32), rgba(0, 0, 0, 0.10));
+            box-shadow:
+                0 3px 12px rgba(0, 0, 0, 0.55) inset,
+                0 -1px 0 rgba(255, 255, 255, 0.04) inset,
+                0 1px 0 rgba(255, 255, 255, 0.06);
+            z-index: -1;
+            pointer-events: none;
+        }
+
+        /* براقی شیشه‌ای روی سطح */
+        .progress-circle::after {
+            content: '';
+            position: absolute;
+            inset: 9px;
+            border-radius: 50%;
+            background: linear-gradient(178deg,
+                        rgba(255, 255, 255, 0.16) 0%,
+                        rgba(255, 255, 255, 0.03) 32%,
+                        transparent 55%);
+            pointer-events: none;
+            z-index: 2;
+        }
+
+        .progress-text { position: relative; z-index: 3; }
+
+        /* دکمه‌ها — کلید فیزیکی */
+        .action-cell {
+            box-shadow:
+                0 1px 0 rgba(255, 255, 255, 0.06) inset,
+                0 5px 12px -6px rgba(0, 0, 0, 0.6);
+            transition: transform 0.13s ease, box-shadow 0.13s ease,
+                        background 0.2s ease, border-color 0.2s ease;
+        }
+        .action-cell:active {
+            transform: translateY(2px) scale(0.985);
+            box-shadow: 0 1px 0 rgba(255, 255, 255, 0.04) inset;
+        }
+
+        .client-card-item.recommended-client,
+        .promo-btn {
+            box-shadow:
+                0 1px 0 rgba(255, 255, 255, 0.28) inset,
+                0 -1px 0 rgba(0, 0, 0, 0.25) inset,
+                0 8px 20px -8px rgba(var(--accent-rgb), 0.55);
+        }
+
+        .nexora-brand-logo {
+            box-shadow:
+                0 1px 0 rgba(255, 255, 255, 0.32) inset,
+                0 5px 14px -4px rgba(var(--accent-rgb), 0.6);
+        }
+
+        .video-card-icon {
+            box-shadow:
+                0 1px 0 rgba(255, 255, 255, 0.12) inset,
+                0 4px 10px -3px rgba(var(--accent-rgb), 0.4);
+        }
+
+        /* ── توالی ورود ──
+           برند، بعد کارت، بعد حلقه، بعد دکمه‌ها.
+           هر کدام کمی بعد از قبلی — نه همه با هم. */
+        @keyframes nx-rise {
+            from { opacity: 0; transform: translateY(14px) scale(0.985); }
+            to   { opacity: 1; transform: none; }
+        }
+
+        body.nx-ready .subscription-card { animation: nx-rise 0.62s cubic-bezier(.22,1,.36,1) 0.06s both; }
+        body.nx-ready .stats-card        { animation: nx-rise 0.62s cubic-bezier(.22,1,.36,1) 0.14s both; }
+        body.nx-ready .actions-grid      { animation: nx-rise 0.62s cubic-bezier(.22,1,.36,1) 0.22s both; }
+        body.nx-ready .promo-card        { animation: nx-rise 0.62s cubic-bezier(.22,1,.36,1) 0.30s both; }
+        body.nx-ready .referral-card     { animation: nx-rise 0.62s cubic-bezier(.22,1,.36,1) 0.36s both; }
+        body.nx-ready .details-grid      { animation: nx-rise 0.62s cubic-bezier(.22,1,.36,1) 0.42s both; }
+        body.nx-ready #videos-section    { animation: nx-rise 0.62s cubic-bezier(.22,1,.36,1) 0.48s both; }
+
+        /* جاروب حلقه از صفر تا مقدار واقعی.
+           چون conic-gradient با keyframe انیمیت نمی‌شود، مقدار را
+           با JS در چند گام تنظیم می‌کنیم و transition کار را می‌کند. */
+        .progress-circle.nx-sweeping {
+            transition: background 1.15s cubic-bezier(.34,1.15,.5,1);
+        }
+
+        /* کج‌شدن ملایم با موس — فقط روی دستگاه‌های دارای اشاره‌گر دقیق */
+        @media (hover: hover) and (pointer: fine) {
+            .nx-tilt {
+                transition: transform 0.28s cubic-bezier(.22,1,.36,1);
+                will-change: transform;
+            }
+        }
+
+        /* احترام به تنظیمات کاربر — این اختیاری نیست */
+        @media (prefers-reduced-motion: reduce) {
+            body.nx-ready *,
+            .nx-sweep,
+            .nx-tilt {
+                animation: none !important;
+                transition: none !important;
+                transform: none !important;
+            }
+        }
+
+        .video-tutorial-placeholder {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            background-color: var(--surface-alt);
+            border: 1px dashed var(--border);
+            border-radius: 14px;
+            padding: 14px;
+            margin-top: 6px;
+            font-size: 12.5px;
+            color: var(--text-muted);
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+        .video-tutorial-placeholder:hover { color: var(--accent); border-color: rgba(var(--accent-rgb), 0.4); }
+        .video-tutorial-placeholder i { font-size: 16px; }
+        .client-info-side { display: flex; align-items: center; gap: 12px; }
+        html[dir="rtl"] .client-info-side { flex-direction: row; text-align: right; }
+        html[dir="ltr"] .client-info-side { flex-direction: row-reverse; text-align: left; }
+        .client-icon-box {
+            width: 44px;
+            height: 44px;
+            background: var(--surface-alt);
+            border-radius: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 18px;
+            color: var(--text-muted);
+        }
+        .client-title-text { font-size: 14px; font-weight: 700; color: var(--text); }
+        .client-subtitle-text { font-size: 11px; color: var(--text-muted); margin-top: 2px; }
+        .client-download-btn {
+            background-color: rgba(var(--accent-rgb), 0.15);
+            color: var(--accent);
+            padding: 8px 18px;
+            border-radius: 12px;
+            font-size: 12px;
+            font-weight: 700;
+            text-decoration: none;
+            transition: all 0.2s ease;
+        }
+        .client-download-btn:hover { background-color: var(--accent); color: #06110F; }
+        .client-btns-col { display: flex; flex-direction: column; gap: 6px; align-items: stretch; }
+        .client-quickadd-btn {
+            background: linear-gradient(135deg, var(--accent), var(--accent-2));
+            color: #06090F;
+            padding: 8px 14px;
+            border-radius: 12px;
+            font-size: 11.5px;
+            font-weight: 700;
+            text-decoration: none;
+            text-align: center;
+            white-space: nowrap;
+            transition: all 0.2s ease;
+        }
+        .client-quickadd-btn:hover { filter: brightness(1.1); }
+        .client-download-btn-secondary {
+            background: transparent;
+            border: 1px solid var(--border);
+            color: var(--text-muted);
+            padding: 6px 14px;
+            border-radius: 12px;
+            font-size: 10.5px;
+            font-weight: 600;
+            text-decoration: none;
+            text-align: center;
+            transition: all 0.2s ease;
+        }
+        .client-download-btn-secondary:hover { color: var(--text); border-color: var(--accent); }
+        .quickadd-note {
+            font-size: 11px;
+            color: var(--text-muted);
+            text-align: center;
+            margin: 10px 0 16px;
+            line-height: 1.7;
+        }
+
+        /* ===== کارت طراح ===== */
+        .designer-card {
+            background-color: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 14px;
+            padding: 10px 14px;
+            margin-top: 16px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            box-shadow: var(--box-shadow-light);
+        }
+        .designer-info { display: flex; align-items: center; gap: 8px; }
+        .designer-text-label { font-size: 11px; color: var(--text-muted); font-weight: 500; }
+        .designer-name-title {
+            font-size: 12px;
+            font-weight: 700;
+            color: var(--accent);
+            font-family: 'JetBrains Mono', monospace;
+            cursor: pointer;
+            transition: color 0.2s;
+            text-decoration: none;
+        }
+        .designer-name-title:hover { color: var(--accent-2); }
+        .designer-tg-btn {
+            font-size: 15px;
+            color: var(--text-muted);
+            text-decoration: none;
+            transition: all 0.25s ease;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .designer-tg-btn:hover { color: var(--accent); transform: scale(1.1); }
+
+        /* ===== ناوبری پایین ===== */
+        .bottom-nav {
+            position: fixed;
+            bottom: 0;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 100%;
+            max-width: 480px;
+            background-color: var(--nav-bg);
+            border-top: 1px solid var(--border);
+            padding: 12px 16px;
+            display: flex;
+            z-index: 100;
+        }
+        .nav-item-cell { flex: 1; display: flex; justify-content: center; }
+        .nav-item {
+            color: var(--text-muted);
+            font-size: 11px;
+            cursor: pointer;
+            text-align: center;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 4px;
+            width: 100%;
+            padding: 8px 0;
+        }
+        .nav-item i { font-size: 18px; }
+        .nav-item.active {
+            background-color: rgba(var(--accent-rgb), 0.12);
+            border: 1px solid rgba(var(--accent-rgb), 0.25);
+            border-radius: 16px;
+            color: var(--accent);
+        }
+    </style>
+</head>
+<body>
+
+    <svg style="position: absolute; width: 0; height: 0;" width="0" height="0">
+        <defs>
+            <!-- گرادینت‌ها از متغیرهای CSS استفاده می‌کنند تا با تغییر قالب
+                 خودکار رنگشان عوض شود (قبلاً هاردکد بود و ثابت می‌ماند) -->
+            <linearGradient id="premiumPurpleNeon" x1="0%" y1="0%" x2="0%" y2="100%">
+                <stop offset="0%" style="stop-color: var(--accent-2, #5EEAD4)"/>
+                <stop offset="50%" style="stop-color: var(--accent, #2DD4BF)"/>
+                <stop offset="100%" style="stop-color: var(--accent, #0F9E90)"/>
+            </linearGradient>
+            <linearGradient id="nexoraAccentGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+                <stop offset="0%" style="stop-color: var(--accent, #2B7FD6)"/>
+                <stop offset="100%" style="stop-color: var(--accent-2, #5AA9E6)"/>
+            </linearGradient>
+        </defs>
+    </svg>
+
+    <!-- ===== نوتیفیکیشن ===== -->
+    <!-- ===== مودال بزرگ QR Code ===== -->
+    <div class="qr-modal-overlay" id="qrModalOverlay" onclick="closeQrModal(event)">
+        <div class="qr-modal-box">
+            <button class="qr-modal-close" onclick="closeQrModal(event)"><i class="fa-solid fa-xmark"></i></button>
+            <div class="qr-modal-title" id="qrModalTitle">اسکن کنید</div>
+            <div class="qr-modal-img-wrap">
+                <img id="qrModalImg" src="" alt="QR Code" />
+            </div>
+            <button class="qr-modal-copy-btn" id="qrModalCopyBtn">
+                <i class="fa-solid fa-copy"></i> <span id="qrModalCopyText">کپی کانفیگ</span>
+            </button>
+        </div>
+    </div>
+
+    <div class="notification-overlay" id="notificationOverlay">
+        <div class="notification-box" id="notificationBox">
+            <span class="icon">🔔</span>
+            <div class="title">آیا مشکلی در اتصال کانفیگ دارید؟</div>
+            <div class="desc">پیشنهاد می‌کنیم از برنامه‌ی Happ استفاده کنید؛ در غیر این صورت به پشتیبانی پیام بدهید</div>
+            <div class="timer-bar">
+                <div class="fill" id="timerFill"></div>
+            </div>
+            <div class="notification-actions">
+                <button class="notification-btn danger" id="notificationDismiss">خیر</button>
+                <button class="notification-btn primary" id="notificationSupport">پشتیبانی</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- ===== نوار برند Nexora ===== -->
+    <div class="nexora-brand-strip" id="nexora-brand-strip" style="visibility:hidden;">
+        <div class="nexora-brand-logo" id="nexora-brand-logo">N</div>
+        <span class="nexora-brand-name" id="nexora-brand-name">NEXORA</span>
+    </div>
+
+    <div class="header">
+        <div class="profile-container">
+            <div class="profile-img-wrapper">
+                <div class="profile-img" id="profile-img">
+                    <svg class="default-avatar-svg" id="default-avatar" viewBox="0 0 24 24">
+                        <path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/>
+                    </svg>
+                </div>
+                <div class="online-dot" id="online-status-dot"></div>
+                <span class="online-status-text" id="online-status-text">آفلاین</span>
+            </div>
+            <div class="user-info">
+                <div class="user-name" id="user-name"></div>
+            </div>
+        </div>
+
+        <div class="header-icons">
+            <div class="lang-container">
+                <div class="header-icon" id="lang-toggle-btn">
+                    <span class="lang-btn"><i class="fa-solid fa-globe"></i> <span id="lang-text">FA</span></span>
+                </div>
+                <div class="lang-dropdown-menu" id="lang-dropdown">
+                    <div class="lang-dropdown-item" onclick="selectLanguage('fa')">فارسی</div>
+                    <div class="lang-dropdown-item" onclick="selectLanguage('en')">English</div>
+                    <div class="lang-dropdown-item" onclick="selectLanguage('tr')">Türkçe</div>
+                    <div class="lang-dropdown-item" onclick="selectLanguage('ar')">العربية</div>
+                </div>
+            </div>
+            <div class="header-icon" id="theme-toggle">
+                <i class="fa-solid fa-moon" id="theme-icon"></i>
+            </div>
+        </div>
+    </div>
+
+    <div id="screen-dashboard" class="app-screen active-screen">
+
+        <!-- بنر: کلاینت غیرفعال (به‌خاطر تخطی از IP Limit یا هر دلیل دیگر) -->
+        <div class="alert-banner danger-banner" id="disabledReasonBanner" style="display: none;">
+            <div class="alert-banner-icon"><i class="fa-solid fa-triangle-exclamation"></i></div>
+            <div class="alert-banner-text">
+                <div class="alert-banner-title" id="disabledReasonTitle">این کانفیگ غیرفعال است</div>
+                <div class="alert-banner-desc" id="disabledReasonDesc">
+                    این اتفاق معمولاً به‌خاطر استفاده‌ی هم‌زمان از چند دستگاه (بیشتر از حد مجاز) می‌افتد. برای فعال‌سازی مجدد با پشتیبانی در تماس باشید.
+                </div>
+                <a href="#" id="disabledReasonBtn" target="_blank" class="alert-banner-btn">
+                    <i class="fa-brands fa-telegram"></i> <span id="disabledReasonBtnText">تماس با پشتیبانی</span>
+                </a>
+            </div>
+        </div>
+
+        <!-- بنر: نزدیک‌شدن به پایان حجم یا زمان -->
+        <div class="alert-banner warning-banner" id="lowQuotaBanner" style="display: none;">
+            <div class="alert-banner-icon"><i class="fa-solid fa-hourglass-half"></i></div>
+            <div class="alert-banner-text">
+                <div class="alert-banner-title" id="lowQuotaTitle">اشتراک شما رو به اتمام است</div>
+                <div class="alert-banner-desc" id="lowQuotaDesc">برای جلوگیری از قطعی، همین حالا تمدید کنید.</div>
+                <a href="#" id="lowQuotaBtn" target="_blank" class="alert-banner-btn warning-btn">
+                    <i class="fa-solid fa-rotate"></i> <span id="lowQuotaBtnText">تمدید اشتراک</span>
+                </a>
+            </div>
+        </div>
+
+        <!-- کارت اشتراک -->
+        <div class="subscription-card" data-sec="subscription" id="main-sub-card">
+            <div class="status-right">
+                <div class="active-badge">
+                    <span class="status-dot-green" id="status-indicator-dot"><i class="fa-solid fa-check" id="status-icon-mark"></i></span>
+                    <span id="badge-text">فعال</span>
+                </div>
+                <div class="days-left en-font" id="live-days-count">0 <span id="days-label">روز</span></div>
+                <div class="expire-date" id="expire-date">تاریخ انقضا: --</div>
+            </div>
+            <div class="status-left">
+                <div class="progress-circle" id="sub-progress-circle">
+                    <div class="radar-sweep"></div>
+                    <div class="progress-text">
+                        <span class="percent en-font" id="live-percent-display">0%</span>
+                        <span class="label" id="remaining-label">باقی‌مانده</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+
+        <!-- کارت آمار -->
+        <div class="stats-card" id="sec-stats" data-sec="stats">
+            <div class="stat-item">
+                <div class="stat-header-row">
+                    <div class="stat-icon-wrapper"><i class="fa-solid fa-database" style="color: #4C8DFF;"></i></div>
+                    <div class="stat-title" id="title-limit">حجم کلی</div>
+                </div>
+                <div class="stat-value purple-value en-font" id="stat-limit">0 GB</div>
+            </div>
+            <div class="stat-divider"></div>
+            <div class="stat-item">
+                <div class="stat-header-row">
+                    <div class="stat-icon-wrapper"><i class="fa-solid fa-chart-pie" style="color: #2DD4BF;"></i></div>
+                    <div class="stat-title" id="title-total">مصرف کل</div>
+                </div>
+                <div class="stat-value en-font" id="stat-total-val">0 B</div>
+            </div>
+            <div class="stat-divider"></div>
+            <div class="stat-item">
+                <div class="stat-header-row">
+                    <div class="stat-icon-wrapper"><i class="fa-solid fa-arrow-down" style="color: #4C8DFF;"></i></div>
+                    <div class="stat-title" id="title-download">دانلود</div>
+                </div>
+                <div class="stat-value en-font" id="stat-dl-val">0 B</div>
+            </div>
+            <div class="stat-divider"></div>
+            <div class="stat-item">
+                <div class="stat-header-row">
+                    <div class="stat-icon-wrapper"><i class="fa-solid fa-arrow-up" style="color: #F4A94A;"></i></div>
+                    <div class="stat-title" id="title-upload">آپلود</div>
+                </div>
+                <div class="stat-value en-font" id="stat-ul-val">0 B</div>
+            </div>
+        </div>
+
+        <!-- کارت تبلیغاتی (فقط تلگرام) -->
+        <div class="promo-card" id="sec-promo" data-sec="promo">
+            <div class="promo-text">
+                آیا نیاز به <span>خرید</span> یا <span>تمدید ساب</span> دارید؟<br>
+                با پشتیبانی تماس بگیرید.
+            </div>
+            <div class="promo-buttons" style="justify-content: center;">
+                <a href="https://t.me/crm_nexoravpn" target="_blank" class="promo-btn telegram">
+                    <i class="fa-brands fa-telegram"></i> تلگرام
+                </a>
+            </div>
+        </div>
+
+        <!-- کارت کد رفرال -->
+        <div class="referral-card" id="referral-card" data-sec="referral">
+            <div class="referral-title"><i class="fa-solid fa-gift"></i> <span id="referral-title-text">معرفی به دوستان</span></div>
+            <div class="referral-desc" id="referral-desc-text">
+                لینک اختصاصی خودتان را برای دوستانتان بفرستید و به ازای هر خرید موفق، هدیه بگیرید.
+            </div>
+            <div class="referral-link-row">
+                <span class="referral-link-text" id="referral-link-text">https://t.me/crm_nexoravpn</span>
+                <button class="referral-copy-btn" id="referral-copy-btn">کپی</button>
+            </div>
+        </div>
+
+        <!-- گرید جزئیات -->
+        <div class="details-grid" id="sec-details" data-sec="details">
+            <div class="detail-card">
+                <span class="label" id="detail-total-label">مصرف کل</span>
+                <span class="value" id="detail-total-value">0 B</span>
+            </div>
+            <div class="detail-card">
+                <span class="label" id="detail-remaining-label">باقی‌مانده</span>
+                <span class="value accent-value" id="detail-remaining-value">0%</span>
+            </div>
+            <div class="detail-card">
+                <span class="label" id="detail-remaining-volume-label">حجم باقی‌مانده</span>
+                <span class="value" id="detail-remaining-volume">نامحدود</span>
+            </div>
+            <div class="detail-card">
+                <span class="label" id="detail-last-connect-label">آخرین اتصال</span>
+                <span class="value" id="detail-last-connect-value">--</span>
+            </div>
+        </div>
+
+        <!-- دکمه‌های عملیاتی -->
+        <div class="actions-grid" id="sec-actions" data-sec="actions">
+            <div class="action-cell">
+                <div class="action-card renew" onclick="window.open('https://t.me/crm_nexoravpn', '_blank')">
+                    <i class="fa-solid fa-battery-three-quarters"></i>
+                    <div class="action-label" id="action-renew">تمدید ساب</div>
+                </div>
+            </div>
+            <div class="action-cell">
+                <div class="action-card link" id="btn-copy-sub">
+                    <i class="fa-solid fa-link"></i>
+                    <div class="action-label" id="action-copy">کپی لینک ساب</div>
+                </div>
+            </div>
+            <div class="action-cell">
+                <div class="action-card qr" id="btn-toggle-qr">
+                    <i class="fa-solid fa-qrcode"></i>
+                    <div class="action-label" id="action-qr">QR Code</div>
+                </div>
+            </div>
+            <div class="action-cell">
+                <div class="action-card config" id="btn-toggle-config">
+                    <i class="fa-solid fa-cloud-arrow-down"></i>
+                    <div class="action-label" id="action-config">کپی کانفیگ</div>
+                </div>
+            </div>
+        </div>
+
+        <div class="action-dropdown-container" id="dropdown-qr-container">
+            <div class="action-dropdown-menu" id="list-qr-ips">
+                <span style="color:#6c6c8c;" id="qr-empty-msg">خالی</span>
+            </div>
+        </div>
+
+        <div class="action-dropdown-container" id="dropdown-config-container">
+            <div class="action-dropdown-menu" id="list-config-ips">
+                <span style="color:#6c6c8c;" id="config-empty-msg">خالی</span>
+            </div>
+        </div>
+
+        <!-- ویدیوهای آموزشی (فقط اگر مدیر ویدیویی اضافه کرده باشد نمایش داده می‌شود) -->
+        <div id="videos-section" style="display:none;">
+            <div class="section-title" id="videos-section-title" style="margin-top: 20px;">ویدیوهای آموزشی</div>
+            <div id="videos-list"></div>
+        </div>
+
+        <!-- بخش سوالات متداول -->
+        <div class="section-title" id="faq-section-title" style="margin-top: 20px;">سوالات متداول</div>
+        <div class="faq-section" id="faq-section"></div>
+
+        <!-- کارت برند Nexora -->
+        <div class="designer-card">
+            <div class="designer-info">
+                <span class="designer-text-label" id="designer-lbl">عضویت در کانال:</span>
+                <a href="https://t.me/yanexoravpn" target="_blank" class="designer-name-title en-font">@yanexoravpn</a>
+            </div>
+            <a class="designer-tg-btn" href="https://t.me/yanexoravpn" target="_blank" title="Telegram">
+                <i class="fa-brands fa-telegram"></i>
+            </a>
+        </div>
+    </div>
+
+    <div id="screen-download-apps" class="app-screen">
+        <div class="section-title" id="download-screen-title" style="margin-bottom: 8px;">دانلود برنامه ها</div>
+        <div class="happ-recommend-banner" id="happ-recommend-banner">
+            <i class="fa-solid fa-star"></i>
+            <span id="happ-recommend-text">پیشنهاد ما: برای بهترین تجربه‌ی کاربری و سرعت، از برنامه‌ی <b>Happ</b> استفاده کنید.</span>
+        </div>
+        <div class="download-os-tabs">
+            <div class="os-tab-btn active-tab" id="os-tab-android" onclick="switchDownloadTab('android')">
+                <i class="fa-brands fa-android"></i> <span id="lbl-tab-android">اندروید</span>
+            </div>
+            <div class="os-tab-btn" id="os-tab-ios" onclick="switchDownloadTab('ios')">
+                <i class="fa-brands fa-apple"></i> <span id="lbl-tab-ios">آیفون / آیپد</span>
+            </div>
+            <div class="os-tab-btn" id="os-tab-desktop" onclick="switchDownloadTab('desktop')">
+                <i class="fa-solid fa-desktop"></i> <span id="lbl-tab-desktop">ویندوز</span>
+            </div>
+        </div>
+        <!-- کارت‌های اپلیکیشن به‌صورت داینامیک ساخته می‌شوند (بدون محدودیت تعداد) -->
+        <div id="client-cards-container"></div>
+
+        <p class="quickadd-note" id="quickadd-note">
+            «افزودن با یک کلیک» فقط زمانی کار می‌کند که اپ از قبل روی دستگاه شما نصب باشد؛ در غیر این‌صورت، اول دانلود کنید.
+        </p>
+
+        <div class="video-tutorial-placeholder" id="video-tutorial-placeholder" onclick="alert('این بخش به‌زودی فعال می‌شود.')">
+            <i class="fa-solid fa-circle-play"></i>
+            <span id="video-tutorial-text">آموزش تصویری نصب و اتصال (به‌زودی)</span>
+        </div>
+    </div>
+
+    <div class="bottom-nav">
+        <div class="nav-item-cell">
+            <div class="nav-item active" id="nav-dashboard" onclick="navigateToScreen('dashboard')">
+                <i class="fa-solid fa-house"></i>داشبورد
+            </div>
+        </div>
+        <div class="nav-item-cell">
+            <div class="nav-item" id="nav-download" onclick="navigateToScreen('download')">
+                <i class="fa-solid fa-download"></i>دانلود برنامه
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // ===== داده‌های دریافتی از پنل =====
+        // ===== اتصال به پنل مدیریتی برای دریافت تنظیمات داینامیک =====
+        const SUBPAGE_CONFIG_API = "http://localhost:8100";
+        let remoteConfig = null;
+
+        async function fetchRemoteConfig() {
+            try {
+                // برای تشخیص واسطه (reseller): ایمیل کلاینت و دامنه‌ی فعلی را می‌فرستیم.
+                // اگر این مشتری متعلق به یک واسطه باشد، بک‌اند برند همان واسطه را برمی‌گرداند.
+                const params = new URLSearchParams();
+                const clientEmail = (sanaeiTemplateData.emails && sanaeiTemplateData.emails[0]) || "";
+                if (clientEmail) params.set("email", clientEmail);
+                params.set("host", window.location.hostname);
+                // جلوگیری از کش شدن پاسخ توسط مرورگر یا CDN — بدون این، مشتری
+                // ممکن است تنظیمات قدیمی را ببیند و تغییرات پنل اعمال نشود.
+                params.set("_t", Date.now());
+
+                const res = await fetch(`${SUBPAGE_CONFIG_API}/api/public/config?${params.toString()}`, {
+                    signal: AbortSignal.timeout(5000),
+                    cache: "no-store",
+                    headers: { "Cache-Control": "no-cache" }
+                });
+                if (!res.ok) return null;
+                return await res.json();
+            } catch (e) {
+                console.warn("پنل مدیریتی در دسترس نبود، از تنظیمات پیش‌فرض استفاده می‌شود.", e);
+                return null;
+            }
+        }
+
+        // نوار برند را نمایان می‌کند (بعد از اعمال تنظیمات یا در صورت شکست)
+        function revealBrand() {
+            const strip = document.getElementById('nexora-brand-strip');
+            if (strip && strip.dataset.hidden !== 'true') {
+                strip.style.visibility = 'visible';
+            }
+            // همین لحظه‌ای است که صفحه واقعاً آماده است — پس توالی
+            // ورود را از اینجا شروع می‌کنیم، نه از DOMContentLoaded.
+            startEntrance();
+            enableTilt();
+        }
+
+        // محافظ: اگر به هر دلیلی DOMContentLoaded اجرا نشد یا درخواست
+        // بیش از حد طول کشید، بعد از ۴ ثانیه برند را نمایان می‌کنیم تا
+        // صفحه هرگز بدون هدر نماند.
+        setTimeout(revealBrand, 4000);
+
+        function applyRemoteConfig(cfg) {
+            if (!cfg) return;
+            remoteConfig = cfg;
+            window.remoteConfig = cfg;
+
+            // ---------- ۱. اپلیکیشن‌های دانلود (بدون محدودیت تعداد) ----------
+            if (cfg.downloadApps) {
+                window.NEXORA_APPS = {};
+                for (const os of ["android", "ios", "desktop"]) {
+                    const list = cfg.downloadApps[os];
+                    window.NEXORA_APPS[os] = Array.isArray(list) ? list.filter(a => a && a.name) : [];
+                }
+                // رندر فوری تب پیش‌فرض — چون switchDownloadTab فقط هنگام کلیک
+                // روی تب دانلود صدا زده می‌شود و کاربر ممکن است قبل از آن
+                // کارت‌های خالی ببیند.
+                try { switchDownloadTab(window.NEXORA_CURRENT_OS || 'android'); } catch (e) {}
+            }
+
+            // ---------- ۲. سوالات متداول ----------
+            // نکته: faqData با const پایین‌تر تعریف شده، پس اینجا نمی‌توانیم
+            // مستقیم دستکاری‌اش کنیم (خطای TDZ). به‌جایش در یک متغیر سراسری
+            // ذخیره می‌کنیم و تابع renderFaq در زمان رندر آن را اولویت می‌دهد.
+            if (cfg.faq) {
+                window.NEXORA_FAQ = {};
+                for (const lang of Object.keys(cfg.faq)) {
+                    if (Array.isArray(cfg.faq[lang])) {
+                        window.NEXORA_FAQ[lang] = cfg.faq[lang];
+                    }
+                }
+            }
+
+            // ---------- ۳. بنرهای هشدار ----------
+            if (cfg.banners) {
+                window.NEXORA_LOW_QUOTA_DAYS = cfg.banners.lowQuotaDaysThreshold ?? 3;
+                window.NEXORA_LOW_QUOTA_PERCENT = cfg.banners.lowQuotaPercentThreshold ?? 15;
+                window.NEXORA_BANNERS_ENABLED = cfg.banners.enabled !== false;
+            }
+
+            // ---------- ۴. لینک‌های پشتیبانی و کانال ----------
+            if (cfg.links) {
+                const supportUrl = `https://t.me/${cfg.links.supportUsername || "crm_nexoravpn"}`;
+                const channelUrl = `https://t.me/${cfg.links.channelUsername || "yanexoravpn"}`;
+                window.NEXORA_SUPPORT_URL = supportUrl;
+                window.NEXORA_CHANNEL_URL = channelUrl;
+
+                document.querySelectorAll('a[href*="t.me/"], [onclick*="t.me/"]').forEach(el => {
+                    const href = el.getAttribute('href') || '';
+                    if (href.includes('crm_nexoravpn') && !href.includes('?text=')) {
+                        el.setAttribute('href', supportUrl);
+                    } else if (href.includes('yanexoravpn')) {
+                        el.setAttribute('href', channelUrl);
+                    }
+                    const onclick = el.getAttribute('onclick') || '';
+                    if (onclick.includes('crm_nexoravpn')) {
+                        el.setAttribute('onclick', `window.open('${supportUrl}', '_blank')`);
+                    }
+                });
+
+                const designerLink = document.querySelector('.designer-name-title');
+                if (designerLink) {
+                    designerLink.textContent = '@' + (cfg.links.channelUsername || 'yanexoravpn');
+                }
+            }
+
+            // ---------- ۵. رفرال (نمایش/مخفی) ----------
+            const referralCard = document.getElementById('referral-card');
+            if (referralCard) {
+                const refOn = cfg.referral?.enabled !== false && cfg.advanced?.showReferralCard !== false;
+                referralCard.style.display = refOn ? '' : 'none';
+            }
+
+            // ---------- ۶. ویدیوهای آموزشی ----------
+            const videos = Array.isArray(cfg.videos) ? cfg.videos.filter(v => v && v.telegramUrl) : [];
+            window.NEXORA_VIDEOS = videos;
+            renderVideosSection(videos);
+
+            const videoEl = document.getElementById('video-tutorial-placeholder');
+            if (videoEl) {
+                if (videos.length > 0) {
+                    videoEl.style.display = '';
+                    videoEl.removeAttribute('onclick');
+                    videoEl.style.cursor = 'pointer';
+                    videoEl.onclick = () => openVideosModal(videos);
+                    const txt = document.getElementById('video-tutorial-text');
+                    if (txt) {
+                        txt.textContent = videos.length === 1
+                            ? videos[0].title
+                            : `آموزش تصویری (${videos.length} ویدیو)`;
+                    }
+                } else if (cfg.videoTutorialUrl) {
+                    videoEl.removeAttribute('onclick');
+                    videoEl.onclick = () => window.open(cfg.videoTutorialUrl, '_blank');
+                } else {
+                    videoEl.style.display = 'none';
+                }
+            }
+
+            // ---------- ۷. تنظیمات پیشرفته ----------
+            const adv = cfg.advanced || {};
+
+            // نام برند
+            if (adv.brandName) {
+                const brandEl = document.getElementById('nexora-brand-name');
+                if (brandEl) brandEl.textContent = adv.brandName;
+                const logoEl = document.getElementById('nexora-brand-logo');
+                if (logoEl) logoEl.textContent = adv.brandName.trim().charAt(0).toUpperCase() || 'N';
+            }
+
+            // عنوان صفحه (تب مرورگر)
+            if (adv.pageTitle) {
+                document.title = adv.pageTitle;
+                const titleEl = document.getElementById('page-title');
+                if (titleEl) titleEl.textContent = adv.pageTitle;
+            }
+
+            // رنگ‌بندی برند
+            // نکته‌ی مهم: تم روشن رنگ‌ها را روی body.light-mode تعریف می‌کند که
+            // از html خاص‌تر است. پس رنگ سفارشی را با یک استایل تزریقی و
+            // اولویت بالا اعمال می‌کنیم تا در هر دو تم (تیره و روشن) کار کند.
+            if (adv.accentColor || adv.accentColor2) {
+                const c1 = adv.accentColor || '#2B7FD6';
+                const c2 = adv.accentColor2 || '#5AA9E6';
+                const rgb1 = hexToRgbString(c1);
+                const rgb2 = hexToRgbString(c2);
+
+                let brandStyle = document.getElementById('nexora-brand-colors');
+                if (!brandStyle) {
+                    brandStyle = document.createElement('style');
+                    brandStyle.id = 'nexora-brand-colors';
+                    document.head.appendChild(brandStyle);
+                }
+                brandStyle.textContent = `
+                    :root, body, body.light-mode {
+                        --accent: ${c1} !important;
+                        --accent-2: ${c2} !important;
+                        ${rgb1 ? `--accent-rgb: ${rgb1} !important;` : ''}
+                        ${rgb2 ? `--accent-2-rgb: ${rgb2} !important;` : ''}
+                    }
+                `;
+
+                document.querySelectorAll('.nexora-brand-logo').forEach(el => {
+                    el.style.background = `linear-gradient(135deg, ${c1}, ${c2})`;
+                });
+            }
+
+            // نوار برند (نمایش/مخفی)
+            const brandStrip = document.getElementById('nexora-brand-strip');
+            if (brandStrip) {
+                if (adv.showBrandStrip === false) {
+                    brandStrip.dataset.hidden = 'true';
+                    brandStrip.style.display = 'none';
+                } else {
+                    brandStrip.dataset.hidden = 'false';
+                    brandStrip.style.display = '';
+                }
+            }
+
+            // دکمه تغییر تم (نمایش/مخفی)
+            const themeBtn = document.getElementById('theme-toggle');
+            if (themeBtn) themeBtn.style.display = adv.allowThemeToggle === false ? 'none' : '';
+
+            // دکمه تغییر زبان (نمایش/مخفی)
+            const langBtn = document.getElementById('lang-toggle-btn');
+            if (langBtn) langBtn.style.display = adv.allowLanguageToggle === false ? 'none' : '';
+
+            // لیست کانفیگ‌ها (مخفی‌سازی برای جلوگیری از اشتراک‌گذاری دستی)
+            const configBtn = document.getElementById('action-config');
+            if (configBtn) {
+                configBtn.style.display = adv.hideConfigsList === true ? 'none' : '';
+            }
+
+            // بخش سوالات متداول (نمایش/مخفی)
+            const faqSection = document.getElementById('faq-section');
+            const faqTitle = document.getElementById('faq-section-title');
+            const showFaq = adv.showFaqSection !== false;
+            window.NEXORA_SHOW_FAQ = showFaq;
+            if (faqSection) faqSection.style.display = showFaq ? '' : 'none';
+            if (faqTitle) faqTitle.style.display = showFaq ? '' : 'none';
+
+            // پاپ‌آپ راهنما
+            window.NEXORA_SHOW_POPUP = adv.showNotificationPopup !== false;
+            window.NEXORA_POPUP_DELAY = (adv.notificationDelaySeconds ?? 10) * 1000;
+
+            // زبان پیش‌فرض
+            if (adv.defaultLanguage && !localStorage.getItem('nexora_lang')) {
+                window.NEXORA_DEFAULT_LANG = adv.defaultLanguage;
+            }
+
+            // تم پیش‌فرض
+            if (adv.defaultTheme && !localStorage.getItem('nexora_theme')) {
+                window.NEXORA_DEFAULT_THEME = adv.defaultTheme;
+            }
+
+            // متن پاورقی سفارشی
+            if (adv.customFooterText) {
+                let footer = document.getElementById('nexora-custom-footer');
+                if (!footer) {
+                    footer = document.createElement('div');
+                    footer.id = 'nexora-custom-footer';
+                    footer.style.cssText = 'text-align:center;font-size:11px;color:var(--text-muted);padding:14px 10px 4px;line-height:1.8;';
+                    const container = document.querySelector('.designer-card')?.parentElement;
+                    if (container) container.appendChild(footer);
+                }
+                footer.textContent = adv.customFooterText;
+            }
+
+            // CSS سفارشی
+            if (adv.customCss && adv.customCss.trim()) {
+                let styleEl = document.getElementById('nexora-custom-css');
+                if (!styleEl) {
+                    styleEl = document.createElement('style');
+                    styleEl.id = 'nexora-custom-css';
+                    document.head.appendChild(styleEl);
+                }
+                styleEl.textContent = adv.customCss;
+            }
+            // ---------- ۸. پاپ‌آپ راهنما (کاملاً قابل تنظیم) ----------
+            if (cfg.popup) {
+                window.NEXORA_POPUP = cfg.popup;
+                if (typeof cfg.popup.enabled === 'boolean') {
+                    window.NEXORA_SHOW_POPUP = cfg.popup.enabled;
+                }
+                if (Number(cfg.popup.delaySeconds) >= 0) {
+                    window.NEXORA_POPUP_DELAY = Number(cfg.popup.delaySeconds) * 1000;
+                }
+            }
+
+            // ---------- ۹. قالب (Theme) ----------
+            applyTheme(cfg._theme);
+        }
+
+        // ═══════════════════════════════════════════════════════
+        //  سیستم چیدمان — ترتیب و ساختار بخش‌ها را واقعاً عوض می‌کند
+        //  (نه فقط رنگ). هر preset ترتیب متفاوتی تعریف می‌کند.
+        // ═══════════════════════════════════════════════════════
+        // ═══════════════════════════════════════════════════════
+        //  Template ها فقط ظاهر را عوض می‌کنند — نه ترتیب بخش‌ها.
+        //  ترتیب اصلی صفحه با دقت طراحی شده و جابه‌جا کردنش
+        //  تجربه‌ی کاربر را خراب می‌کند.
+        // ═══════════════════════════════════════════════════════
+        function applyTemplateStructure(tplName) {
+            const screen = document.getElementById('screen-dashboard');
+            if (!screen) return;
+
+            // پاکسازی هر بازآرایی قبلی (از نسخه‌های پیشین)
+            screen.querySelectorAll('[data-sec]').forEach(el => {
+                el.style.order = '';
+                if (el.dataset.tplHidden === 'true') {
+                    el.style.display = '';
+                    delete el.dataset.tplHidden;
+                }
+            });
+            screen.style.display = '';
+            screen.style.flexDirection = '';
+
+            window.NEXORA_TEMPLATE = tplName;
+        }
+
+        // ═══════════════════════════════════════════════════════
+        //  حرکت
+        //
+        //  یک لحظه‌ی ارکستره هنگام ورود، و واکنش‌های ریز به کار کاربر.
+        //  عمداً کم — وقتی همه‌چیز حرکت کند، هیچ‌چیز مهم به نظر نمی‌رسد.
+        // ═══════════════════════════════════════════════════════
+
+        function prefersReducedMotion() {
+            try {
+                return window.matchMedia &&
+                       window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+            } catch (e) {
+                return false;
+            }
+        }
+
+        function startEntrance() {
+            if (document.body.classList.contains('nx-ready')) return;
+            if (prefersReducedMotion()) return;
+            document.body.classList.add('nx-ready');
+        }
+
+        /**
+         * جاروب حلقه از صفر تا درصد واقعی.
+         *
+         * conic-gradient با keyframe انیمیت نمی‌شود، ولی transition روی
+         * background کار می‌کند. پس از صفر شروع می‌کنیم و در فریم بعدی
+         * مقدار واقعی را می‌گذاریم تا مرورگر بینشان را پر کند.
+         */
+        function sweepRing(percent, color) {
+            const el = document.getElementById('sub-progress-circle');
+            if (!el) return;
+
+            const pct = Math.max(0, Math.min(100, Number(percent) || 0));
+            const col = color || 'var(--accent)';
+            const paint = (p) =>
+                `conic-gradient(${col} 0% ${p}%, rgba(255,255,255,0.06) ${p}% 100%)`;
+
+            if (prefersReducedMotion()) {
+                el.style.background = paint(pct);
+                return;
+            }
+
+            el.classList.remove('nx-sweeping');
+            el.style.background = paint(0);
+
+            // دو فریم صبر می‌کنیم تا مرورگر مقدار صفر را ثبت کند،
+            // وگرنه هر دو تغییر با هم دیده می‌شوند و انیمیشنی رخ نمی‌دهد.
+            requestAnimationFrame(() => {
+                requestAnimationFrame(() => {
+                    el.classList.add('nx-sweeping');
+                    el.style.background = paint(pct);
+                });
+            });
+        }
+
+        /**
+         * شمارش عدد تا مقدار نهایی — با easing نرم.
+         */
+        function countTo(el, target, opts) {
+            if (!el) return;
+            const o = opts || {};
+            const dur = o.duration || 900;
+            const decimals = o.decimals || 0;
+            const suffix = o.suffix || '';
+
+            if (prefersReducedMotion()) {
+                el.textContent = target.toFixed(decimals) + suffix;
+                return;
+            }
+
+            const start = performance.now();
+            const tick = (now) => {
+                const p = Math.min((now - start) / dur, 1);
+                const eased = 1 - Math.pow(1 - p, 3);
+                el.textContent = (target * eased).toFixed(decimals) + suffix;
+                if (p < 1) requestAnimationFrame(tick);
+            };
+            requestAnimationFrame(tick);
+        }
+
+        /**
+         * کج‌شدن ملایم کارت با حرکت موس — حداکثر ۴ درجه.
+         * فقط روی دستگاه‌های دارای اشاره‌گر دقیق؛ روی موبایل بی‌معنی است
+         * و باعث پرش می‌شود.
+         */
+        function enableTilt() {
+            if (prefersReducedMotion()) return;
+            try {
+                if (!window.matchMedia('(hover: hover) and (pointer: fine)').matches) return;
+            } catch (e) {
+                return;
+            }
+
+            const MAX = 4;
+            const targets = document.querySelectorAll(
+                '.subscription-card, .stats-card, .video-card, .client-card-item'
+            );
+
+            targets.forEach((el) => {
+                el.classList.add('nx-tilt');
+
+                el.addEventListener('mousemove', (ev) => {
+                    const r = el.getBoundingClientRect();
+                    const px = (ev.clientX - r.left) / r.width - 0.5;
+                    const py = (ev.clientY - r.top) / r.height - 0.5;
+                    el.style.transform =
+                        `perspective(900px) rotateX(${(-py * MAX).toFixed(2)}deg) ` +
+                        `rotateY(${(px * MAX).toFixed(2)}deg)`;
+                });
+
+                el.addEventListener('mouseleave', () => {
+                    el.style.transform = '';
+                });
+            });
+        }
+
+        // اعمال قالب: متغیرهای رنگ + کلاس چیدمان
+        function applyTheme(theme) {
+            if (!theme || !theme.vars) return;
+            const v = theme.vars;
+
+            let el = document.getElementById('nexora-theme-vars');
+            if (!el) {
+                el = document.createElement('style');
+                el.id = 'nexora-theme-vars';
+                document.head.appendChild(el);
+            }
+
+            const rgbAccent = hexToRgbString(v.accent || '#2B7FD6');
+            const rgbAccent2 = hexToRgbString(v.accent2 || '#5AA9E6');
+
+            // با !important روی هر سه سلکتور تا در تم روشن هم غالب بماند
+            el.textContent = `
+                :root, body, body.light-mode {
+                    ${v.bg ? `--bg: ${v.bg} !important;` : ''}
+                    ${v.surface ? `--surface: ${v.surface} !important;` : ''}
+                    ${v.surfaceAlt ? `--surface-alt: ${v.surfaceAlt} !important;` : ''}
+                    ${v.border ? `--border: ${v.border} !important;` : ''}
+                    ${v.text ? `--text: ${v.text} !important;` : ''}
+                    ${v.textMuted ? `--text-muted: ${v.textMuted} !important;` : ''}
+                    ${v.accent ? `--accent: ${v.accent} !important;` : ''}
+                    ${v.accent2 ? `--accent-2: ${v.accent2} !important;` : ''}
+                    ${rgbAccent ? `--accent-rgb: ${rgbAccent} !important;` : ''}
+                    ${rgbAccent2 ? `--accent-2-rgb: ${rgbAccent2} !important;` : ''}
+                }
+                ${v.radius ? `.card, .action-btn, .client-card-item, .faq-item, .video-card,
+                   .referral-card, .designer-card { border-radius: ${v.radius} !important; }` : ''}
+                ${v.glow === '0' ? `
+                    /* پالت بدون درخشش: فقط هاله‌ی رنگی برداشته می‌شود،
+                       نه سایه‌ی عمق. حذف کامل سایه، کارت‌ها را تخت می‌کند. */
+                    .card, .client-card-item, .subscription-card, .stats-card,
+                    .detail-card, .video-card, .referral-card, .faq-item {
+                        box-shadow:
+                            0 1px 0 rgba(255,255,255,0.06) inset,
+                            0 10px 24px -12px rgba(0,0,0,0.55),
+                            0 2px 6px -3px rgba(0,0,0,0.4) !important;
+                    }
+                    .progress-circle {
+                        box-shadow: 0 4px 14px rgba(0,0,0,0.5) !important;
+                    }
+                ` : ''}
+            `;
+
+            // کلاس چیدمان روی body — CSS قالب‌ها از آن استفاده می‌کند
+            const tpl = theme.template || 'classic';
+            document.body.className = document.body.className
+                .split(' ').filter(x => !x.startsWith('tpl-')).join(' ');
+            document.body.classList.add(`tpl-${tpl}`);
+
+            // بازآرایی واقعی ساختار صفحه (نه فقط رنگ)
+            applyTemplateStructure(tpl);
+
+            // لوگوی برند با رنگ قالب
+            document.querySelectorAll('.nexora-brand-logo').forEach(l => {
+                l.style.background = `linear-gradient(135deg, ${v.accent}, ${v.accent2})`;
+            });
+
+            window.NEXORA_THEME = theme;
+        }
+        // رندر بخش ویدیوهای آموزشی در داشبورد اصلی
+        function renderVideosSection(videos) {
+            const section = document.getElementById('videos-section');
+            const list = document.getElementById('videos-list');
+            if (!section || !list) return;
+
+            if (!videos || videos.length === 0) {
+                section.style.display = 'none';
+                return;
+            }
+
+            const platformLabels = {
+                all: 'همه دستگاه\u200cها', android: 'اندروید',
+                ios: 'آیفون / آیپد', desktop: 'ویندوز'
+            };
+            const platformIcons = {
+                all: 'fa-solid fa-mobile-screen', android: 'fa-brands fa-android',
+                ios: 'fa-brands fa-apple', desktop: 'fa-solid fa-desktop'
+            };
+
+            list.innerHTML = '';
+            videos.forEach(v => {
+                const a = document.createElement('a');
+                a.className = 'video-card';
+                a.href = v.telegramUrl;
+                a.target = '_blank';
+                a.rel = 'noopener noreferrer';
+                a.innerHTML = `
+                    <div class="video-card-icon"><i class="fa-solid fa-circle-play"></i></div>
+                    <div class="video-card-body">
+                        <div class="video-card-title">${escapeHtml(v.title || 'ویدیوی آموزشی')}</div>
+                        <div class="video-card-meta">
+                            <i class="${platformIcons[v.platform] || platformIcons.all}"></i>
+                            <span>${platformLabels[v.platform] || platformLabels.all}</span>
+                        </div>
+                    </div>
+                    <i class="fa-solid fa-chevron-left video-card-arrow"></i>
+                `;
+                list.appendChild(a);
+            });
+
+            section.style.display = '';
+        }
+
+        function hexToRgbString(hex) {
+            const m = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex.trim());
+            if (!m) return null;
+            return `${parseInt(m[1], 16)}, ${parseInt(m[2], 16)}, ${parseInt(m[3], 16)}`;
+        }
+
+        // مودال نمایش لیست ویدیوهای آموزشی
+        function openVideosModal(videos) {
+            if (videos.length === 1) {
+                window.open(videos[0].telegramUrl, '_blank');
+                return;
+            }
+            let overlay = document.getElementById('nexora-videos-overlay');
+            if (overlay) overlay.remove();
+
+            const platformLabels = { all: 'همه', android: 'اندروید', ios: 'آیفون', desktop: 'ویندوز' };
+            overlay = document.createElement('div');
+            overlay.id = 'nexora-videos-overlay';
+            overlay.style.cssText = 'position:fixed;inset:0;background:rgba(3,6,12,0.8);backdrop-filter:blur(6px);z-index:999;display:flex;align-items:center;justify-content:center;padding:20px;';
+            overlay.innerHTML = `
+                <div style="background:var(--surface);border:1px solid rgba(var(--accent-rgb),0.3);border-radius:20px;padding:20px;max-width:340px;width:100%;max-height:80vh;overflow-y:auto;">
+                    <div style="font-size:14px;font-weight:700;color:var(--text);margin-bottom:14px;text-align:center;">آموزش‌های تصویری</div>
+                    ${videos.map(v => `
+                        <a href="${v.telegramUrl}" target="_blank" style="display:flex;align-items:center;gap:10px;background:var(--surface-alt);border:1px solid var(--border);border-radius:12px;padding:12px;margin-bottom:8px;text-decoration:none;">
+                            <div style="width:34px;height:34px;border-radius:10px;background:rgba(var(--accent-rgb),0.15);display:flex;align-items:center;justify-content:center;flex-shrink:0;">
+                                <i class="fa-solid fa-circle-play" style="color:var(--accent);font-size:14px;"></i>
+                            </div>
+                            <div style="flex:1;min-width:0;">
+                                <div style="font-size:12.5px;font-weight:600;color:var(--text);">${v.title}</div>
+                                <div style="font-size:10px;color:var(--text-muted);margin-top:2px;">${platformLabels[v.platform] || 'همه'}</div>
+                            </div>
+                            <i class="fa-solid fa-arrow-up-left" style="color:var(--text-muted);font-size:11px;"></i>
+                        </a>
+                    `).join('')}
+                    <button onclick="document.getElementById('nexora-videos-overlay').remove()" style="width:100%;padding:11px;border-radius:12px;border:1px solid var(--border);background:transparent;color:var(--text-muted);font-family:inherit;font-size:12.5px;cursor:pointer;margin-top:6px;">بستن</button>
+                </div>
+            `;
+            overlay.onclick = (e) => { if (e.target === overlay) overlay.remove(); };
+            document.body.appendChild(overlay);
+        }
+
+        // ===== داده‌های تزریقی پنل 3x-ui (قالب استاندارد Go template) =====
+        // مرجع: https://github.com/MHSanaei/3x-ui/blob/main/docs/custom-subscription-templates.md
+        const sanaeiTemplateData = {
+            sId: "{{ .sId }}",
+            enabled: {{ .enabled }},
+            expireSeconds: {{ .expire }},
+            downloadByte: {{ .downloadByte }},
+            uploadByte: {{ .uploadByte }},
+            totalByte: {{ .totalByte }},
+            subUrl: "{{ .subUrl }}",
+            subJsonUrl: "{{ .subJsonUrl }}",
+            subClashUrl: "{{ .subClashUrl }}",
+            subTitle: "{{ .subTitle }}",
+            subSupportUrl: "{{ .subSupportUrl }}",
+            datepicker: "{{ .datepicker }}",
+            lastOnline: {{ .lastOnline }},
+            emails: [{{ range $i, $e := .emails }}{{ if $i }},{{ end }}"{{ $e }}"{{ end }}],
+            links: [{{ range $i, $l := .links }}{{ if $i }},{{ end }}"{{ $l }}"{{ end }}]
+        };
+
+        // ===== متغیرهای سراسری =====
+        let currentLang = 'fa';
+        let isServerConnected = sanaeiTemplateData.enabled;
+        let liveRefreshTimer = null;
+        let notificationTimer = null;
+        let notificationTimeout = null;
+        let timerInterval = null;
+
+        // ===== توابع کمکی =====
+        function calculateDaysLeft(expireSeconds) {
+            if (!expireSeconds || expireSeconds <= 0) return null;
+            const now = Date.now();
+            const diff = (expireSeconds * 1000) - now;
+            return diff > 0 ? Math.ceil(diff / (1000 * 60 * 60 * 24)) : -1;
+        }
+
+        function generateExpiryDates(expireSeconds) {
+            const dates = { fa: "--", en: "--", tr: "--", ar: "--" };
+            if (expireSeconds && expireSeconds > 0) {
+                const dateObj = new Date(expireSeconds * 1000);
+                dates.fa = dateObj.toLocaleDateString('fa-IR');
+                dates.en = dateObj.toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' });
+                dates.tr = dateObj.toLocaleDateString('tr-TR');
+                dates.ar = dateObj.toLocaleDateString('ar-EG');
+            }
+            return dates;
+        }
+
+        const initialExpiryDates = generateExpiryDates(sanaeiTemplateData.expireSeconds);
+
+        let sanaeiClientData = {
+            username: (sanaeiTemplateData.emails && sanaeiTemplateData.emails.length > 0) ? sanaeiTemplateData.emails[0] : "کاربر",
+            daysLeft: calculateDaysLeft(sanaeiTemplateData.expireSeconds),
+            expireSeconds: sanaeiTemplateData.expireSeconds,
+            expiryDateFa: initialExpiryDates.fa,
+            expiryDateEn: initialExpiryDates.en,
+            expiryDateTr: initialExpiryDates.tr,
+            expiryDateAr: initialExpiryDates.ar,
+            totalByte: sanaeiTemplateData.totalByte,
+            downloadByte: sanaeiTemplateData.downloadByte,
+            uploadByte: sanaeiTemplateData.uploadByte,
+            subUrl: sanaeiTemplateData.subUrl || window.location.href,
+            links: sanaeiTemplateData.links || [],
+            lastOnline: sanaeiTemplateData.lastOnline || 0
+        };
+
+        function updateConnectionStatus() {
+            const now = Date.now();
+            const totalUsage = sanaeiClientData.downloadByte + sanaeiClientData.uploadByte;
+            const isExpired = sanaeiClientData.expireSeconds > 0 && (sanaeiClientData.expireSeconds * 1000) < now;
+            const isOverQuota = sanaeiClientData.totalByte > 0 && totalUsage >= sanaeiClientData.totalByte;
+            isServerConnected = !isExpired && !isOverQuota;
+        }
+
+        if (sanaeiClientData.daysLeft === -1) {
+            isServerConnected = false;
+        } else {
+            updateConnectionStatus();
+        }
+
+        // لیست پیش‌فرض اپ‌ها (اگر پنل مدیریت در دسترس نباشد استفاده می‌شود).
+        // ساختار آرایه‌ای است تا هر تعداد اپ پشتیبانی شود، نه فقط دو تا.
+        window.NEXORA_APPS = {
+            android: [
+                { name: "Happ", url: "https://github.com/Happ-proxy/happ-android/releases/download/3.26.3/Happ.apk", recommended: true, scheme: "happ" },
+                { name: "v2rayNG", url: "https://github.com/2dust/v2rayNG/releases/download/2.2.6/v2rayNG_2.2.6_arm64-v8a.apk", recommended: false, scheme: "v2rayng" }
+            ],
+            ios: [
+                { name: "Happ", url: "https://apps.apple.com/us/app/happ-proxy-utility/id6504287215", recommended: true, scheme: "happ" },
+                { name: "V2Box", url: "https://apps.apple.com/us/app/v2box-v2ray-client/id6446814690", recommended: false, scheme: "v2box" }
+            ],
+            desktop: [
+                { name: "Happ (Windows)", url: "https://github.com/Happ-proxy/happ-desktop/releases/download/3.3.6/setup-Happ.x64.exe", recommended: true, scheme: "happ" },
+                { name: "v2rayN (Windows)", url: "https://github.com/2dust/v2rayN/releases/download/7.24.1/v2rayN-windows-arm64.zip", recommended: false, scheme: "none" }
+            ]
+        };
+
+        const waveIconHTML = `
+            <div class="wave-icon-wrapper">
+                <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                    <path d="M7 23h7.5c2.2 0 4-1.8 4-4v-7.5c0-.8-.7-1.5-1.5-1.5s-1.5.7-1.5 1.5V11h-.5V4.5c0-.8-.7-1.5-1.5-1.5S12 3.7 12 4.5V11h-.5V2.5c0-.8-.7-1.5-1.5-1.5S8.5 1.7 8.5 2.5V11h-.5V5.5c0-.8-.7-1.5-1.5-1.5S5 4.7 5 5.5v10.3c-.6-.7-1.5-1.1-2.4-.9-.9.2-1.5 1.1-1.4 2 .2 1.9 2 4.2 3.8 5.4C5.7 22.7 6.3 23 7 23z" fill="url(#premiumPurpleNeon)"/>
+                </svg>
+            </div>`;
+
+        // ===== داده‌های سوالات متداول =====
+        const faqData = {
+            fa: [
+                { q: "چرا نمی‌توانم وصل شوم؟", a: "اول مطمئن شوید آخرین نسخه‌ی اپ پیشنهادی (Happ) را نصب کرده‌اید و کانفیگ را درست وارد کرده‌اید. اگر باز هم مشکل داشتید، ممکن است شبکه‌ی شما موقتاً آن پروتکل را مسدود کرده باشد — با پشتیبانی تماس بگیرید تا کانفیگ جایگزین بدهیم." },
+                { q: "چطور اشتراکم را تمدید کنم؟", a: "روی دکمه‌ی «تمدید ساب» در داشبورد بزنید یا مستقیم به پشتیبانی پیام دهید." },
+                { q: "آیا می‌توانم روی چند دستگاه هم‌زمان استفاده کنم؟", a: "این بستگی به پلن شما دارد. اگر بیش از حد مجاز پلن‌تان از چند دستگاه هم‌زمان وصل شوید، سیستم به‌طور خودکار کانفیگ را غیرفعال می‌کند." },
+                { q: "چرا کانفیگم به‌طور ناگهانی غیرفعال شد؟", a: "معمولاً به‌خاطر استفاده‌ی هم‌زمان از تعداد دستگاه بیشتر از حد مجاز پلن‌تان است. برای فعال‌سازی مجدد با پشتیبانی تماس بگیرید." },
+                { q: "کدام اپ را نصب کنم؟", a: "برای بهترین سرعت و سادگی، ما نصب Happ را پیشنهاد می‌کنیم — در تب «دانلود برنامه» با یک کلیک قابل‌نصب و اتصال است." }
+            ],
+            en: [
+                { q: "Why can't I connect?", a: "First make sure you've installed the latest version of our recommended app (Happ) and entered the config correctly. If it still doesn't work, your network may be temporarily blocking that protocol — contact support for an alternative config." },
+                { q: "How do I renew my subscription?", a: "Tap the \"Renew\" button on the dashboard or message support directly." },
+                { q: "Can I use this on multiple devices at once?", a: "This depends on your plan. If you exceed your plan's allowed simultaneous devices, the system automatically disables your config." },
+                { q: "Why was my config suddenly disabled?", a: "This is usually due to using more simultaneous devices than your plan allows. Contact support to reactivate it." },
+                { q: "Which app should I install?", a: "For the best speed and simplicity, we recommend Happ — it can be installed and connected with one click from the \"Download Apps\" tab." }
+            ],
+            tr: [
+                { q: "Neden bağlanamıyorum?", a: "Önce önerilen uygulamamızın (Happ) en son sürümünü kurduğunuzdan ve konfigürasyonu doğru girdiğinizden emin olun. Sorun devam ederse, ağınız o protokolü geçici olarak engelliyor olabilir — alternatif bir konfigürasyon için destek ile iletişime geçin." },
+                { q: "Aboneliğimi nasıl yenilerim?", a: "Panoda \"Yenile\" butonuna dokunun veya doğrudan destek ile iletişime geçin." },
+                { q: "Aynı anda birden fazla cihazda kullanabilir miyim?", a: "Bu planınıza bağlıdır. Planınızın izin verdiğinden fazla eşzamanlı cihaz kullanırsanız, sistem otomatik olarak konfigürasyonunuzu devre dışı bırakır." },
+                { q: "Konfigürasyonum neden aniden devre dışı kaldı?", a: "Bu genellikle planınızın izin verdiğinden fazla eşzamanlı cihaz kullanımından kaynaklanır. Yeniden etkinleştirmek için destek ile iletişime geçin." },
+                { q: "Hangi uygulamayı kurmalıyım?", a: "En iyi hız ve kolaylık için Happ'i öneriyoruz — \"Uygulama İndir\" sekmesinden tek tıkla kurulup bağlanabilir." }
+            ],
+            ar: [
+                { q: "لماذا لا أستطيع الاتصال؟", a: "تأكد أولاً من تثبيت أحدث إصدار من تطبيقنا الموصى به (Happ) وإدخال التكوين بشكل صحيح. إذا استمرت المشكلة، فقد تكون شبكتك تحظر هذا البروتوكول مؤقتاً — اتصل بالدعم للحصول على تكوين بديل." },
+                { q: "كيف أجدد اشتراكي؟", a: "اضغط على زر \"تجديد\" في لوحة التحكم أو راسل الدعم مباشرة." },
+                { q: "هل يمكنني الاستخدام على عدة أجهزة في وقت واحد؟", a: "يعتمد هذا على خطتك. إذا تجاوزت عدد الأجهزة المتزامنة المسموح بها في خطتك، فسيقوم النظام تلقائياً بتعطيل التكوين الخاص بك." },
+                { q: "لماذا تم تعطيل تكويني فجأة؟", a: "يحدث هذا عادةً بسبب استخدام أجهزة متزامنة أكثر مما تسمح به خطتك. اتصل بالدعم لإعادة التفعيل." },
+                { q: "أي تطبيق يجب أن أثبت؟", a: "للحصول على أفضل سرعة وسهولة، نوصي بتطبيق Happ — يمكن تثبيته والاتصال به بنقرة واحدة من تبويب \"تحميل التطبيقات\"." }
+            ]
+        };
+
+        const locales = {
+            fa: {
+                dir: "rtl", greet: "سلام ", badgeActive: "فعال", badgeInactive: "غیرفعال",
+                daysUnit: "روز", remainingLabel: "باقی‌مانده", titleLimit: "حجم کلی", titleTotal: "مصرف کل",
+                titleDownload: "دانلود", titleUpload: "آپلود",
+                detailTotal: "مصرف کل", detailRemaining: "باقی‌مانده", detailRemainingVolume: "حجم باقی‌مانده", detailLastConnect: "آخرین اتصال",
+                actionRenew: "تمدید ساب", actionCopy: "کپی لینک ساب", actionCopied: "کپی شد!",
+                actionQr: "QR Code", actionConfig: "کپی کانفیگ", copyAllBtn: "کپی همه کانفیگ‌ها",
+                navDashboard: "<i class='fa-solid fa-house'></i>داشبورد", navDownload: "<i class='fa-solid fa-download'></i>دانلود برنامه",
+                dlScreenTitle: "دانلود برنامه ها", dlSubtitle: "کلاینت رسمی فروشگاه", btnDl: "دانلود",
+                tabAndroid: "اندروید", tabIos: "آیفون / آیپد", tabDesktop: "ویندوز",
+                designerLbl: "عضویت در کانال:", expiredText: "منقضی", unlimitedText: "نامحدود", emptyConfigs: "خالی", copyBtnText: "کپی",
+                lastConnectUnknown: "--", onlineText: "آنلاین", offlineText: "آفلاین",
+                promoText: "آیا نیاز به <span>خرید</span> یا <span>تمدید ساب</span> دارید؟<br>با پشتیبانی تماس بگیرید.",
+                promoTelegram: "تلگرام",
+                notificationTitle: "آیا مشکلی در اتصال کانفیگ دارید؟",
+                notificationDesc: "پیشنهاد می‌کنیم از برنامه‌ی Happ استفاده کنید؛ در غیر این صورت به پشتیبانی پیام بدهید",
+                notificationDismiss: "خیر",
+                notificationSupport: "پشتیبانی",
+                happRecommendBanner: "پیشنهاد ما: برای بهترین تجربه‌ی کاربری و سرعت، از برنامه‌ی <b>Happ</b> استفاده کنید.",
+                recommendedRibbon: "پیشنهادی",
+                videoTutorialText: "آموزش تصویری نصب و اتصال (به‌زودی)",
+                disabledReasonTitle: "این کانفیگ غیرفعال است",
+                disabledReasonDesc: "این اتفاق معمولاً به‌خاطر استفاده‌ی هم‌زمان از چند دستگاه (بیشتر از حد مجاز) می‌افتد. برای فعال‌سازی مجدد با پشتیبانی در تماس باشید.",
+                disabledReasonBtnText: "تماس با پشتیبانی",
+                disabledSupportMsg: "سلام، کانفیگ من (نام کاربری: {username}) غیرفعال شده. لطفاً بررسی کنید.",
+                lowQuotaTitle: "اشتراک شما رو به اتمام است",
+                lowQuotaDescDays: "فقط {days} روز از اشتراک شما باقی مانده. برای جلوگیری از قطعی، همین حالا تمدید کنید.",
+                lowQuotaDescVolume: "حجم اشتراک شما رو به اتمام است. برای جلوگیری از قطعی، همین حالا تمدید کنید.",
+                lowQuotaBtnText: "تمدید اشتراک",
+                referralTitleText: "معرفی به دوستان",
+                referralDescText: "لینک اختصاصی خودتان را برای دوستانتان بفرستید و به ازای هر خرید موفق، هدیه بگیرید.",
+                referralCopyBtnText: "کپی",
+                referralCopiedText: "کپی شد!",
+                faqSectionTitle: "سوالات متداول"
+            },
+            en: {
+                dir: "ltr", greet: "Hello ", badgeActive: "Active", badgeInactive: "Inactive",
+                daysUnit: "Days", remainingLabel: "Remaining", titleLimit: "Total Limit", titleTotal: "Total Usage",
+                titleDownload: "Download", titleUpload: "Upload",
+                detailTotal: "Total Usage", detailRemaining: "Remaining", detailRemainingVolume: "Remaining Volume", detailLastConnect: "Last Connect",
+                actionRenew: "Renew", actionCopy: "Copy Sub Link", actionCopied: "Copied!",
+                actionQr: "QR Code", actionConfig: "Copy Config", copyAllBtn: "Copy All Configs",
+                navDashboard: "<i class='fa-solid fa-house'></i>Dashboard", navDownload: "<i class='fa-solid fa-download'></i>App",
+                dlScreenTitle: "Download Clients", dlSubtitle: "Official Store Client", btnDl: "Get App",
+                tabAndroid: "Android", tabIos: "iPhone / iPad", tabDesktop: "Windows",
+                designerLbl: "Join our channel:", expiredText: "Expired", unlimitedText: "Unlimited", emptyConfigs: "Empty", copyBtnText: "Copy",
+                lastConnectUnknown: "--", onlineText: "Online", offlineText: "Offline",
+                promoText: "Need to <span>buy</span> or <span>renew</span> your subscription?<br>Contact support.",
+                promoTelegram: "Telegram",
+                notificationTitle: "Having trouble connecting?",
+                notificationDesc: "We recommend using the Happ app; otherwise, contact support",
+                notificationDismiss: "No",
+                notificationSupport: "Support",
+                happRecommendBanner: "Our recommendation: for the best experience and speed, use the <b>Happ</b> app.",
+                recommendedRibbon: "Recommended",
+                videoTutorialText: "Video setup tutorial (coming soon)",
+                disabledReasonTitle: "This config is disabled",
+                disabledReasonDesc: "This usually happens due to using more simultaneous devices than allowed. Contact support to reactivate it.",
+                disabledReasonBtnText: "Contact Support",
+                disabledSupportMsg: "Hi, my config (username: {username}) is disabled. Please check.",
+                lowQuotaTitle: "Your subscription is running out",
+                lowQuotaDescDays: "Only {days} day(s) left on your subscription. Renew now to avoid disconnection.",
+                lowQuotaDescVolume: "Your subscription data is running out. Renew now to avoid disconnection.",
+                lowQuotaBtnText: "Renew Subscription",
+                referralTitleText: "Refer Friends",
+                referralDescText: "Share your personal link with friends and get rewarded for every successful purchase.",
+                referralCopyBtnText: "Copy",
+                referralCopiedText: "Copied!",
+                faqSectionTitle: "Frequently Asked Questions"
+            },
+            tr: {
+                dir: "ltr", greet: "Merhaba ", badgeActive: "Aktif", badgeInactive: "Pasif",
+                daysUnit: "Gün", remainingLabel: "Kalan", titleLimit: "Toplam Kota", titleTotal: "Toplam",
+                titleDownload: "İndirme", titleUpload: "Yükleme",
+                detailTotal: "Toplam", detailRemaining: "Kalan", detailRemainingVolume: "Kalan Hacim", detailLastConnect: "Son Bağlantı",
+                actionRenew: "Yenile", actionCopy: "Sub Linki Kopyala", actionCopied: "Kopyalandı!",
+                actionQr: "QR Kodu", actionConfig: "Konfig Kopyala", copyAllBtn: "Tüm Konfigleri Kopyala",
+                navDashboard: "<i class='fa-solid fa-house'></i>Panel", navDownload: "<i class='fa-solid fa-download'></i>Uygulama",
+                dlScreenTitle: "Uygulamaları İndir", dlSubtitle: "Resmi Mağaza İstemcisi", btnDl: "İndir",
+                tabAndroid: "Android", tabIos: "iPhone / iPad", tabDesktop: "Windows",
+                designerLbl: "Kanalımıza katılın:", expiredText: "Süresi Doldu", unlimitedText: "Sınırsız", emptyConfigs: "Boş", copyBtnText: "Kopyala",
+                lastConnectUnknown: "--", onlineText: "Çevrimiçi", offlineText: "Çevrimdışı",
+                promoText: "Aboneliğinizi <span>satın</span> veya <span>yenile</span> mi gerekiyor?<br>Destek ile iletişime geçin.",
+                promoTelegram: "Telegram",
+                notificationTitle: "Bağlantı sorunu mu yaşıyorsunuz?",
+                notificationDesc: "Happ uygulamasını kullanmanızı öneririz; aksi halde destek ile iletişime geçin",
+                notificationDismiss: "Hayır",
+                notificationSupport: "Destek",
+                happRecommendBanner: "Önerimiz: en iyi deneyim ve hız için <b>Happ</b> uygulamasını kullanın.",
+                recommendedRibbon: "Önerilen",
+                videoTutorialText: "Video kurulum rehberi (yakında)",
+                disabledReasonTitle: "Bu konfigürasyon devre dışı",
+                disabledReasonDesc: "Bu genellikle izin verilenden fazla eşzamanlı cihaz kullanımından kaynaklanır. Yeniden etkinleştirmek için destek ile iletişime geçin.",
+                disabledReasonBtnText: "Destek ile İletişim",
+                disabledSupportMsg: "Merhaba, konfigürasyonum (kullanıcı adı: {username}) devre dışı bırakıldı. Lütfen kontrol edin.",
+                lowQuotaTitle: "Aboneliğiniz tükeniyor",
+                lowQuotaDescDays: "Aboneliğinizden sadece {days} gün kaldı. Bağlantı kesilmesini önlemek için şimdi yenileyin.",
+                lowQuotaDescVolume: "Abonelik verileriniz tükeniyor. Bağlantı kesilmesini önlemek için şimdi yenileyin.",
+                lowQuotaBtnText: "Aboneliği Yenile",
+                referralTitleText: "Arkadaşlarını Davet Et",
+                referralDescText: "Kişisel linkinizi arkadaşlarınızla paylaşın ve her başarılı satın alma için ödül kazanın.",
+                referralCopyBtnText: "Kopyala",
+                referralCopiedText: "Kopyalandı!",
+                faqSectionTitle: "Sıkça Sorulan Sorular"
+            },
+            ar: {
+                dir: "rtl", greet: "أهلاً ", badgeActive: "نشط", badgeInactive: "غير نشط",
+                daysUnit: "يوم", remainingLabel: "المتبقي", titleLimit: "الحجم الكلي", titleTotal: "الإجمالي",
+                titleDownload: "تحميل", titleUpload: "رفع",
+                detailTotal: "الإجمالي", detailRemaining: "المتبقي", detailRemainingVolume: "الحجم المتبقي", detailLastConnect: "آخر اتصال",
+                actionRenew: "تجديد", actionCopy: "نسخ رابط الساب", actionCopied: "تم النسخ!",
+                actionQr: "رمز QR", actionConfig: "نسخ التكوين", copyAllBtn: "نسخ كل التكوينات",
+                navDashboard: "<i class='fa-solid fa-house'></i>الرئيسية", navDownload: "<i class='fa-solid fa-download'></i>التطبيق",
+                dlScreenTitle: "تحميل التطبيقات", dlSubtitle: "عميل المتجر الرسمي", btnDl: "تحميل",
+                tabAndroid: "أندروید", tabIos: "آيفون / آيباد", tabDesktop: "ویندوز",
+                designerLbl: "انضم إلى قناتنا:", expiredText: "منتهي", unlimitedText: "غير محدود", emptyConfigs: "خالي", copyBtnText: "نسخ",
+                lastConnectUnknown: "--", onlineText: "متصل", offlineText: "غير متصل",
+                promoText: "هل تحتاج إلى <span>شراء</span> أو <span>تجديد</span> اشتراكك؟<br>اتصل بالدعم.",
+                promoTelegram: "تيليجرام",
+                notificationTitle: "هل تواجه مشكلة في الاتصال؟",
+                notificationDesc: "نوصي باستخدام تطبيق Happ؛ وإلا، اتصل بالدعم",
+                notificationDismiss: "لا",
+                notificationSupport: "الدعم",
+                happRecommendBanner: "توصيتنا: للحصول على أفضل تجربة وسرعة، استخدم تطبيق <b>Happ</b>.",
+                recommendedRibbon: "موصى به",
+                videoTutorialText: "شرح فيديو للتثبيت والاتصال (قريباً)",
+                disabledReasonTitle: "هذا التكوين معطل",
+                disabledReasonDesc: "يحدث هذا عادةً بسبب استخدام أجهزة متزامنة أكثر من المسموح به. اتصل بالدعم لإعادة التفعيل.",
+                disabledReasonBtnText: "التواصل مع الدعم",
+                disabledSupportMsg: "مرحباً، تم تعطيل التكوين الخاص بي (اسم المستخدم: {username}). يرجى التحقق.",
+                lowQuotaTitle: "اشتراكك على وشك الانتهاء",
+                lowQuotaDescDays: "تبقى {days} يوم فقط من اشتراكك. جدد الآن لتجنب الانقطاع.",
+                lowQuotaDescVolume: "بيانات اشتراكك على وشك النفاد. جدد الآن لتجنب الانقطاع.",
+                lowQuotaBtnText: "تجديد الاشتراك",
+                referralTitleText: "دعوة الأصدقاء",
+                referralDescText: "شارك رابطك الخاص مع أصدقائك واحصل على مكافأة عند كل عملية شراء ناجحة.",
+                referralCopyBtnText: "نسخ",
+                referralCopiedText: "تم النسخ!",
+                faqSectionTitle: "الأسئلة الشائعة"
+            }
+        };
+
+        // ===== توابع اصلی =====
+        function decodeBase64Unicode(str) {
+            const clean = str.replace(/-/g, '+').replace(/_/g, '/').trim();
+            const binary = atob(clean);
+            const bytes = Uint8Array.from(binary, c => c.charCodeAt(0));
+            return new TextDecoder('utf-8').decode(bytes);
+        }
+
+        function parseSubscriptionUserinfo(headerValue) {
+            const result = { upload: null, download: null, total: null, expire: null };
+            if (!headerValue) return result;
+            headerValue.split(';').forEach(part => {
+                const [key, val] = part.trim().split('=');
+                if (key && val !== undefined && result.hasOwnProperty(key.trim())) {
+                    result[key.trim()] = parseInt(val.trim(), 10);
+                }
+            });
+            return result;
+        }
+
+        async function fetchLiveSubscriptionData() {
+            if (!sanaeiClientData.subUrl) return;
+            try {
+                const response = await fetch(sanaeiClientData.subUrl, {
+                    method: 'GET',
+                    cache: 'no-store',
+                    headers: { 'Accept': 'text/plain' }
+                });
+
+                if (!response.ok) throw new Error('HTTP ' + response.status);
+
+                const userInfoHeader = response.headers.get('subscription-userinfo');
+                const bodyText = (await response.text()).trim();
+
+                if (bodyText) {
+                    let decodedLinks = [];
+                    try {
+                        decodedLinks = decodeBase64Unicode(bodyText).split('\n').map(l => l.trim()).filter(Boolean);
+                    } catch (e) {
+                        decodedLinks = bodyText.split('\n').map(l => l.trim()).filter(Boolean);
+                    }
+                    if (decodedLinks.length > 0) {
+                        sanaeiClientData.links = decodedLinks;
+                    }
+                }
+
+                if (userInfoHeader) {
+                    const info = parseSubscriptionUserinfo(userInfoHeader);
+                    if (info.download !== null && info.upload !== null) {
+                        sanaeiClientData.downloadByte = info.download;
+                        sanaeiClientData.uploadByte = info.upload;
+                    }
+                    if (info.total !== null) sanaeiClientData.totalByte = info.total;
+                    if (info.expire !== null) {
+                        sanaeiClientData.expireSeconds = info.expire;
+                        sanaeiClientData.daysLeft = calculateDaysLeft(info.expire);
+                        const dates = generateExpiryDates(info.expire);
+                        sanaeiClientData.expiryDateFa = dates.fa;
+                        sanaeiClientData.expiryDateEn = dates.en;
+                        sanaeiClientData.expiryDateTr = dates.tr;
+                        sanaeiClientData.expiryDateAr = dates.ar;
+                    }
+                }
+
+                const lastOnlineHeader = response.headers.get('subscription-last-online');
+                if (lastOnlineHeader) {
+                    const parsed = parseInt(lastOnlineHeader, 10);
+                    if (!isNaN(parsed) && parsed > 0) {
+                        sanaeiClientData.lastOnline = parsed;
+                    }
+                }
+
+                updateConnectionStatus();
+                renderAll();
+            } catch (error) {
+                console.error("❌ خطا در دریافت اطلاعات زنده:", error);
+            }
+        }
+
+        function isUserOnline() {
+            const now = Date.now();
+            if (sanaeiClientData.lastOnline && sanaeiClientData.lastOnline > 0) {
+                const diffSeconds = (now - sanaeiClientData.lastOnline) / 1000;
+                return diffSeconds < 300;
+            }
+            return false;
+        }
+
+        function renderAll() {
+            renderPanelData();
+            renderActionMenus();
+            updateOnlineStatus();
+            updatePageTitle();
+        }
+
+        function getColorForPercentage(percent) {
+            if (percent >= 75) return '#2DD4BF';
+            if (percent >= 50) return '#F4A94A';
+            if (percent >= 25) return '#F4A94A';
+            return '#F0655F';
+        }
+
+        function renderPanelData() {
+            const data = locales[currentLang] || locales.fa;
+
+            const username = sanaeiClientData.username;
+            const isOnline = isUserOnline();
+            const usernameClass = isOnline ? 'username-text online' : 'username-text';
+            document.getElementById("user-name").innerHTML = `
+                ${waveIconHTML}
+                <span class="greeting-text">${data.greet}</span>
+                <span class="${usernameClass}">${username}</span>
+            `;
+
+            if (sanaeiClientData.daysLeft === -1) {
+                document.getElementById("live-days-count").innerHTML = `<span style="font-size:22px; color:#F0655F;">${data.expiredText}</span>`;
+            } else if (sanaeiClientData.daysLeft === null) {
+                document.getElementById("live-days-count").innerHTML = `<span style="font-size:22px;">${data.unlimitedText}</span>`;
+            } else {
+                document.getElementById("live-days-count").innerHTML = `${sanaeiClientData.daysLeft} <span id="days-label">${data.daysUnit}</span>`;
+            }
+
+            document.getElementById("stat-limit").innerText = sanaeiClientData.totalByte > 0 ? formatBytes(sanaeiClientData.totalByte) : data.unlimitedText;
+
+            if (currentLang === 'fa') document.getElementById("expire-date").innerText = "تاریخ انقضا: " + (sanaeiClientData.expireSeconds > 0 ? sanaeiClientData.expiryDateFa : data.unlimitedText);
+            else if (currentLang === 'en') document.getElementById("expire-date").innerText = "Expiry: " + (sanaeiClientData.expireSeconds > 0 ? sanaeiClientData.expiryDateEn : data.unlimitedText);
+            else if (currentLang === 'tr') document.getElementById("expire-date").innerText = "Son Kullanma: " + (sanaeiClientData.expireSeconds > 0 ? sanaeiClientData.expiryDateTr : data.unlimitedText);
+            else if (currentLang === 'ar') document.getElementById("expire-date").innerText = "تاريخ الانتهاء: " + (sanaeiClientData.expireSeconds > 0 ? sanaeiClientData.expiryDateAr : data.unlimitedText);
+
+            const totalUsage = sanaeiClientData.downloadByte + sanaeiClientData.uploadByte;
+            document.getElementById("stat-dl-val").innerText = formatBytes(sanaeiClientData.downloadByte);
+            document.getElementById("stat-ul-val").innerText = formatBytes(sanaeiClientData.uploadByte);
+            document.getElementById("stat-total-val").innerText = formatBytes(totalUsage);
+
+            document.getElementById("detail-total-value").innerText = formatBytes(totalUsage);
+
+            let percentRemaining = 100;
+            let remainingVolume = sanaeiClientData.totalByte - totalUsage;
+            if (sanaeiClientData.totalByte > 0) {
+                let percentUsage = (totalUsage / sanaeiClientData.totalByte) * 100;
+                percentRemaining = Math.round(100 - percentUsage);
+                if (percentRemaining < 0) percentRemaining = 0;
+                if (percentRemaining > 100) percentRemaining = 100;
+            }
+            document.getElementById("detail-remaining-value").innerText = percentRemaining + '%';
+            sanaeiClientData.percentRemaining = percentRemaining;
+
+            if (sanaeiClientData.totalByte > 0) {
+                document.getElementById("detail-remaining-volume").innerText = remainingVolume > 0 ? formatBytes(remainingVolume) : '0 B';
+            } else {
+                document.getElementById("detail-remaining-volume").innerText = data.unlimitedText;
+            }
+
+            let lastConnectStr = data.lastConnectUnknown;
+            if (sanaeiClientData.lastOnline && sanaeiClientData.lastOnline > 0) {
+                const d = new Date(sanaeiClientData.lastOnline);
+                try {
+                    if (currentLang === 'fa') lastConnectStr = d.toLocaleString('fa-IR');
+                    else if (currentLang === 'en') lastConnectStr = d.toLocaleString('en-US');
+                    else if (currentLang === 'tr') lastConnectStr = d.toLocaleString('tr-TR');
+                    else if (currentLang === 'ar') lastConnectStr = d.toLocaleString('ar-EG');
+                    else lastConnectStr = d.toLocaleString();
+                } catch (e) { /* ignore */ }
+            }
+            document.getElementById("detail-last-connect-value").innerText = lastConnectStr;
+
+            const ringColor = getColorForPercentage(percentRemaining);
+            const pctEl = document.getElementById("live-percent-display");
+            const ringEl = document.getElementById("sub-progress-circle");
+
+            // اولین بار: حلقه جاروب می‌کند و عدد بالا می‌رود.
+            // دفعات بعد (تغییر زبان، بازخوانی): مستقیم تنظیم می‌شود.
+            if (!window.NEXORA_RING_DONE) {
+                window.NEXORA_RING_DONE = true;
+                sweepRing(percentRemaining, ringColor);
+                countTo(pctEl, percentRemaining, { suffix: "%", duration: 1150 });
+            } else {
+                pctEl.innerText = percentRemaining + "%";
+                ringEl.style.background =
+                    `conic-gradient(${ringColor} 0% ${percentRemaining}%, rgba(255, 255, 255, 0.05) ${percentRemaining}% 100%)`;
+            }
+            updateStatusUI();
+            updateAlertBanners();
+            setupReferral();
+        }
+
+        function updateOnlineStatus() {
+            const data = locales[currentLang] || locales.fa;
+            const dot = document.getElementById('online-status-dot');
+            const statusText = document.getElementById('online-status-text');
+            const usernameElement = document.querySelector('.username-text');
+            const profileImg = document.getElementById('profile-img');
+
+            const isOnline = isUserOnline();
+
+            if (isOnline && isServerConnected) {
+                dot.classList.add('online');
+                statusText.innerText = data.onlineText;
+                statusText.classList.remove('offline');
+                if (usernameElement) usernameElement.classList.add('online');
+                profileImg.classList.add('online');
+            } else {
+                dot.classList.remove('online');
+                statusText.innerText = data.offlineText;
+                statusText.classList.add('offline');
+                if (usernameElement) usernameElement.classList.remove('online');
+                profileImg.classList.remove('online');
+            }
+        }
+
+        function updateStatusUI() {
+            const data = locales[currentLang] || locales.fa;
+            const card = document.getElementById("main-sub-card");
+            const badgeText = document.getElementById("badge-text");
+            const iconMark = document.getElementById("status-icon-mark");
+
+            if (isServerConnected) {
+                card.classList.remove("disconnected");
+                badgeText.innerText = data.badgeActive;
+                iconMark.className = "fa-solid fa-check";
+            } else {
+                card.classList.add("disconnected");
+                badgeText.innerText = data.badgeInactive;
+                iconMark.className = "fa-solid fa-xmark";
+            }
+        }
+
+        function updatePageTitle() {
+            // اگر مدیر در پنل عنوان سفارشی تعیین کرده، آن اولویت دارد
+            const customTitle = window.remoteConfig?.advanced?.pageTitle;
+            if (customTitle && String(customTitle).trim()) {
+                document.title = customTitle;
+                return;
+            }
+            const titleEl = document.getElementById('page-title');
+            const username = sanaeiClientData.username || 'VPN Dashboard';
+            if (titleEl) titleEl.textContent = username;
+        }
+
+        // ===== توابع نوتیفیکیشن =====
+        function showNotification() {
+            const overlay = document.getElementById('notificationOverlay');
+            const fill = document.getElementById('timerFill');
+            const box = document.getElementById('notificationBox');
+            if (!overlay) return;
+
+            const data = locales[currentLang] || locales.fa;
+            const popup = window.NEXORA_POPUP || {};
+
+            // متن‌ها: اولویت با تنظیمات پنل مدیریت، در غیر این‌صورت ترجمه‌ی پیش‌فرض
+            const iconEl = document.querySelector('.notification-box .icon');
+            if (iconEl && popup.icon) iconEl.textContent = popup.icon;
+
+            document.querySelector('.notification-box .title').textContent =
+                popup.title || data.notificationTitle;
+            document.querySelector('.notification-box .desc').textContent =
+                popup.description || data.notificationDesc;
+            document.getElementById('notificationDismiss').textContent =
+                popup.dismissButtonText || data.notificationDismiss;
+            document.getElementById('notificationSupport').textContent =
+                popup.primaryButtonText || data.notificationSupport;
+
+            // مدت زمان بسته‌شدن خودکار (قابل تنظیم از پنل)
+            const autoClose = Number(popup.autoCloseSeconds) > 0 ? Number(popup.autoCloseSeconds) : 15;
+            let timeLeft = autoClose;
+            fill.style.width = '100%';
+
+            overlay.classList.add('show');
+
+            if (timerInterval) clearInterval(timerInterval);
+            timerInterval = setInterval(() => {
+                timeLeft -= 0.1;
+                const percent = (timeLeft / autoClose) * 100;
+                fill.style.width = Math.max(0, percent) + '%';
+                if (timeLeft <= 0) {
+                    clearInterval(timerInterval);
+                    dismissNotification();
+                }
+            }, 100);
+
+            if (notificationTimeout) clearTimeout(notificationTimeout);
+            notificationTimeout = setTimeout(() => { dismissNotification(); }, autoClose * 1000);
+
+            document.getElementById('notificationDismiss').onclick = function() {
+                dismissNotification();
+            };
+            document.getElementById('notificationSupport').onclick = function() {
+                // لینک دکمه: اولویت با تنظیم اختصاصی پنل، سپس لینک پشتیبانی، سپس پیش‌فرض
+                const url = popup.primaryButtonUrl
+                    || window.NEXORA_SUPPORT_URL
+                    || 'https://t.me/crm_nexoravpn';
+                window.open(url, '_blank');
+                dismissNotification();
+            };
+        }
+
+        function dismissNotification() {
+            const overlay = document.getElementById('notificationOverlay');
+            overlay.classList.remove('show');
+            if (timerInterval) clearInterval(timerInterval);
+            if (notificationTimeout) clearTimeout(notificationTimeout);
+        }
+
+        function parseConfigLink(rawLink) {
+            const result = { protocol: 'unknown', remark: '', host: '', port: '', link: rawLink };
+            try {
+                const schemeMatch = rawLink.match(/^([a-zA-Z0-9]+):\/\//);
+                if (!schemeMatch) return result;
+                result.protocol = schemeMatch[1].toLowerCase();
+
+                if (result.protocol === 'vmess') {
+                    const b64 = rawLink.replace(/^vmess:\/\//, '');
+                    const json = JSON.parse(decodeBase64Unicode(b64));
+                    result.remark = json.ps || '';
+                    result.host = json.add || '';
+                    result.port = json.port || '';
+                } else {
+                    const u = new URL(rawLink);
+                    result.remark = decodeURIComponent((u.hash || '').replace(/^#/, ''));
+                    result.host = u.hostname || '';
+                    result.port = u.port || '';
+                }
+            } catch (e) { /* ignore */ }
+            return result;
+        }
+
+        function getProtocolDetails(link) {
+            const parsed = parseConfigLink(link);
+            if (parsed.protocol === 'vmess') {
+                try {
+                    const b64 = link.replace(/^vmess:\/\//, '');
+                    const json = JSON.parse(decodeBase64Unicode(b64));
+                    const net = json.net || 'tcp';
+                    const security = json.tls === 'tls' ? 'tls' : (json.tls === 'reality' ? 'reality' : 'none');
+                    return { parts: [parsed.protocol, net, security], full: `${parsed.protocol}+${net}+${security}` };
+                } catch (e) { return { parts: [parsed.protocol], full: parsed.protocol }; }
+            } else if (parsed.protocol === 'vless' || parsed.protocol === 'trojan') {
+                try {
+                    const u = new URL(link);
+                    const type = u.searchParams.get('type') || 'tcp';
+                    const security = u.searchParams.get('security') || 'none';
+                    return { parts: [parsed.protocol, type, security], full: `${parsed.protocol}+${type}+${security}` };
+                } catch (e) { return { parts: [parsed.protocol], full: parsed.protocol }; }
+            } else if (parsed.protocol === 'ss') {
+                try {
+                    const b64 = link.replace(/^ss:\/\//, '').split('#')[0];
+                    const decoded = atob(b64);
+                    const parts = decoded.split(':');
+                    const method = parts[0] || 'unknown';
+                    return { parts: ['ss', method], full: `ss+${method}` };
+                } catch (e) { return { parts: [parsed.protocol], full: parsed.protocol }; }
+            } else if (parsed.protocol === 'hysteria2' || parsed.protocol === 'hysteria') {
+                try {
+                    const u = new URL(link);
+                    const security = u.searchParams.get('insecure') === '0' ? 'secure' : 'insecure';
+                    return { parts: [parsed.protocol, security], full: `${parsed.protocol}+${security}` };
+                } catch (e) { return { parts: [parsed.protocol], full: parsed.protocol }; }
+            }
+            return { parts: [parsed.protocol], full: parsed.protocol };
+        }
+
+        function extractCountryInfo(parsedConfig) {
+            const remark = (parsedConfig.remark || parsedConfig.host || "").trim();
+            const textWithoutFlagEmojis = remark.replace(/[\u{1F1E0}-\u{1F1FF}]/gu, '').trim();
+            const dashParts = textWithoutFlagEmojis.split(/[-–—]/).map(p => p.trim()).filter(p => p);
+            const pipeParts = textWithoutFlagEmojis.split('|').map(p => p.trim()).filter(p => p);
+            const colonParts = textWithoutFlagEmojis.split(':').map(p => p.trim()).filter(p => p);
+
+            let countryName = "";
+            let cityName = "";
+
+            if (dashParts.length >= 2) {
+                countryName = dashParts[0];
+                cityName = dashParts[1];
+            } else if (pipeParts.length >= 2) {
+                countryName = pipeParts[0];
+                cityName = pipeParts[1];
+            } else if (colonParts.length >= 2) {
+                countryName = colonParts[0];
+                cityName = colonParts[1];
+            } else {
+                countryName = textWithoutFlagEmojis || parsedConfig.host || "Unknown";
+                cityName = parsedConfig.host || "";
+            }
+
+            let countryCode = "";
+            if (remark) {
+                const flagMatch = remark.match(/[\u{1F1E0}-\u{1F1FF}]{2}/gu);
+                if (flagMatch) {
+                    const codePoints = [...flagMatch[0]];
+                    countryCode = String.fromCodePoint(
+                        codePoints[0].codePointAt(0) - 0x1F1E6 + 0x61,
+                        codePoints[1].codePointAt(0) - 0x1F1E6 + 0x61
+                    );
+                }
+            }
+
+            if (!countryCode && countryName) {
+                try {
+                    const regionNames = new Intl.DisplayNames(['en'], { type: 'region' });
+                    const commonCodes = ['de', 'nl', 'fr', 'gb', 'us', 'ca', 'tr', 'ae', 'sg', 'jp',
+                        'fi', 'se', 'no', 'ch', 'it', 'es', 'pt', 'pl', 'ru', 'ua',
+                        'ir', 'cn', 'hk', 'tw', 'kr', 'in', 'br', 'ar', 'au', 'at',
+                        'be', 'dk', 'gr', 'ie', 'il', 'mx', 'nz', 'za'
+                    ];
+                    const lowerCountry = countryName.toLowerCase();
+                    for (const code of commonCodes) {
+                        if (regionNames.of(code).toLowerCase() === lowerCountry) {
+                            countryCode = code;
+                            break;
+                        }
+                    }
+                } catch (e) {
+                    countryCode = countryName.substring(0, 2).toLowerCase();
+                }
+            }
+
+            if (!countryCode || countryCode.length !== 2) countryCode = 'unknown';
+            return {
+                countryName: countryName || "Unknown",
+                countryCode: countryCode,
+                cityName: cityName || parsedConfig.host || "",
+                host: parsedConfig.host || ""
+            };
+        }
+
+        function formatBytes(bytes) {
+            if (bytes === 0) return "0 B";
+            if (bytes < 0 || bytes === undefined || bytes === null) return "---";
+            const k = 1024;
+            const sizes = ["Bytes", "KB", "MB", "GB", "TB"];
+            const i = Math.floor(Math.log(bytes) / Math.log(k));
+            return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + " " + sizes[i];
+        }
+
+        function renderActionMenus() {
+            const data = locales[currentLang] || locales.fa;
+            const links = sanaeiClientData.links || [];
+
+            const qrContainer = document.getElementById("list-qr-ips");
+            const configContainer = document.getElementById("list-config-ips");
+
+            function buildProtocolBadge(protocolDetails) {
+                const parts = protocolDetails.parts || [];
+                if (parts.length === 0) return '';
+                return parts.map((part, idx) => {
+                    let cls = '';
+                    if (parts.length >= 3) {
+                        if (idx === 0) cls = 'proto-part-1';
+                        else if (idx === 1) cls = 'proto-part-2';
+                        else cls = 'proto-part-3';
+                    } else if (parts.length === 2) {
+                        if (idx === 0) cls = 'proto-part-1';
+                        else cls = 'proto-part-2';
+                    } else {
+                        cls = 'proto-part-1';
+                    }
+                    return `<span class="${cls}">${part}</span>`;
+                }).join('<span style="color: rgba(255,255,255,0.4); margin: 0 1px;">+</span>');
+            }
+
+            function buildQrItem(parsed) {
+                const flagInfo = extractCountryInfo(parsed);
+                const flagUrl = flagInfo.countryCode !== 'unknown' ? `https://flagcdn.com/w80/${flagInfo.countryCode}.png` : '';
+                const flagHtml = flagUrl
+                    ? `<div class="action-mini-flag" style="background-image: url('${flagUrl}');"></div>`
+                    : `<div class="action-mini-flag" style="background: #2C2C3E; display: flex; align-items: center; justify-content: center; color: #6c6c8c;"><i class="fa-solid fa-globe"></i></div>`;
+
+                const protocolDetails = getProtocolDetails(parsed.link);
+                const encoded = encodeURIComponent(parsed.link);
+                const item = document.createElement("div");
+                item.className = "ip-row-item";
+                item.innerHTML = `
+                    <div class="ip-details-left">
+                        ${flagHtml}
+                        <div class="qr-modern-wrapper" data-qr-link="${encoded}" data-qr-title="${(parsed.remark || parsed.host || '').replace(/"/g, '&quot;')}">
+                            <img src="https://api.qrserver.com/v1/create-qr-code/?size=100x100&data=${encoded}" alt="QR" loading="lazy" />
+                        </div>
+                        <div class="ip-meta-block">
+                            <div class="ip-address-text en-font">${parsed.remark || parsed.host}</div>
+                            <div>
+                                <span class="ip-protocol-badge-box en-font">${buildProtocolBadge(protocolDetails)}</span>
+                            </div>
+                        </div>
+                    </div>
+                    <button class="ip-copy-btn" data-config-text="${encodeURIComponent(parsed.link)}">
+                        <i class="fa-solid fa-copy"></i> ${data.copyBtnText}
+                    </button>
+                `;
+
+                const copyBtn = item.querySelector('.ip-copy-btn');
+                copyBtn.addEventListener('click', function(e) {
+                    e.stopPropagation();
+                    const textToCopy = decodeURIComponent(this.getAttribute('data-config-text'));
+                    navigator.clipboard.writeText(textToCopy).then(() => {
+                        this.innerHTML = `<i class="fa-solid fa-check"></i> ${data.actionCopied}`;
+                        this.style.background = "#22C55E";
+                        this.style.color = "#fff";
+                        setTimeout(() => {
+                            this.innerHTML = `<i class="fa-solid fa-copy"></i> ${data.copyBtnText}`;
+                            this.style.background = "";
+                            this.style.color = "";
+                        }, 2000);
+                    });
+                });
+
+                const qrWrapper = item.querySelector('.qr-modern-wrapper');
+                qrWrapper.addEventListener('click', function(e) {
+                    e.stopPropagation();
+                    openQrModal(this.getAttribute('data-qr-link'), this.getAttribute('data-qr-title'));
+                });
+
+                return item;
+            }
+
+            function buildConfigItem(parsed) {
+                const flagInfo = extractCountryInfo(parsed);
+                const flagUrl = flagInfo.countryCode !== 'unknown' ? `https://flagcdn.com/w80/${flagInfo.countryCode}.png` : '';
+                const flagHtml = flagUrl
+                    ? `<div class="action-mini-flag" style="background-image: url('${flagUrl}');"></div>`
+                    : `<div class="action-mini-flag" style="background: #2C2C3E; display: flex; align-items: center; justify-content: center; color: #6c6c8c;"><i class="fa-solid fa-globe"></i></div>`;
+
+                const protocolDetails = getProtocolDetails(parsed.link);
+                const item = document.createElement("div");
+                item.className = "ip-row-item";
+                item.innerHTML = `
+                    <div class="ip-details-left">
+                        ${flagHtml}
+                        <div class="ip-meta-block">
+                            <div class="ip-address-text en-font">${parsed.remark || parsed.host}</div>
+                            <div>
+                                <span class="ip-protocol-badge-box en-font">${buildProtocolBadge(protocolDetails)}</span>
+                            </div>
+                        </div>
+                    </div>
+                    <button class="ip-copy-btn" data-config-text="${encodeURIComponent(parsed.link)}">
+                        <i class="fa-solid fa-copy"></i> ${data.copyBtnText}
+                    </button>
+                `;
+
+                const copyBtn = item.querySelector('.ip-copy-btn');
+                copyBtn.addEventListener('click', function(e) {
+                    e.stopPropagation();
+                    const textToCopy = decodeURIComponent(this.getAttribute('data-config-text'));
+                    navigator.clipboard.writeText(textToCopy).then(() => {
+                        this.innerHTML = `<i class="fa-solid fa-check"></i> ${data.actionCopied}`;
+                        this.style.background = "#22C55E";
+                        this.style.color = "#fff";
+                        setTimeout(() => {
+                            this.innerHTML = `<i class="fa-solid fa-copy"></i> ${data.copyBtnText}`;
+                            this.style.background = "";
+                            this.style.color = "";
+                        }, 2000);
+                    });
+                });
+
+                return item;
+            }
+
+            qrContainer.innerHTML = "";
+            configContainer.innerHTML = "";
+
+            if (links.length === 0) {
+                qrContainer.innerHTML = `<span style="color:#6c6c8c;" id="qr-empty-msg">${data.emptyConfigs}</span>`;
+                configContainer.innerHTML = `<span style="color:#6c6c8c;" id="config-empty-msg">${data.emptyConfigs}</span>`;
+            } else {
+                const copyAllBtn = document.createElement("button");
+                copyAllBtn.className = "copy-all-btn";
+                copyAllBtn.innerHTML = `<i class="fa-solid fa-copy"></i> ${data.copyAllBtn}`;
+                copyAllBtn.addEventListener('click', function() {
+                    const allLinks = links.join('\n');
+                    navigator.clipboard.writeText(allLinks).then(() => {
+                        this.innerHTML = `<i class="fa-solid fa-check"></i> ${data.actionCopied}`;
+                        this.style.background = "#22C55E";
+                        setTimeout(() => {
+                            this.innerHTML = `<i class="fa-solid fa-copy"></i> ${data.copyAllBtn}`;
+                            this.style.background = "";
+                        }, 2000);
+                    });
+                });
+                configContainer.appendChild(copyAllBtn);
+
+                links.forEach(rawLink => {
+                    const parsed = parseConfigLink(rawLink);
+                    qrContainer.appendChild(buildQrItem(parsed));
+                    configContainer.appendChild(buildConfigItem(parsed));
+                });
+            }
+        }
+
+        // ===== زبان و UI =====
+        function openQrModal(encodedLink, title) {
+            const overlay = document.getElementById('qrModalOverlay');
+            document.getElementById('qrModalImg').src = `https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${encodedLink}`;
+            document.getElementById('qrModalTitle').innerText = title || 'Nexora';
+            const copyBtn = document.getElementById('qrModalCopyBtn');
+            copyBtn.onclick = function() {
+                const data = locales[currentLang] || locales.fa;
+                const textToCopy = decodeURIComponent(encodedLink);
+                navigator.clipboard.writeText(textToCopy).then(() => {
+                    document.getElementById('qrModalCopyText').innerText = data.actionCopied;
+                    setTimeout(() => {
+                        document.getElementById('qrModalCopyText').innerText = data.copyBtnText || data.actionConfig;
+                    }, 2000);
+                });
+            };
+            overlay.classList.add('active');
+        }
+
+        function closeQrModal(e) {
+            if (e.target.id === 'qrModalOverlay' || e.target.closest('.qr-modal-close')) {
+                document.getElementById('qrModalOverlay').classList.remove('active');
+            }
+        }
+
+        function renderFaq(lang) {
+            const container = document.getElementById('faq-section');
+            const title = document.getElementById('faq-section-title');
+            if (!container) return;
+
+            // اگر مدیر این بخش را در پنل خاموش کرده، اصلاً چیزی نمایش نده.
+            // (بدون این بررسی، renderFaq بخشی را که applyRemoteConfig مخفی کرده
+            //  دوباره نمایان می‌کرد.)
+            if (window.NEXORA_SHOW_FAQ === false) {
+                container.innerHTML = '';
+                container.style.display = 'none';
+                if (title) title.style.display = 'none';
+                return;
+            }
+
+            // اولویت با داده‌ی پنل مدیریت؛ اگر نبود، از داده‌ی پیش‌فرض داخل فایل
+            const remote = window.NEXORA_FAQ || {};
+            const items = remote[lang] || remote.fa || faqData[lang] || faqData.fa || [];
+            container.innerHTML = '';
+
+            if (items.length === 0) {
+                container.style.display = 'none';
+                if (title) title.style.display = 'none';
+                return;
+            }
+            container.style.display = '';
+            if (title) title.style.display = '';
+
+            items.forEach((item) => {
+                if (!item || !item.q) return;
+                const el = document.createElement('div');
+                el.className = 'faq-item';
+                el.innerHTML = `
+                    <div class="faq-question">
+                        <span>${escapeHtml(item.q)}</span>
+                        <i class="fa-solid fa-chevron-down"></i>
+                    </div>
+                    <div class="faq-answer"><div class="faq-answer-inner">${escapeHtml(item.a || '')}</div></div>
+                `;
+                el.querySelector('.faq-question').addEventListener('click', () => {
+                    el.classList.toggle('open');
+                });
+                container.appendChild(el);
+            });
+        }
+
+        function updateAlertBanners() {
+            const data = locales[currentLang] || locales.fa;
+            const cfgBanners = (window.remoteConfig && window.remoteConfig.banners) || {};
+            const bannersEnabled = window.NEXORA_BANNERS_ENABLED !== false;
+            const supportUrl = window.NEXORA_SUPPORT_URL || 'https://t.me/crm_nexoravpn';
+            const daysThreshold = window.NEXORA_LOW_QUOTA_DAYS ?? 3;
+            const percentThreshold = window.NEXORA_LOW_QUOTA_PERCENT ?? 15;
+
+            // متن‌ها: اولویت با تنظیمات سفارشی پنل، در غیر این‌صورت ترجمه‌ی پیش‌فرض
+            const txt = (custom, fallback) => (custom && String(custom).trim()) ? custom : fallback;
+
+            // بنر غیرفعال بودن کلاینت
+            const disabledBanner = document.getElementById('disabledReasonBanner');
+            const isEnabled = sanaeiTemplateData.enabled;
+            if (isEnabled === false && bannersEnabled) {
+                disabledBanner.style.display = 'flex';
+                setText('disabledReasonTitle', txt(cfgBanners.disabledTitle, data.disabledReasonTitle));
+                setText('disabledReasonDesc', txt(cfgBanners.disabledDesc, data.disabledReasonDesc));
+                setText('disabledReasonBtnText', txt(cfgBanners.disabledButtonText, data.disabledReasonBtnText));
+
+                const username = sanaeiClientData.username || '';
+                const msg = data.disabledSupportMsg.replace('{username}', username);
+                const btn = document.getElementById('disabledReasonBtn');
+                if (btn) btn.href = `${supportUrl}?text=${encodeURIComponent(msg)}`;
+            } else if (disabledBanner) {
+                disabledBanner.style.display = 'none';
+            }
+
+            // بنر پایان حجم/زمان
+            const lowQuotaBanner = document.getElementById('lowQuotaBanner');
+            const daysLeft = sanaeiClientData.daysLeft;
+            const percentRemaining = sanaeiClientData.percentRemaining;
+            let show = false;
+            let desc = '';
+
+            if (typeof daysLeft === 'number' && daysLeft >= 0 && daysLeft <= daysThreshold) {
+                show = true;
+                const tpl = txt(cfgBanners.lowQuotaDescDays, data.lowQuotaDescDays);
+                desc = tpl.replace('{days}', daysLeft);
+            } else if (typeof percentRemaining === 'number' && percentRemaining <= percentThreshold && sanaeiClientData.totalByte > 0) {
+                show = true;
+                desc = txt(cfgBanners.lowQuotaDescVolume, data.lowQuotaDescVolume);
+            }
+
+            if (show && isEnabled !== false && bannersEnabled) {
+                lowQuotaBanner.style.display = 'flex';
+                setText('lowQuotaTitle', txt(cfgBanners.lowQuotaTitle, data.lowQuotaTitle));
+                setText('lowQuotaDesc', desc);
+                setText('lowQuotaBtnText', txt(cfgBanners.lowQuotaButtonText, data.lowQuotaBtnText));
+                const qBtn = document.getElementById('lowQuotaBtn');
+                if (qBtn) qBtn.href = txt(cfgBanners.lowQuotaButtonUrl, supportUrl);
+            } else if (lowQuotaBanner) {
+                lowQuotaBanner.style.display = 'none';
+            }
+        }
+
+        function setupReferral() {
+            const username = sanaeiClientData.username || '';
+            const supportUrl = window.NEXORA_SUPPORT_URL || 'https://t.me/crm_nexoravpn';
+            const referralLink = `${supportUrl}?text=${encodeURIComponent('سلام، دوستم منو با کد ' + username + ' معرفی کرده')}`;
+            const linkEl = document.getElementById('referral-link-text');
+            linkEl.innerText = referralLink;
+
+            const copyBtn = document.getElementById('referral-copy-btn');
+            copyBtn.onclick = function() {
+                const data = locales[currentLang] || locales.fa;
+                navigator.clipboard.writeText(referralLink).then(() => {
+                    copyBtn.innerText = data.referralCopiedText;
+                    setTimeout(() => { copyBtn.innerText = data.referralCopyBtnText; }, 2000);
+                });
+            };
+        }
+
+        // دسترسی ایمن به عناصر: اگر عنصری وجود نداشت، به‌جای کرش کردن
+        // بی‌سروصدا رد می‌شود. این جلوی توقف کل تابع را می‌گیرد.
+        function setText(id, value, isHtml) {
+            const el = document.getElementById(id);
+            if (!el) return;
+            if (isHtml) el.innerHTML = value;
+            else el.textContent = value;
+        }
+
+        function selectLanguage(lang) {
+            currentLang = lang;
+            const data = locales[lang] || locales.fa;
+            document.getElementById("lang-text").innerText = lang.toUpperCase();
+            document.getElementById("html-root").setAttribute("dir", data.dir);
+
+            document.getElementById("remaining-label").innerText = data.remainingLabel;
+            document.getElementById("title-limit").innerText = data.titleLimit;
+            document.getElementById("title-total").innerText = data.titleTotal;
+            document.getElementById("title-download").innerText = data.titleDownload;
+            document.getElementById("title-upload").innerText = data.titleUpload;
+
+            document.getElementById("detail-total-label").innerText = data.detailTotal;
+            document.getElementById("detail-remaining-label").innerText = data.detailRemaining;
+            document.getElementById("detail-remaining-volume-label").innerText = data.detailRemainingVolume;
+            document.getElementById("detail-last-connect-label").innerText = data.detailLastConnect;
+
+            document.getElementById("action-renew").innerText = data.actionRenew;
+            document.getElementById("action-copy").innerText = data.actionCopy;
+            document.getElementById("action-qr").innerText = data.actionQr;
+            document.getElementById("action-config").innerText = data.actionConfig;
+            document.getElementById("download-screen-title").innerText = data.dlScreenTitle;
+            document.getElementById("lbl-tab-android").innerText = data.tabAndroid;
+            document.getElementById("lbl-tab-ios").innerText = data.tabIos;
+            document.getElementById("lbl-tab-desktop").innerText = data.tabDesktop;
+            document.getElementById("designer-lbl").innerText = data.designerLbl;
+            document.getElementById("happ-recommend-text").innerHTML = data.happRecommendBanner;
+            // نکته: recommended-ribbon-text دیگر عنصر ثابتی نیست — نشان «پیشنهادی»
+            // حالا هنگام ساخت داینامیک کارت‌ها در switchDownloadTab تولید می‌شود.
+            // (قبلاً این خط باعث خطای null و توقف کل تابع می‌شد)
+            document.getElementById("video-tutorial-text").innerText = data.videoTutorialText;
+
+            document.getElementById("disabledReasonTitle").innerText = data.disabledReasonTitle;
+            document.getElementById("disabledReasonDesc").innerText = data.disabledReasonDesc;
+            document.getElementById("disabledReasonBtnText").innerText = data.disabledReasonBtnText;
+            document.getElementById("lowQuotaTitle").innerText = data.lowQuotaTitle;
+            document.getElementById("lowQuotaBtnText").innerText = data.lowQuotaBtnText;
+            document.getElementById("referral-title-text").innerText = data.referralTitleText;
+            document.getElementById("referral-desc-text").innerText = data.referralDescText;
+            document.getElementById("referral-copy-btn").innerText = data.referralCopyBtnText;
+            document.getElementById("faq-section-title").innerText = data.faqSectionTitle;
+
+            renderFaq(lang);
+            updateAlertBanners();
+
+            document.querySelector('.promo-text').innerHTML = data.promoText;
+            const promoBtns = document.querySelectorAll('.promo-btn');
+            if (promoBtns.length >= 1) {
+                promoBtns[0].innerHTML = `<i class="fa-brands fa-telegram"></i> ${data.promoTelegram}`;
+            }
+
+            document.getElementById("nav-dashboard").innerHTML = `<i class='fa-solid fa-house'></i>${data.navDashboard.replace(/<.*?>/g, '')}`;
+            document.getElementById("nav-download").innerHTML = `<i class='fa-solid fa-download'></i>${data.navDownload.replace(/<.*?>/g, '')}`;
+
+            renderAll();
+        }
+
+        // ===== رویدادها =====
+        document.getElementById("btn-copy-sub").addEventListener("click", function(e) {
+            e.stopPropagation();
+            const data = locales[currentLang] || locales.fa;
+            const linkToCopy = sanaeiClientData.subUrl || window.location.href;
+
+            document.getElementById("dropdown-qr-container").classList.remove("show");
+            document.getElementById("dropdown-config-container").classList.remove("show");
+
+            navigator.clipboard.writeText(linkToCopy).then(() => {
+                const labelNode = document.getElementById("action-copy");
+                labelNode.innerText = data.actionCopied;
+                labelNode.style.color = "#22C55E";
+                setTimeout(() => {
+                    labelNode.innerText = data.actionCopy;
+                    labelNode.style.color = "";
+                }, 2000);
+            });
+        });
+
+        document.getElementById("btn-toggle-qr").addEventListener("click", function(e) {
+            e.stopPropagation();
+            document.getElementById("dropdown-config-container").classList.remove("show");
+            document.getElementById("dropdown-qr-container").classList.toggle("show");
+        });
+
+        document.getElementById("btn-toggle-config").addEventListener("click", function(e) {
+            e.stopPropagation();
+            document.getElementById("dropdown-qr-container").classList.remove("show");
+            document.getElementById("dropdown-config-container").classList.toggle("show");
+        });
+
+        function navigateToScreen(screenName) {
+            document.querySelectorAll('.app-screen').forEach(scr => scr.classList.remove('active-screen'));
+            document.querySelectorAll('.nav-item').forEach(item => item.classList.remove('active'));
+
+            if (screenName === 'dashboard') {
+                document.getElementById('screen-dashboard').classList.add('active-screen');
+                document.getElementById('nav-dashboard').classList.add('active');
+            } else if (screenName === 'download') {
+                document.getElementById('screen-download-apps').classList.add('active-screen');
+                document.getElementById('nav-download').classList.add('active');
+                switchDownloadTab('android');
+            }
+        }
+
+        // لینک‌های Deep Link برای افزودن خودکار اشتراک با یک کلیک (تایید‌شده طبق مستندات رسمی هر اپ)
+        function buildQuickAddLink(appName, subUrl, remark) {
+            const name = encodeURIComponent(remark || "Nexora");
+            switch (appName) {
+                case "happ":
+                    return `happ://add/${subUrl}`;
+                case "v2rayng":
+                    return `v2rayng://install-config?url=${subUrl}#${name}`;
+                case "v2box":
+                    return `v2box://install-sub?url=${subUrl}&name=${name}`;
+                case "v2rayn":
+                    // v2rayN دسکتاپ لینک یک‌کلیک رسمی ندارد؛ فقط با کپی/پیست دستی کار می‌کند
+                    return null;
+                default:
+                    return null;
+            }
+        }
+
+        // آیکون هر نوع اپ (بر اساس scheme انتخاب‌شده در پنل مدیریت)
+        const SCHEME_ICONS = {
+            happ: "fa-solid fa-bolt",
+            v2rayng: "fa-solid fa-paper-plane",
+            v2box: "fa-solid fa-shield-halved",
+            none: "fa-solid fa-box-open"
+        };
+
+        function switchDownloadTab(os) {
+            document.querySelectorAll('.os-tab-btn').forEach(btn => btn.classList.remove('active-tab'));
+            const tabBtn = document.getElementById(`os-tab-${os}`);
+            if (tabBtn) tabBtn.classList.add('active-tab');
+            window.NEXORA_CURRENT_OS = os;
+
+            const currentLocale = locales[currentLang] || locales.fa;
+            const container = document.getElementById('client-cards-container');
+            if (!container) return;
+
+            // لیست اپ‌های این پلتفرم — بدون محدودیت تعداد
+            const apps = (window.NEXORA_APPS && window.NEXORA_APPS[os]) || [];
+            const subUrl = sanaeiClientData.subUrl;
+            const remark = sanaeiClientData.username;
+
+            container.innerHTML = '';
+
+            if (apps.length === 0) {
+                container.innerHTML = `<div style="text-align:center;padding:32px 12px;color:var(--text-muted);font-size:12px;">
+                    برنامه‌ای برای این پلتفرم تعریف نشده است.
+                </div>`;
+                return;
+            }
+
+            // اپ پیشنهادی همیشه اول نمایش داده می‌شود
+            const sorted = [...apps].sort((a, b) => (b.recommended ? 1 : 0) - (a.recommended ? 1 : 0));
+
+            sorted.forEach(app => {
+                const scheme = app.scheme || 'none';
+                const quickLink = buildQuickAddLink(scheme, subUrl, remark);
+                const iconClass = SCHEME_ICONS[scheme] || SCHEME_ICONS.none;
+
+                const card = document.createElement('div');
+                card.className = 'client-card-item' + (app.recommended ? ' recommended-client' : '');
+
+                card.innerHTML = `
+                    ${app.recommended ? `<div class="recommended-ribbon">${currentLocale.recommendedRibbon}</div>` : ''}
+                    <div class="client-btns-col">
+                        ${quickLink ? `<a href="${quickLink}" class="client-quickadd-btn">${currentLocale.quickAddBtn || 'افزودن با یک کلیک'}</a>` : ''}
+                        <a href="${app.url || '#'}" target="_blank" class="client-download-btn-secondary">${currentLocale.btnDl}</a>
+                    </div>
+                    <div class="client-info-side">
+                        <div class="client-details">
+                            <div class="client-title-text">${escapeHtml(app.name || '')}</div>
+                            <div class="client-subtitle-text">${currentLocale.dlSubtitle}</div>
+                        </div>
+                        <div class="client-icon-box${app.recommended ? ' happ-icon-box' : ''}">
+                            <i class="${iconClass}"></i>
+                        </div>
+                    </div>
+                `;
+                container.appendChild(card);
+            });
+        }
+
+        // جلوگیری از تزریق HTML در نام اپ‌ها
+        function escapeHtml(str) {
+            const div = document.createElement('div');
+            div.textContent = str;
+            return div.innerHTML;
+        }
+
+        // ===== راه‌اندازی اولیه =====
+        document.addEventListener("DOMContentLoaded", async () => {
+            const cfg = await fetchRemoteConfig();
+            applyRemoteConfig(cfg);
+
+            // نوار برند تا این لحظه مخفی بوده تا کاربر ابتدا برند پیش‌فرض
+            // و بعد برند واقعی (مثلاً واسطه) را نبیند. حالا نمایانش می‌کنیم —
+            // چه تنظیمات رسیده باشد، چه بک‌اند در دسترس نبوده باشد.
+            revealBrand();
+
+            // اعمال زبان پیش‌فرض تعیین‌شده در پنل مدیریت
+            if (window.NEXORA_DEFAULT_LANG && locales[window.NEXORA_DEFAULT_LANG]) {
+                currentLang = window.NEXORA_DEFAULT_LANG;
+            }
+            selectLanguage(currentLang);
+
+            // اعمال تم پیش‌فرض تعیین‌شده در پنل مدیریت
+            if (window.NEXORA_DEFAULT_THEME === 'light') {
+                document.body.classList.add('light-mode');
+            }
+
+            fetchLiveSubscriptionData();
+            liveRefreshTimer = setInterval(fetchLiveSubscriptionData, 10000);
+
+            // نمایش پاپ‌آپ راهنما (قابل تنظیم از پنل مدیریت)
+            if (window.NEXORA_SHOW_POPUP !== false) {
+                const delay = window.NEXORA_POPUP_DELAY ?? 10000;
+                setTimeout(() => { showNotification(); }, delay);
+            }
+        });
+
+        const langToggleBtn = document.getElementById("lang-toggle-btn");
+        const langDropdown = document.getElementById("lang-dropdown");
+        langToggleBtn.addEventListener("click", (e) => {
+            e.stopPropagation();
+            langDropdown.classList.toggle("show");
+        });
+
+        document.addEventListener("click", () => {
+            langDropdown.classList.remove("show");
+            document.getElementById("dropdown-qr-container").classList.remove("show");
+            document.getElementById("dropdown-config-container").classList.remove("show");
+        });
+
+        const themeToggle = document.getElementById("theme-toggle");
+        const themeIcon = document.getElementById("theme-icon");
+        themeToggle.addEventListener("click", () => {
+            document.body.classList.toggle("light-mode");
+            themeIcon.className = document.body.classList.contains("light-mode") ? "fa-solid fa-sun" : "fa-solid fa-moon";
+        });
+    </script>
+</body>
+</html>

@@ -1,0 +1,504 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --bg: #070A12;
+  --surface: #0E1523;
+  --surface-2: #131C2E;
+  --surface-3: #0A0F1A;
+  --border: rgba(255, 255, 255, 0.05);
+  --border-2: rgba(255, 255, 255, 0.09);
+  --accent: #2B7FD6;
+  --accent-2: #5AA9E6;
+  --accent-soft: rgba(43, 127, 214, 0.12);
+  --text: #EDF2F9;
+  --dim: #8A98AC;
+  --muted: #5A6880;
+  --ok: #34D399;
+  --warn: #FBBF24;
+  --danger: #F87171;
+  --purple: #A78BFA;
+  --side-w: 236px;
+}
+
+* { -webkit-tap-highlight-color: transparent; }
+
+body {
+  font-family: "Vazirmatn", sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  overscroll-behavior-y: none;
+}
+
+::-webkit-scrollbar { width: 7px; height: 7px; }
+::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.07); border-radius: 8px; }
+::-webkit-scrollbar-thumb:hover { background: rgba(90,169,230,0.3); }
+::-webkit-scrollbar-track { background: transparent; }
+
+/* ===== انیمیشن ===== */
+@keyframes fx-up { from { opacity:0; transform:translateY(10px); } to { opacity:1; transform:translateY(0); } }
+@keyframes fx-in { from { opacity:0; } to { opacity:1; } }
+@keyframes fx-scale { from { opacity:0; transform:scale(.96); } to { opacity:1; transform:scale(1); } }
+@keyframes fx-toast { from { opacity:0; transform:translate(-50%,16px); } to { opacity:1; transform:translate(-50%,0); } }
+@keyframes fx-pulse { 0%,100% { opacity:1; } 50% { opacity:.4; } }
+
+.fx-anim { animation: fx-up .3s cubic-bezier(.22,1,.36,1) both; }
+.fx-fade { animation: fx-in .2s ease both; }
+.fx-scale { animation: fx-scale .22s cubic-bezier(.22,1,.36,1) both; }
+.fx-toast { animation: fx-toast .26s cubic-bezier(.22,1,.36,1) both; }
+.fx-pulse { animation: fx-pulse 1.6s ease-in-out infinite; }
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation-duration: .01ms !important; transition-duration: .01ms !important; }
+}
+
+/* ===== سایدبار ===== */
+.fx-side {
+  width: var(--side-w);
+  flex-shrink: 0;
+  background: var(--surface-3);
+  border-left: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  padding: 22px 14px;
+  transition: transform .26s cubic-bezier(.22,1,.36,1);
+  /* در دسکتاپ هم اگر ارتفاع صفحه کم باشد (لپ‌تاپ کوچک) باید اسکرول شود */
+  height: 100vh;
+  position: sticky;
+  top: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+.fx-side::-webkit-scrollbar { width: 4px; }
+.fx-side::-webkit-scrollbar-thumb { background: rgba(255,255,255,.1); border-radius: 4px; }
+.fx-side::-webkit-scrollbar-track { background: transparent; }
+.fx-side-label {
+  font-size: 10px;
+  color: var(--muted);
+  padding: 0 10px;
+  margin: 18px 0 8px;
+  letter-spacing: .5px;
+}
+.fx-nav-item {
+  display: flex; align-items: center; gap: 11px;
+  padding: 10px 11px; border-radius: 11px;
+  font-size: 13px; font-weight: 500; color: var(--dim);
+  transition: all .16s ease; width: 100%; text-align: right; position: relative;
+}
+.fx-nav-item:hover { background: rgba(255,255,255,.03); color: var(--text); }
+.fx-nav-item.on { background: var(--accent-soft); color: var(--accent-2); }
+.fx-nav-item.on::before {
+  content: ""; position: absolute; right: -14px; top: 50%; transform: translateY(-50%);
+  width: 3px; height: 20px; border-radius: 0 3px 3px 0; background: var(--accent-2);
+}
+
+/* ===== هدر ===== */
+.fx-topbar {
+  display: flex; align-items: center; justify-content: space-between; gap: 16px;
+  padding: 16px 26px; border-bottom: 1px solid var(--border);
+  background: rgba(7,10,18,.7); backdrop-filter: blur(14px);
+  position: sticky; top: 0; z-index: 30;
+}
+.fx-search {
+  display: flex; align-items: center; gap: 9px;
+  background: var(--surface); border: 1px solid var(--border-2);
+  border-radius: 11px; padding: 9px 13px; width: 260px; transition: all .18s;
+}
+.fx-search:focus-within { border-color: var(--accent); box-shadow: 0 0 0 3px rgba(43,127,214,.13); }
+.fx-search input { background: transparent; border: none; outline: none; color: var(--text); font-size: 12.5px; width: 100%; font-family: inherit; }
+.fx-search input::placeholder { color: var(--muted); }
+
+/* ===== کارت ===== */
+.fx-card { background: var(--surface); border: 1px solid var(--border); border-radius: 16px; transition: all .22s ease; }
+.fx-card-i:hover { border-color: rgba(90,169,230,.28); transform: translateY(-3px); box-shadow: 0 12px 32px rgba(0,0,0,.3); }
+.fx-card-hl { border-color: rgba(90,169,230,.4); box-shadow: 0 0 26px rgba(43,127,214,.1); }
+
+/* ===== آمار ===== */
+.fx-stat-num { font-family: 'JetBrains Mono', monospace; font-size: 30px; font-weight: 700; line-height: 1; letter-spacing: -1px; }
+.fx-badge { display: inline-flex; align-items: center; gap: 3px; font-size: 10.5px; font-weight: 600; padding: 3px 7px; border-radius: 6px; }
+.fx-badge.up { background: rgba(52,211,153,.12); color: var(--ok); }
+.fx-badge.down { background: rgba(248,113,113,.12); color: var(--danger); }
+
+/* ===== جدول ===== */
+.fx-table { width: 100%; border-collapse: collapse; }
+.fx-table th { font-size: 10.5px; color: var(--muted); font-weight: 500; text-align: right; padding: 11px 14px; border-bottom: 1px solid var(--border); white-space: nowrap; }
+.fx-table td { padding: 13px 14px; border-bottom: 1px solid var(--border); font-size: 12.5px; }
+.fx-table tbody tr { transition: background .15s; }
+.fx-table tbody tr:hover { background: rgba(255,255,255,.015); }
+.fx-table tbody tr:last-child td { border-bottom: none; }
+
+.fx-pill { display: inline-flex; align-items: center; gap: 5px; font-size: 10.5px; font-weight: 600; padding: 4px 9px; border-radius: 999px; white-space: nowrap; }
+
+/* ===== دکمه ===== */
+.fx-btn {
+  background: linear-gradient(135deg, var(--accent), var(--accent-2));
+  color: #06090F; border-radius: 11px; font-weight: 700;
+  transition: all .18s; box-shadow: 0 4px 18px rgba(43,127,214,.25);
+}
+.fx-btn:hover:not(:disabled) { filter: brightness(1.08); box-shadow: 0 6px 24px rgba(43,127,214,.35); }
+.fx-btn:active:not(:disabled) { transform: scale(.98); }
+.fx-btn:disabled { opacity: .35; cursor: not-allowed; box-shadow: none; }
+
+.fx-btn-g { border: 1px solid var(--border-2); border-radius: 11px; color: var(--dim); transition: all .18s; }
+.fx-btn-g:hover { color: var(--text); border-color: rgba(90,169,230,.4); background: rgba(255,255,255,.02); }
+
+.fx-btn-dash { border: 1px dashed var(--border-2); border-radius: 14px; color: var(--muted); transition: all .2s; }
+.fx-btn-dash:hover { color: var(--accent-2); border-color: rgba(90,169,230,.45); background: rgba(43,127,214,.04); }
+
+.fx-ico { width: 36px; height: 36px; border-radius: 11px; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+.fx-ico-btn {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 34px; height: 34px; border-radius: 10px; color: var(--muted); transition: all .18s;
+}
+.fx-ico-btn:hover { color: var(--danger); background: rgba(248,113,113,.1); }
+
+/* ===== فرم ===== */
+.fx-input {
+  width: 100%; background: var(--surface-3); border: 1px solid var(--border-2);
+  border-radius: 11px; padding: 10px 13px; font-size: 12.5px; color: var(--text);
+  outline: none; transition: border-color .18s, box-shadow .18s;
+}
+.fx-input::placeholder { color: var(--muted); }
+.fx-input:hover:not(:disabled) { border-color: rgba(255,255,255,.15); }
+.fx-input:focus { border-color: var(--accent); box-shadow: 0 0 0 3px rgba(43,127,214,.13); }
+.fx-input:disabled { opacity: .5; cursor: not-allowed; }
+textarea.fx-input { resize: vertical; min-height: 62px; line-height: 1.8; }
+select.fx-input {
+  appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%235A6880' stroke-width='2.5'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E");
+  background-repeat: no-repeat; background-position: left 13px center; padding-left: 34px;
+}
+
+/* ===== استپر عددی ===== */
+.fx-stepper {
+  display: flex; align-items: center; background: var(--surface-3);
+  border: 1px solid var(--border-2); border-radius: 12px; overflow: hidden;
+  transition: border-color .18s, box-shadow .18s;
+  width: 100%; min-width: 0;
+}
+.fx-stepper:focus-within { border-color: var(--accent); box-shadow: 0 0 0 3px rgba(43,127,214,.13); }
+.fx-stepper-btn {
+  width: 42px; min-width: 38px; height: 44px;
+  display: flex; align-items: center; justify-content: center;
+  color: var(--muted); background: rgba(255,255,255,.02);
+  transition: all .15s; flex-shrink: 0;
+}
+.fx-stepper-btn:hover:not(:disabled) { background: var(--accent-soft); color: var(--accent-2); }
+.fx-stepper-btn:active:not(:disabled) { transform: scale(.92); }
+.fx-stepper-btn:disabled { opacity: .3; cursor: not-allowed; }
+.fx-stepper-val {
+  flex: 1; text-align: center; border: none; background: transparent; color: var(--text);
+  font-size: 17px; font-weight: 700; font-family: 'JetBrains Mono', monospace;
+  outline: none; padding: 0 4px; min-width: 0; -moz-appearance: textfield;
+}
+.fx-stepper-val::-webkit-outer-spin-button, .fx-stepper-val::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+.fx-stepper-unit {
+  font-size: 11px; color: var(--muted);
+  padding-left: 10px; flex-shrink: 0; white-space: nowrap;
+}
+
+/* استپر در صفحه‌های باریک: دکمه‌ها و فونت کوچک‌تر تا از کارت بیرون نزند */
+@media (max-width: 480px) {
+  .fx-stepper-btn { width: 36px; min-width: 34px; height: 42px; }
+  .fx-stepper-val { font-size: 15px; }
+  .fx-stepper-unit { font-size: 10px; padding-left: 7px; }
+}
+
+.fx-range { width: 100%; height: 4px; border-radius: 999px; background: rgba(255,255,255,.08); appearance: none; outline: none; margin-top: 14px; }
+.fx-range::-webkit-slider-thumb {
+  appearance: none; width: 16px; height: 16px; border-radius: 50%;
+  background: var(--accent-2); cursor: pointer; border: 3px solid var(--bg);
+  box-shadow: 0 0 0 1px var(--accent-2); transition: transform .15s;
+}
+.fx-range::-webkit-slider-thumb:hover { transform: scale(1.2); }
+.fx-range::-moz-range-thumb {
+  width: 16px; height: 16px; border-radius: 50%; background: var(--accent-2);
+  cursor: pointer; border: 3px solid var(--bg); box-shadow: 0 0 0 1px var(--accent-2);
+}
+
+/* ===== وضعیت ===== */
+.fx-status { display: inline-flex; align-items: center; gap: 6px; padding: 5px 11px; border-radius: 999px; font-size: 11px; font-weight: 500; white-space: nowrap; transition: all .2s; }
+.fx-status-dirty { background: rgba(251,191,36,.1); border: 1px solid rgba(251,191,36,.3); color: var(--warn); }
+.fx-status-saved { background: rgba(52,211,153,.08); border: 1px solid rgba(52,211,153,.25); color: var(--ok); }
+
+
+/* ═══════════════════════════════════════════════════
+   مودال — با Portal روی body رندر می‌شود.
+
+   نکته‌ی مهم: wrapper هرگز نباید overflow داشته باشد.
+   اگر داشته باشد، وقتی مودال بلند است کل wrapper اسکرول
+   می‌شود و کاربر باید اسکرول کند تا مودال را ببیند.
+   به‌جایش، خود مودال ارتفاع محدود دارد و فقط بدنه‌اش
+   اسکرول می‌شود (هدر و فوتر همیشه دیده می‌شوند).
+   ═══════════════════════════════════════════════════ */
+.nx-modal-wrap {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+  overflow: hidden;
+}
+
+.nx-modal {
+  display: flex;
+  flex-direction: column;
+  max-height: calc(100vh - 40px);
+  max-height: calc(100dvh - 40px);
+  min-height: 0;
+  width: 100%;
+}
+
+/* هدر و فوتر ثابت، فقط بدنه اسکرول می‌شود */
+.nx-modal > .nx-modal-head,
+.nx-modal > .nx-modal-foot { flex-shrink: 0; }
+.nx-modal > .nx-modal-body {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+}
+
+@media (max-width: 640px) {
+  .nx-modal-wrap { padding: 0; align-items: flex-end; }
+  .nx-modal {
+    max-height: 92vh;
+    max-height: 92dvh;
+    border-radius: 22px 22px 0 0 !important;
+    max-width: 100% !important;
+  }
+  .nx-modal > .nx-modal-foot {
+    padding-bottom: calc(20px + env(safe-area-inset-bottom, 0px)) !important;
+  }
+}
+
+@media (max-height: 600px) {
+  .nx-modal-wrap { padding: 8px; }
+  .nx-modal {
+    max-height: calc(100vh - 16px);
+    max-height: calc(100dvh - 16px);
+  }
+}
+
+/* ===== سوییچ حالت کاری (ساب / ربات) ===== */
+.fx-ws-switch {
+  display: flex;
+  gap: 3px;
+  padding: 3px;
+  margin: 4px 0 6px;
+  border-radius: 12px;
+  background: var(--surface-2);
+  border: 1px solid var(--border-2);
+}
+.fx-ws-btn {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 8px 6px;
+  border-radius: 9px;
+  font-size: 11.5px;
+  font-weight: 600;
+  color: var(--muted);
+  transition: all .18s ease;
+  white-space: nowrap;
+}
+.fx-ws-btn:hover { color: var(--dim); }
+.fx-ws-btn[data-on="true"] {
+  background: linear-gradient(135deg, var(--accent), var(--accent-2));
+  color: #06090F;
+  box-shadow: 0 2px 10px rgba(43,127,214,.28);
+}
+
+/* ===== ناحیه اسکرول پیش‌نمایش ===== */
+.nx-preview-scroll {
+  overflow: auto;
+  max-height: calc(100vh - 320px);
+  min-height: 480px;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(90,169,230,.3) transparent;
+}
+.nx-preview-scroll::-webkit-scrollbar { width: 10px; height: 10px; }
+.nx-preview-scroll::-webkit-scrollbar-track { background: rgba(0,0,0,.25); border-radius: 8px; }
+.nx-preview-scroll::-webkit-scrollbar-thumb {
+  background: rgba(90,169,230,.28);
+  border-radius: 8px;
+  border: 2px solid transparent;
+  background-clip: padding-box;
+}
+.nx-preview-scroll::-webkit-scrollbar-thumb:hover { background: rgba(90,169,230,.5); background-clip: padding-box; }
+.nx-preview-scroll::-webkit-scrollbar-corner { background: transparent; }
+
+@media (max-width: 1023.98px) {
+  .nx-preview-scroll { max-height: calc(100vh - 380px); min-height: 400px; }
+}
+
+button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-visible {
+  outline: 2px solid var(--accent-2); outline-offset: 2px;
+}
+
+/* ===== موبایل ===== */
+.fx-burger { display: none; }
+.fx-backdrop { display: none; }
+.fx-mobile-save { display: none; }
+
+@media (max-width: 1023.98px) {
+  .fx-side {
+    position: fixed; inset: 0 0 0 auto; z-index: 60; transform: translateX(100%);
+    box-shadow: -10px 0 44px rgba(0,0,0,.55); background: var(--surface);
+    width: 262px; max-width: 84vw;
+    /* اسکرول داخلی — بدون این، آیتم‌های پایین منو در گوشی‌های کوتاه
+       دسترسی‌ناپذیر می‌شوند */
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    -webkit-overflow-scrolling: touch;
+    padding-bottom: calc(22px + env(safe-area-inset-bottom, 0px));
+  }
+  .fx-side.open { transform: translateX(0); }
+  .fx-side::-webkit-scrollbar { width: 4px; }
+  .fx-side::-webkit-scrollbar-thumb { background: rgba(255,255,255,.12); border-radius: 4px; }
+  .fx-backdrop { display: block; position: fixed; inset: 0; background: rgba(3,6,12,.72); backdrop-filter: blur(3px); z-index: 55; }
+  .fx-burger {
+    display: inline-flex; align-items: center; justify-content: center;
+    width: 40px; height: 40px; border-radius: 11px;
+    background: var(--surface); border: 1px solid var(--border-2); color: var(--text);
+  }
+  .fx-burger:active { transform: scale(.94); }
+  .fx-search { width: 100%; max-width: 190px; }
+  .fx-topbar { padding: 14px 16px; }
+  .fx-main { padding: 18px 16px 96px !important; }
+  .fx-g4 { grid-template-columns: repeat(2, 1fr) !important; }
+  .fx-g3 { grid-template-columns: 1fr !important; }
+  .fx-g2 { grid-template-columns: 1fr !important; }
+  .fx-hide-m { display: none !important; }
+  .fx-desktop-save { display: none !important; }
+  .fx-mobile-save {
+    display: flex; position: fixed; bottom: 0; left: 0; right: 0;
+    padding: 12px 16px calc(12px + env(safe-area-inset-bottom, 0px));
+    background: rgba(7,10,18,.94); backdrop-filter: blur(14px);
+    border-top: 1px solid var(--border); z-index: 45; gap: 10px; align-items: center;
+  }
+  .fx-tabs { overflow-x: auto; scrollbar-width: none; }
+  .fx-tabs::-webkit-scrollbar { display: none; }
+  .fx-tabs button { flex-shrink: 0; white-space: nowrap; }
+}
+
+@media (max-width: 639.98px) {
+  .fx-g4 { grid-template-columns: 1fr !important; }
+  .fx-stat-num { font-size: 26px; }
+  .fx-search { display: none; }
+}
+
+@media (min-width: 1024px) and (max-width: 1279.98px) {
+  :root { --side-w: 210px; }
+  .fx-main { padding: 22px 22px 40px; }
+  .fx-g2 { grid-template-columns: 1fr 270px !important; }
+}
+
+@media (min-width: 1280px) {
+  .fx-main { padding: 26px 28px 48px; }
+  .fx-g2 { grid-template-columns: 1fr 300px; }
+}
+
+@media (min-width: 1600px) {
+  .fx-main { max-width: 1500px; }
+}
+
+/* ═══════════════════════════════════════════════════════════
+   عمق و حرکت — پنل مدیریت
+
+   همان زبان صفحه‌ی اشتراک: نور از بالا، سایه‌ی زیر، و یک
+   توالی ورود کوتاه. عمداً کم نگه داشته شده.
+   ═══════════════════════════════════════════════════════════ */
+
+.fx-card {
+  box-shadow:
+    0 1px 0 rgba(255, 255, 255, .05) inset,
+    0 12px 28px -14px rgba(0, 0, 0, .6),
+    0 3px 8px -4px rgba(0, 0, 0, .4);
+}
+
+.fx-card-i {
+  transition: transform .3s cubic-bezier(.22, 1, .36, 1),
+              box-shadow .3s ease, border-color .22s ease;
+}
+.fx-card-i:hover {
+  transform: translateY(-3px);
+  box-shadow:
+    0 1px 0 rgba(255, 255, 255, .08) inset,
+    0 20px 40px -16px rgba(0, 0, 0, .7),
+    0 0 0 1px rgba(90, 169, 230, .16);
+}
+
+.fx-btn {
+  box-shadow:
+    0 1px 0 rgba(255, 255, 255, .38) inset,
+    0 -1px 0 rgba(0, 0, 0, .22) inset,
+    0 8px 18px -8px rgba(43, 127, 214, .6);
+  transition: filter .18s ease, transform .13s ease, box-shadow .13s ease;
+}
+.fx-btn:active:not(:disabled) {
+  transform: translateY(2px) scale(.99);
+  box-shadow: 0 1px 0 rgba(255, 255, 255, .28) inset;
+}
+
+.fx-btn-g {
+  box-shadow: 0 1px 0 rgba(255, 255, 255, .04) inset;
+  transition: color .18s, border-color .18s, transform .13s ease;
+}
+.fx-btn-g:active:not(:disabled) { transform: translateY(1px); }
+
+.fx-ico {
+  box-shadow: 0 1px 0 rgba(255, 255, 255, .07) inset;
+}
+
+/* نشانگر منو که می‌لغزد، نه پرش می‌کند */
+.fx-nav-item::before {
+  content: "";
+  position: absolute;
+  right: -14px;
+  top: 50%;
+  width: 3px;
+  height: 0;
+  border-radius: 0 3px 3px 0;
+  background: linear-gradient(180deg, var(--accent-2), var(--accent));
+  transform: translateY(-50%);
+  transition: height .3s cubic-bezier(.22, 1, .36, 1);
+}
+.fx-nav-item.on::before { height: 20px; }
+.fx-nav-item.on { position: relative; }
+
+/* ورود بخش‌ها */
+@keyframes fx-rise {
+  from { opacity: 0; transform: translateY(12px) scale(.99); }
+  to   { opacity: 1; transform: none; }
+}
+.fx-anim { animation: fx-rise .42s cubic-bezier(.22, 1, .36, 1) both; }
+
+/* مودال: از مرکز خودش باز می‌شود */
+@keyframes fx-modal-in {
+  from { opacity: 0; transform: scale(.94) translateY(10px); }
+  to   { opacity: 1; transform: none; }
+}
+@keyframes fx-backdrop-in {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+.fx-scale { animation: fx-modal-in .32s cubic-bezier(.22, 1, .36, 1) both; }
+.fx-fade  { animation: fx-backdrop-in .24s ease both; }
+
+/* اعداد هم‌عرض — تا هنگام شمارش نپرند */
+.fx-stat-num { font-variant-numeric: tabular-nums; }
+
+@media (prefers-reduced-motion: reduce) {
+  .fx-anim, .fx-scale, .fx-fade, .fx-card-i, .fx-btn, .fx-nav-item::before {
+    animation: none !important;
+    transition: none !important;
+    transform: none !important;
+  }
+}
