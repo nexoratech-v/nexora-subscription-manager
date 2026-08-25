@@ -4,11 +4,15 @@
 
 <img src="https://capsule-render.vercel.app/api?type=waving&color=0:06090F,45:2B7FD6,100:5AA9E6&height=180&section=header&text=NEXORA&fontSize=70&fontColor=ffffff&fontAlignY=35&desc=Subscription%20Manager%20for%203x-ui&descSize=16&descAlignY=55" width="100%" alt="Nexora">
 
-**صفحه‌ی اشتراکی که مشتری دوستش دارد · رباتی که شب‌ها می‌فروشد · حسابداری واسطه‌ها**
+**صفحه‌ی اشتراکی که مشتری دوستش دارد**
+
+**رباتی که شب‌ها به‌جای شما می‌فروشد**
+
+**حسابداری واسطه‌ها، بدون دردسر**
 
 <br>
 
-<img src="https://img.shields.io/badge/version-1.0.0-2B7FD6?style=for-the-badge&labelColor=06090F">
+<img src="https://img.shields.io/badge/version-1.0.1-2B7FD6?style=for-the-badge&labelColor=06090F">
 <img src="https://img.shields.io/badge/tests-267_passing-34D399?style=for-the-badge&labelColor=06090F">
 <img src="https://img.shields.io/badge/3x--ui-3.5%2B-5AA9E6?style=for-the-badge&labelColor=06090F">
 <img src="https://img.shields.io/badge/license-MIT-A78BFA?style=for-the-badge&labelColor=06090F">
@@ -16,13 +20,13 @@
 <br>
 <br>
 
-<a href="https://t.me/yanexoravpn"><img src="https://img.shields.io/badge/channel-yanexoravpn-229ED9?style=for-the-badge&logo=telegram&logoColor=white&labelColor=06090F"></a>
-<a href="https://t.me/crm_nexoravpn"><img src="https://img.shields.io/badge/support-crm__nexoravpn-229ED9?style=for-the-badge&logo=telegram&logoColor=white&labelColor=06090F"></a>
+<a href="https://t.me/yanexoravpn"><img src="https://img.shields.io/badge/کانال-yanexoravpn-229ED9?style=for-the-badge&logo=telegram&logoColor=white&labelColor=06090F"></a>
+<a href="https://t.me/crm_nexoravpn"><img src="https://img.shields.io/badge/پشتیبانی-crm__nexoravpn-229ED9?style=for-the-badge&logo=telegram&logoColor=white&labelColor=06090F"></a>
 
 <br>
 <br>
 
-[فارسی](#-فارسی) &nbsp;•&nbsp; [English](#-english) &nbsp;•&nbsp; [نصب](#-نصب--install)
+[فارسی](#-فارسی) &nbsp;•&nbsp; [English](#-english) &nbsp;•&nbsp; [نصب](#-نصب)
 
 <br>
 
@@ -34,6 +38,8 @@
 
 ## 🇮🇷 فارسی
 
+<br>
+
 </div>
 
 ساعت سه بامداد است. مشتری پول واریز کرده و منتظر کانفیگ است.
@@ -44,59 +50,95 @@
 
 <br>
 
+<div align="center">
+
 ### سه فضای کاری
 
+</div>
+
 | | |
 |:--|:--|
-| 🎨 **صفحه اشتراک** | ۳۲ ترکیب ظاهری · افزودن یک‌ضربه به اپ · چهار زبان |
-| 🤖 **ربات تلگرام** | فروش خودکار · رسید و تایید · سکه و دعوت |
-| 💰 **حسابداری** | نرخ هر واسطه · صورتحساب · پرداخت‌ها |
+| 🎨 **صفحه اشتراک** | ۳۲ ترکیب ظاهری، افزودن یک‌ضربه، چهار زبان |
+| 🤖 **ربات تلگرام** | فروش خودکار، رسید و تایید، سکه و دعوت |
+| 💰 **حسابداری** | نرخ هر واسطه، صورتحساب، پرداخت‌ها |
 
 <br>
 
 ---
 
-### 🎨 صفحه اشتراک
+<div align="center">
 
-**۴ ساختار × ۸ طیف رنگی** — و پالت سفارشی هرچقدر بخواهید.
+## 🎨 صفحه اشتراک
 
-`Classic` `Analytics` `Wallet` `Console`
+<br>
+
+<img src="assets/subscription-page.svg" width="100%" alt="پیش‌نمایش صفحه اشتراک">
+
+<br>
+
+</div>
+
+**چهار ساختار در هشت طیف رنگی** — و پالت سفارشی هرچقدر بخواهید.
+
+<div align="center">
+
+`Classic` &nbsp; `Analytics` &nbsp; `Wallet` &nbsp; `Console`
+
+</div>
 
 <br>
 
 | | |
 |:--|:--|
-| ⚡ **یک ضربه** | افزودن مستقیم به Happ، v2rayNG و V2Box · کد QR · کپی لینک |
-| 📊 **درجه‌سنج مصرف** | حلقه‌ای که از صفر پر می‌شود، هشدار اتمام حجم، شمارش انقضا |
+| ⚡ **افزودن یک‌ضربه** | لینک مستقیم به اپلیکیشن، کد QR، کپی لینک |
+| 📊 **درجه‌سنج مصرف** | حلقه از صفر پر می‌شود، هشدار اتمام حجم، شمارش انقضا |
 | 🌍 **چهار زبان** | سوالات متداول به فارسی، انگلیسی، ترکی و عربی |
-| 🎬 **ویدیو آموزشی** | از کانال تلگرام خودتان — بدون مصرف فضای سرور |
-| 👥 **واسطه‌ها** | هر واسطه برند و رنگ خودش · مشتریشان برند شما را نمی‌بیند |
+| 🎬 **ویدیو آموزشی** | از کانال تلگرام خودتان، بدون مصرف فضای سرور |
+| 👥 **واسطه‌ها** | هر واسطه برند و رنگ خودش را دارد |
 
-**رنگ متن خودکار محاسبه می‌شود** — روی هر پالتی که بسازید، متن خوانا می‌ماند.
+<br>
+
+> [!NOTE]
+> **رنگ‌ها کاملاً هماهنگ‌اند.** وقتی پالت طلایی انتخاب می‌کنید، حلقه‌ی مصرف
+> و دکمه‌ها هم طلایی می‌شوند. رنگ متن روی دکمه‌ها هم از روی کنتراست واقعی
+> محاسبه می‌شود تا روی هر پالتی خوانا بماند.
 
 <br>
 
 ---
 
-### 🤖 ربات فروش
+<div align="center">
+
+## 🤖 ربات فروش و 💰 حسابداری
+
+<br>
+
+<img src="assets/bot-and-billing.svg" width="100%" alt="پیش‌نمایش ربات و حسابداری">
+
+<br>
+
+</div>
+
+### جریان فروش
 
 ```
-مشتری پلن را می‌بیند ──► کارت‌به‌کارت ──► رسید می‌فرستد
-                                              │
-     شما یک ضربه می‌زنید ◄── اعلان تلگرام ◄────┘
+مشتری پلن را می‌بیند  ──►  کارت‌به‌کارت  ──►  رسید می‌فرستد
+                                                    │
+      شما یک ضربه می‌زنید  ◄──  اعلان تلگرام  ◄──────┘
               │
-              ▼  کانفیگ خودکار ساخته و تحویل می‌شود
+              ▼
+      کانفیگ خودکار ساخته و تحویل می‌شود
 ```
 
 <br>
 
 | | |
 |:--|:--|
-| 💳 **پرداخت** | کارت‌به‌کارت با رسید عکسی یا متنی — بدون درگاه، بدون ریسک |
-| ❌ **رد با دلیل** | مشتری می‌فهمد چرا · سکه‌هایش خودکار برمی‌گردد |
-| 💎 **سکه و دعوت** | نردبان تخفیف — هرچه نگه دارد، بیشتر می‌گیرد |
-| 👛 **کیف پول** | شارژ یک‌بار · تمدید یک‌ضربه · تمدید خودکار |
-| 🎁 **تست رایگان** | یک‌بار برای هر کاربر · حجم و مدتش با شماست |
+| 💳 **پرداخت** | کارت‌به‌کارت با رسید عکسی یا متنی — بدون درگاه |
+| ❌ **رد با دلیل** | مشتری می‌فهمد چرا، و سکه‌هایش خودکار برمی‌گردد |
+| 💎 **سکه و دعوت** | نردبان تخفیف — هرچه بیشتر نگه دارد، تخفیف بزرگ‌تر |
+| 👛 **کیف پول** | شارژ یک‌بار، تمدید یک‌ضربه، تمدید خودکار |
+| 🎁 **تست رایگان** | یک‌بار برای هر کاربر، حجم و مدتش با شماست |
 | ⚙️ **پنل داخل ربات** | رسیدها، کاربران، آمار، پیام همگانی |
 
 <br>
@@ -105,31 +147,31 @@
 
 <div align="center">
 
-`💳 رسیدها` `👥 کاربران` `📊 آمار` `💾 بکاپ` `🎫 تیکت` `⚠️ هشدار`
+`💳 رسیدها` &nbsp; `👥 کاربران` &nbsp; `📊 آمار` &nbsp; `💾 بکاپ` &nbsp; `🎫 تیکت` &nbsp; `⚠️ هشدار`
 
 </div>
 
 <br>
 
----
+### حسابداری واسطه‌ها
 
-### 💰 حسابداری واسطه‌ها
-
-گروه‌ها **مستقیم از ۳x-ui** خوانده می‌شوند — همان‌هایی که در پنل ساخته‌اید.
+گروه‌ها **مستقیم از دیتابیس ۳x-ui** خوانده می‌شوند — همان‌هایی که در پنل ساخته‌اید.
 
 | | |
 |:--|:--|
 | 🎚 **انتخابی** | مشخص کنید کدام گروه واسطه است و کدام مشتری مستقیم |
-| 💵 **نرخ آزاد** | برای هر گروه جداگانه · هر حجمی که بخواهید یا نامحدود |
+| 💵 **نرخ آزاد** | برای هر گروه جداگانه، هر حجمی که بخواهید یا نامحدود |
 | 📄 **صورتحساب** | ریز کانفیگ‌ها با ماه، تمدید و مبلغ |
 | 💰 **پرداخت‌ها** | ثبت دریافتی‌ها تا مانده درست بماند |
+| 💾 **بک‌آپ** | نرخ‌ها، پرداخت‌ها و لاگ تمدید |
 
 <br>
 
 > [!NOTE]
-> **درباره‌ی تمدید:** ۳x-ui تاریخچه‌ی تمدید ندارد، پس ماه‌های گذشته از فاصله‌ی
-> «ایجاد تا انقضا» تخمین زده می‌شوند و هر ردیف صادقانه برچسب «قطعی» یا «تخمینی»
-> می‌گیرد. از لحظه‌ی نصب، هر تمدیدی که از نکسورا انجام شود ثبت می‌شود.
+> **درباره‌ی تمدید:** پنل ۳x-ui تاریخچه‌ی تمدید ندارد، پس ماه‌های گذشته از
+> فاصله‌ی «تاریخ ایجاد تا انقضا» تخمین زده می‌شوند و هر ردیف صادقانه برچسب
+> «قطعی» یا «تخمینی» می‌گیرد. از لحظه‌ی نصب، هر تمدیدی که از نکسورا انجام
+> شود ثبت می‌شود و تخمین جای خودش را به عدد قطعی می‌دهد.
 
 <br>
 
@@ -137,11 +179,20 @@
 
 <div align="center">
 
-## 📦 نصب · Install
+## 📦 نصب
 
 </div>
 
-**پیش‌نیاز:** اوبونتو ۲۰.۰۴+ یا دبیان ۱۱+ · ۳x-ui نصب‌شده · یک دامنه · ۱ گیگ رم
+**پیش‌نیاز**
+
+| | |
+|:--|:--|
+| سیستم‌عامل | اوبونتو ۲۰.۰۴ به بالا یا دبیان ۱۱ به بالا |
+| پنل | ۳x-ui نصب‌شده و در حال کار |
+| دامنه | یک دامنه که به سرور اشاره کند |
+| حافظه | ۱ گیگابایت رم |
+
+<br>
 
 ```bash
 git clone https://github.com/nexoratech-v/nexora-subscription-manager.git
@@ -149,7 +200,11 @@ cd nexora-subscription-manager
 sudo bash install.sh
 ```
 
-SSL، nginx، systemd و ساخت پنل — همه خودکار. اگر رم کم باشد، swap هم می‌سازد.
+نصب‌کننده دامنه را می‌پرسد و بقیه را خودش انجام می‌دهد:
+
+- گواهی `SSL` و پیکربندی `nginx`
+- سرویس `systemd` و ساخت پنل
+- اگر حافظه کم باشد، فایل `swap` هم می‌سازد
 
 <br>
 
@@ -157,34 +212,51 @@ SSL، nginx، systemd و ساخت پنل — همه خودکار. اگر رم ک
 
 | | |
 |:--:|:--|
-| **۱** | توکن از [@BotFather](https://t.me/BotFather) |
-| **۲** | پنل ← ربات ← اتصال و تنظیمات |
-| **۳** | توکن API از `3x-ui → Settings → Security` |
-| **۴** | دکمه‌ی **اجرای تست** |
-| **۵** | یک پلن و یک شماره کارت |
-| **۶** | ربات را روشن کنید |
+| **۱** | توکن ربات را از [@BotFather](https://t.me/BotFather) بگیرید |
+| **۲** | در پنل بروید به بخش ربات، سپس اتصال و تنظیمات |
+| **۳** | توکن ربات و آدرس پنل ۳x-ui را وارد کنید |
+| **۴** | توکن `API Token` را از پنل بگیرید — مسیرش پایین آمده |
+| **۵** | دکمه‌ی **اجرای تست** را بزنید |
+| **۶** | یک پلن و یک شماره کارت اضافه کنید |
+| **۷** | ربات را از پنل روشن کنید |
+
+<br>
+
+**مسیر توکن در پنل**
+
+```
+Settings → Security → API Token
+```
+
+توکن از رمز عبور امن‌تر است، چون هر لحظه می‌توانید باطلش کنید بدون اینکه
+چیز دیگری تغییر کند.
 
 <br>
 
 > [!IMPORTANT]
-> توکن ربات باید با ربات داخلی ۳x-ui **متفاوت** باشد.
+> توکن ربات نکسورا باید با توکن ربات داخلی ۳x-ui **متفاوت** باشد.
 > تلگرام اجازه نمی‌دهد دو ربات روی یک توکن کار کنند.
 
 <br>
 
 ### تست اتصال
 
-«وصل شد» یعنی رمز درست است — نه اینکه ربات می‌تواند کانفیگ بسازد.
-نکسورا واقعاً یکی می‌سازد، می‌خواند و پاک می‌کند:
+عبارت «وصل شد» یعنی رمزتان درست است — نه اینکه ربات می‌تواند کانفیگ بسازد.
+خیلی وقت‌ها کاربر پنل فقط دسترسی خواندن دارد، و این وقتی معلوم می‌شود که
+اولین مشتری پول داده و کانفیگ نگرفته است.
+
+نکسورا واقعاً یک کانفیگ آزمایشی می‌سازد، بازخوانی می‌کند و پاکش می‌کند:
 
 ```
-✓  احراز هویت              با توکن API
-✓  خواندن inbound ها        ۳ عدد
-✓  تشخیص نسخه پنل          معماری جدید ۳.۵
-✓  ساخت کانفیگ آزمایشی      nexora_test_a3f9
-✓  بازخوانی                در پنل پیدا شد
-✓  پاکسازی                 حذف شد
+✓  احراز هویت                 موفق
+✓  خواندن اینباندها             سه عدد
+✓  تشخیص نسخه پنل             معماری جدید
+✓  ساخت کانفیگ آزمایشی         ساخته شد
+✓  بازخوانی                   پیدا شد
+✓  پاکسازی                    حذف شد
 ```
+
+اگر همه سبز شد، مطمئن هستید که فروش کار می‌کند.
 
 <br>
 
@@ -192,21 +264,33 @@ SSL، nginx، systemd و ساخت پنل — همه خودکار. اگر رم ک
 
 <div align="center">
 
-## ⚙️ دستورات · Commands
+## ⚙️ دستورات
 
 </div>
 
-| دستور | کار |
+| دستور | کاری که می‌کند |
 |:--|:--|
 | `nexora` | وضعیت کلی |
 | `nexora bot` | کنترل ربات |
-| `nexora doctor` | بررسی و رفع خودکار |
-| `nexora update` | به‌روزرسانی |
-| `nexora rollback` | بازگشت به نسخه قبل |
+| `nexora doctor` | بررسی و رفع خودکار مشکلات |
+| `nexora update` | به‌روزرسانی از گیت‌هاب |
+| `nexora rollback` | بازگشت به نسخه‌ی قبلی |
 | `nexora backup` | پشتیبان‌گیری |
 | `nexora logs` | لاگ زنده |
 
-قبل از هر به‌روزرسانی snapshot گرفته می‌شود — `nexora rollback` همیشه برمی‌گرداند.
+<br>
+
+قبل از هر به‌روزرسانی یک نسخه‌ی ذخیره‌شده گرفته می‌شود، پس دستور
+`nexora rollback` همیشه شما را برمی‌گرداند.
+
+<br>
+
+**نام سرویس‌ها در systemd**
+
+```bash
+systemctl status nexora-panel
+systemctl status nexora-bot
+```
 
 <br>
 
@@ -218,18 +302,19 @@ SSL، nginx، systemd و ساخت پنل — همه خودکار. اگر رم ک
 
 </div>
 
-| | |
+| بخش | فناوری |
 |:--|:--|
-| **Backend** | FastAPI · ۴۶ endpoint · SQLite + JSON |
-| **Frontend** | React · Vite · Tailwind |
-| **صفحه ساب** | Go template — همان چیزی که ۳x-ui می‌خواهد |
-| **ربات** | Python خالص · تنها وابستگی: `requests` |
+| بک‌اند | `FastAPI` · ۴۹ endpoint · `SQLite` |
+| فرانت‌اند | `React` · `Vite` · `Tailwind` |
+| صفحه‌ی اشتراک | `Go template` — همان چیزی که پنل انتظار دارد |
+| ربات | پایتون خالص · تنها وابستگی: `requests` |
 
 <br>
 
 > [!NOTE]
-> **ربات و حسابداری ماژول جدا هستند.** سرویس و دیتابیس مستقل، و خواندن از
-> ۳x-ui **فقط‌خواندنی** است. اگر ربات بیفتد، پنل و صفحه‌ی مشتریان کار می‌کنند.
+> **ربات و حسابداری ماژول جدا هستند.** هرکدام سرویس و دیتابیس مستقل خودشان
+> را دارند، و خواندن از ۳x-ui **فقط‌خواندنی** است. اگر ربات از کار بیفتد،
+> پنل و صفحه‌ی مشتریان دست‌نخورده کار می‌کنند.
 
 <br>
 
@@ -237,12 +322,13 @@ SSL، nginx، systemd و ساخت پنل — همه خودکار. اگر رم ک
 
 ```bash
 cd bot
-python3 test_bot.py     # ۷۱ تست واحد
-python3 test_flow.py    # ۳۸ تست جریان خرید
-python3 test_admin.py   # ۳۴ تست پنل مدیریت
+python3 test_bot.py      # ۷۱ تست واحد
+python3 test_flow.py     # ۳۸ تست جریان خرید
+python3 test_admin.py    # ۳۴ تست پنل مدیریت
 ```
 
-**۲۶۷ تست** — شامل سرور واقعی با HTTP، تزریق SQL، داده‌ی خراب، و چهار قالب در مرورگر.
+مجموعاً **۲۶۷ تست** — شامل سرور واقعی با درخواست HTTP، تلاش تزریق SQL،
+داده‌ی خراب، و اجرای هر چهار قالب در مرورگر شبیه‌سازی‌شده.
 
 <br>
 
@@ -252,9 +338,14 @@ python3 test_admin.py   # ۳۴ تست پنل مدیریت
 
 ## 🌍 English
 
+<br>
+
 </div>
 
-It's 3 AM. A customer paid and is waiting for their config.
+It's 3 AM. A customer just paid and is waiting for their config.
+
+Get up and build it by hand — they're happy, you're exhausted. Stay asleep —
+you wake to an angry message.
 
 **Nexora was built for those nights.**
 
@@ -262,23 +353,25 @@ It's 3 AM. A customer paid and is waiting for their config.
 
 | | |
 |:--|:--|
-| 🎨 **Subscription page** | 32 looks · one-tap install · four languages |
-| 🤖 **Telegram bot** | Sells by itself · receipts · coins and referrals |
-| 💰 **Accounting** | Per-reseller rates · invoices · payments |
+| 🎨 **Subscription page** | 32 looks, one-tap install, four languages |
+| 🤖 **Telegram bot** | Sells by itself, receipts, coins and referrals |
+| 💰 **Accounting** | Per-reseller rates, invoices, payments |
 
 <br>
 
-**Subscription page** — 4 structures × 8 palettes. Direct install into Happ, v2rayNG
-and V2Box. A usage ring that sweeps from zero. FAQ in Persian, English, Turkish and
-Arabic. Every reseller gets their own brand.
+**Subscription page** — four structures across eight palettes. Direct install
+into Happ, v2rayNG and V2Box. A usage ring that sweeps from zero while the figure
+counts up. FAQ in Persian, English, Turkish and Arabic. Every reseller gets their
+own brand, and their customers never see yours.
 
-**Sales bot** — card-transfer payment with photo or text receipts. One tap approves,
-and the config is created in 3x-ui and delivered automatically. Rejection comes with
-a reason and refunds any coins spent. Coins, wallet, free trial, expiry reminders.
+**Sales bot** — card-transfer payment with photo or text receipts. One tap
+approves, and the config is created in 3x-ui and delivered automatically.
+Rejection comes with a reason and refunds any coins spent. Wallet, free trial,
+expiry reminders, and an admin panel inside the bot itself.
 
-**Accounting** — groups are read straight from 3x-ui. Mark which ones are resellers,
-set a rate table for each, and invoices build themselves. Payments are logged in
-Nexora, since 3x-ui doesn't record them.
+**Accounting** — groups are read straight from the 3x-ui database. Mark which
+ones are resellers, set a rate table for each, and invoices build themselves.
+Payments are logged in Nexora, since 3x-ui doesn't record them.
 
 <br>
 
