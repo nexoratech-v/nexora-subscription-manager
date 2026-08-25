@@ -1,0 +1,897 @@
+#!/bin/bash
+# ═══════════════════════════════════════════════════════════════
+#   NEXORA — Management CLI
+#   Usage:  nexora <command>
+# ═══════════════════════════════════════════════════════════════
+
+INSTALL_DIR="${NEXORA_DIR:-/opt/nexora-panel}"
+SERVICE="nexora-panel"
+
+C_RESET='\033[0m'; C_BLUE='\033[38;5;33m'; C_LBLUE='\033[38;5;39m'
+C_CYAN='\033[38;5;45m'; C_GREEN='\033[38;5;41m'; C_RED='\033[38;5;196m'
+C_YELLOW='\033[38;5;220m'; C_GRAY='\033[38;5;245m'; C_WHITE='\033[38;5;255m'
+C_BOLD='\033[1m'; C_DIM='\033[2m'
+
+ok()   { echo -e "  ${C_GREEN}✓${C_RESET} $1"; }
+bad()  { echo -e "  ${C_RED}✗${C_RESET} $1"; }
+warn() { echo -e "  ${C_YELLOW}!${C_RESET} $1"; }
+info() { echo -e "  ${C_LBLUE}i${C_RESET} $1"; }
+
+logo() {
+echo ""
+echo -e "${C_BLUE}   ╔═══════════════════════════════════════════════╗${C_RESET}"
+echo -e "${C_BLUE}   ║${C_RESET}     ${C_BOLD}${C_LBLUE}N E X O R A${C_RESET}   ${C_GRAY}│${C_RESET}   ${C_WHITE}Panel Manager${C_RESET}     ${C_BLUE}║${C_RESET}"
+echo -e "${C_BLUE}   ╚═══════════════════════════════════════════════╝${C_RESET}"
+echo ""
+}
+
+VER=$(cat "$INSTALL_DIR/VERSION" 2>/dev/null || echo "unknown")
+
+case "$1" in
+
+  status)
+    logo
+    echo -e "  ${C_DIM}Version${C_RESET}  ${C_WHITE}$VER${C_RESET}"
+    echo ""
+    if systemctl is-active --quiet $SERVICE; then
+      ok "Backend service:  running"
+    else
+      bad "Backend service:  stopped"
+    fi
+    if curl -s --max-time 4 http://127.0.0.1:8100/api/health 2>/dev/null | grep -q '"ok":true'; then
+      ok "API health:       responding"
+    else
+      bad "API health:       no response"
+    fi
+    if systemctl is-active --quiet nginx; then ok "nginx:            running"; else bad "nginx:            stopped"; fi
+    if systemctl is-active --quiet x-ui; then ok "x-ui panel:       running"; else warn "x-ui panel:       not running"; fi
+    echo ""
+    for d in /root/sub-page /etc/x-ui/sub-page; do
+      [ -f "$d/index.html" ] && info "Template: $d/index.html ($(stat -c%s "$d/index.html") bytes)"
+    done
+    echo ""
+    ;;
+
+  logs)
+    journalctl -u $SERVICE -f --no-pager
+    ;;
+
+  restart)
+    logo
+    systemctl restart $SERVICE && ok "Service restarted" || bad "Restart failed"
+    sleep 3
+    curl -s --max-time 4 http://127.0.0.1:8100/api/health 2>/dev/null | grep -q '"ok":true' \
+      && ok "API responding" || bad "API not responding — run: nexora logs"
+    echo ""
+    ;;
+
+  stop)
+    systemctl stop $SERVICE && ok "Service stopped"
+    ;;
+
+  start)
+    systemctl start $SERVICE && ok "Service started"
+    ;;
+
+  backup)
+    logo
+    mkdir -p /root/backups
+    TS=$(date +%Y%m%d-%H%M%S)
+    cp "$INSTALL_DIR/data/config.json" "/root/backups/config-$TS.json" 2>/dev/null \
+      && ok "Backup saved: /root/backups/config-$TS.json" \
+      || bad "Backup failed — config.json not found"
+    echo ""
+    ;;
+
+  update)
+    logo
+    echo -e "  ${C_BOLD}Update Nexora Panel${C_RESET}"
+    echo ""
+
+    ZIP="$2"
+
+    # اگر فایلی داده نشده، از گیت‌هاب دانلود می‌کنیم
+    if [ -z "$ZIP" ]; then
+      if [ -f "$INSTALL_DIR/.github" ]; then
+        # shellcheck disable=SC1090
+        source "$INSTALL_DIR/.github"
+      fi
+
+      if [ -z "$GITHUB_REPO" ]; then
+        echo -e "  ${C_DIM}Two ways to update:${C_RESET}"
+        echo ""
+        echo -e "  ${C_WHITE}1)${C_RESET} From a local file:"
+        echo -e "     ${C_DIM}nexora update /root/nexora-subscription-manager.zip${C_RESET}"
+        echo ""
+        echo -e "  ${C_WHITE}2)${C_RESET} Automatically from GitHub — set it up once:"
+        echo -e "     ${C_DIM}echo 'GITHUB_REPO=\"user/repo\"' > $INSTALL_DIR/.github${C_RESET}"
+        echo -e "     ${C_DIM}then just run:  nexora update${C_RESET}"
+        echo ""
+        exit 1
+      fi
+
+      info "Checking GitHub for the latest release..."
+      AUTH_HEADER=""
+      [ -n "$GITHUB_TOKEN" ] && AUTH_HEADER="-H \"Authorization: token $GITHUB_TOKEN\""
+
+      API="https://api.github.com/repos/$GITHUB_REPO/releases/latest"
+      if [ -n "$GITHUB_TOKEN" ]; then
+        REL=$(curl -sL -H "Authorization: token $GITHUB_TOKEN" "$API")
+      else
+        REL=$(curl -sL "$API")
+      fi
+
+      TAG=$(echo "$REL" | grep -o '"tag_name": *"[^"]*"' | head -1 | sed 's/.*: *"//;s/"//')
+      if [ -z "$TAG" ]; then
+        bad "Could not reach GitHub or no release found"
+        info "Repo: $GITHUB_REPO"
+        echo ""
+        exit 1
+      fi
+
+      if [ "$TAG" = "v$VER" ] || [ "$TAG" = "$VER" ]; then
+        ok "Already on the latest version ($VER)"
+        echo ""
+        exit 0
+      fi
+
+      info "New version available: $TAG  (current: $VER)"
+      ZIP="/tmp/nexora-$TAG.zip"
+      DL="https://github.com/$GITHUB_REPO/archive/refs/tags/$TAG.zip"
+
+      if [ -n "$GITHUB_TOKEN" ]; then
+        curl -sL -H "Authorization: token $GITHUB_TOKEN" -o "$ZIP" "$DL"
+      else
+        curl -sL -o "$ZIP" "$DL"
+      fi
+
+      [ ! -s "$ZIP" ] && { bad "Download failed"; echo ""; exit 1; }
+      ok "Downloaded $(du -h "$ZIP" | cut -f1)"
+    fi
+
+    [ ! -f "$ZIP" ] && { bad "File not found: $ZIP"; echo ""; exit 1; }
+
+    # 1) Full snapshot so we can roll back if the new version misbehaves
+    TS=$(date +%Y%m%d-%H%M%S)
+    SNAP="/root/nexora-snapshots/$TS"
+    mkdir -p "$SNAP"
+
+    cp "$INSTALL_DIR/data/config.json" "$SNAP/" 2>/dev/null
+    cp "$INSTALL_DIR/data/auth.json" "$SNAP/" 2>/dev/null
+    cp "$INSTALL_DIR/sub-page-index.html" "$SNAP/" 2>/dev/null
+    cp "$INSTALL_DIR/VERSION" "$SNAP/" 2>/dev/null
+    cp "$INSTALL_DIR/.github" "$SNAP/" 2>/dev/null
+    cp "$INSTALL_DIR/nexora-cli.sh" "$SNAP/" 2>/dev/null
+    cp -r "$INSTALL_DIR/backend" "$SNAP/backend" 2>/dev/null
+    rm -rf "$SNAP/backend/venv" "$SNAP/backend/__pycache__" 2>/dev/null
+    if [ -d "$INSTALL_DIR/bot" ]; then
+      cp -r "$INSTALL_DIR/bot" "$SNAP/bot" 2>/dev/null
+      rm -rf "$SNAP/bot/__pycache__" 2>/dev/null
+    fi
+    # دیتابیس ربات هم بک‌آپ می‌شود — داده مشتریان حیاتی است
+    [ -f "$INSTALL_DIR/data/bot.db" ] && cp "$INSTALL_DIR/data/bot.db" "$SNAP/" 2>/dev/null
+    # نرخ‌ها و پرداخت‌های واسطه — بدون این، rollback حسابداری را پاک می‌کند
+    [ -f "$INSTALL_DIR/data/billing.db" ] && cp "$INSTALL_DIR/data/billing.db" "$SNAP/" 2>/dev/null
+    mkdir -p "$SNAP/frontend"
+    cp -r "$INSTALL_DIR/frontend/src" "$SNAP/frontend/src" 2>/dev/null
+    cp "$INSTALL_DIR/frontend/package.json" "$SNAP/frontend/" 2>/dev/null
+    cp "$INSTALL_DIR/frontend/.env" "$SNAP/frontend/" 2>/dev/null
+    echo "$VER" > "$SNAP/FROM_VERSION"
+
+    # keep only the 5 most recent snapshots
+    ls -1dt /root/nexora-snapshots/*/ 2>/dev/null | tail -n +6 | xargs rm -rf 2>/dev/null
+
+    ok "Snapshot saved → $SNAP"
+    info "You can roll back anytime with:  nexora rollback"
+
+    # 2) Read current settings so we can restore them
+    API_URL=$(grep -o 'const SUBPAGE_CONFIG_API = "[^"]*"' "$INSTALL_DIR/sub-page-index.html" 2>/dev/null | head -1 | sed 's/.*= "//;s/"//')
+    VITE_URL=$(grep VITE_API_URL "$INSTALL_DIR/frontend/.env" 2>/dev/null | cut -d= -f2)
+    SUBPAGE_PATH=$(grep -o 'SUBPAGE_HTML_PATH=[^"]*' /etc/systemd/system/nexora-panel.service 2>/dev/null | cut -d= -f2)
+    [ -z "$SUBPAGE_PATH" ] && SUBPAGE_PATH="/root/sub-page/index.html"
+    info "Preserving API URL: $API_URL"
+
+    # 3) Extract new version
+    TMP="/tmp/nexora-update-$TS"
+    mkdir -p "$TMP"
+    unzip -q -o "$ZIP" -d "$TMP" || { bad "Failed to extract zip"; exit 1; }
+    SRC=$(find "$TMP" -name "sub-page-index.html" -exec dirname {} \; | head -1)
+    [ -z "$SRC" ] && { bad "Invalid package — sub-page-index.html not found"; exit 1; }
+    ok "Package extracted"
+
+    # 4) Replace code, keep data
+    #
+    # همه‌چیز به‌جز پوشه‌های داده‌ای کپی می‌شود. لیست هاردکد نداریم،
+    # چون همان باعث شد پوشه‌ی bot/ در یک نسخه جا بماند. فقط با cp
+    # کار می‌کنیم تا روی سرورهای بدون rsync هم مطمئن باشد.
+    SKIP_TOP="data"
+    SKIP_SUB="node_modules venv dist __pycache__ .git .env"
+
+    copy_tree() {
+      local from="$1" to="$2"
+      mkdir -p "$to"
+      local entry name
+      for entry in "$from"/* "$from"/.[!.]*; do
+        [ -e "$entry" ] || continue
+        name=$(basename "$entry")
+        case " $SKIP_SUB " in *" $name "*) continue ;; esac
+        if [ -d "$entry" ]; then
+          copy_tree "$entry" "$to/$name"
+        else
+          cp -f "$entry" "$to/$name" 2>/dev/null
+        fi
+      done
+    }
+
+    for item in "$SRC"/*; do
+      [ -e "$item" ] || continue
+      name=$(basename "$item")
+      case " $SKIP_TOP " in *" $name "*) continue ;; esac
+      case " $SKIP_SUB " in *" $name "*) continue ;; esac
+
+      if [ -d "$item" ]; then
+        copy_tree "$item" "$INSTALL_DIR/$name"
+      else
+        cp -f "$item" "$INSTALL_DIR/" 2>/dev/null
+      fi
+    done
+
+    rm -rf "$INSTALL_DIR/bot/__pycache__" "$INSTALL_DIR/backend/__pycache__" 2>/dev/null
+    chmod +x "$INSTALL_DIR"/*.sh 2>/dev/null
+
+    if [ -d "$INSTALL_DIR/bot" ]; then
+      BOTN=$(ls -1 "$INSTALL_DIR/bot"/*.py 2>/dev/null | wc -l)
+      if [ "$BOTN" -gt 0 ]; then
+        ok "Bot module: $BOTN files"
+      else
+        bad "Bot module copy failed"
+      fi
+    fi
+
+    # دستور nexora — تا دفعه‌ی بعد کامل باشد
+    if [ -f "$INSTALL_DIR/nexora-cli.sh" ]; then
+      cp "$INSTALL_DIR/nexora-cli.sh" /usr/local/bin/nexora.new
+      chmod +x /usr/local/bin/nexora.new
+      mv -f /usr/local/bin/nexora.new /usr/local/bin/nexora
+      ok "CLI updated"
+    fi
+
+    ok "Code updated (your settings were not touched)"
+
+    # 5) Restore API URL into the template
+    if [ -n "$API_URL" ]; then
+      sed -i "s|const SUBPAGE_CONFIG_API = \"[^\"]*\"|const SUBPAGE_CONFIG_API = \"$API_URL\"|" "$INSTALL_DIR/sub-page-index.html"
+      ok "API URL restored"
+    fi
+
+    # 6) Deploy template
+    cp "$INSTALL_DIR/sub-page-index.html" "$SUBPAGE_PATH"
+    chmod 644 "$SUBPAGE_PATH"
+    ok "Template deployed → $SUBPAGE_PATH"
+
+    # 7) Rebuild
+    #
+    # مهم: خروجی بیلد را پنهان نمی‌کنیم. اگر بیلد شکست بخورد و دلیلش
+    # را نگوییم، کاربر پنل قدیمی می‌بیند و فکر می‌کند به‌روزرسانی
+    # کار نکرده — بدون هیچ سرنخی.
+    info "Rebuilding admin panel..."
+    cd "$INSTALL_DIR/frontend"
+    [ -n "$VITE_URL" ] && echo "VITE_API_URL=$VITE_URL" > .env
+    export NODE_OPTIONS="--max-old-space-size=1536"
+
+    # swap موقت برای سرورهای کم‌حافظه — بدون آن بیلد بی‌صدا کشته می‌شود
+    MEM=$(free -m 2>/dev/null | awk '/^Mem:/{print $2}')
+    SWP=$(free -m 2>/dev/null | awk '/^Swap:/{print $2}')
+    if [ -n "$MEM" ] && [ $((MEM + SWP)) -lt 1500 ] && [ ! -f /swapfile ]; then
+      info "Low memory — creating temporary swap"
+      fallocate -l 2G /swapfile 2>/dev/null && chmod 600 /swapfile && \
+        mkswap /swapfile > /dev/null 2>&1 && swapon /swapfile > /dev/null 2>&1
+    fi
+
+    BUILD_LOG="/tmp/nexora-build.log"
+
+    # بیلد قبلی را نگه می‌داریم. اگر بیلد جدید خراب باشد، به‌جای
+    # اینکه پنل صفحه‌ی سفید شود، نسخه‌ی سالم قبلی برمی‌گردد.
+    [ -d dist ] && rm -rf dist.prev && cp -r dist dist.prev 2>/dev/null
+
+    npm install --no-fund --no-audit --loglevel=error > "$BUILD_LOG" 2>&1
+    npm run build >> "$BUILD_LOG" 2>&1
+    BUILD_RC=$?
+
+    # اعتبارسنجی خروجی — فقط «موفق بودن دستور» کافی نیست
+    BUILD_OK=0
+    if [ $BUILD_RC -eq 0 ] && [ -f dist/index.html ]; then
+      JSFILE=$(ls -1 dist/assets/*.js 2>/dev/null | head -1)
+      if [ -n "$JSFILE" ]; then
+        JSSIZE=$(stat -c%s "$JSFILE" 2>/dev/null || echo 0)
+        # باندل سالم صدها کیلوبایت است؛ کمتر از ۵۰ کیلو یعنی چیزی خراب شده
+        [ "$JSSIZE" -gt 50000 ] && BUILD_OK=1
+      fi
+    fi
+
+    if [ $BUILD_OK -eq 1 ]; then
+      rm -rf dist.prev
+      ok "Admin panel rebuilt"
+    else
+      bad "Build failed"
+      echo ""
+      echo -e "  ${C_DIM}Last lines of the build log:${C_RESET}"
+      tail -20 "$BUILD_LOG" 2>/dev/null | sed 's/^/      /'
+      echo ""
+
+      if [ -d dist.prev ]; then
+        rm -rf dist && mv dist.prev dist
+        warn "Previous panel restored — you can still use it"
+      fi
+      warn "Full log:  $BUILD_LOG"
+      warn "Roll back with:  nexora rollback"
+      exit 1
+    fi
+
+    # 8) Restart
+    cd "$INSTALL_DIR/backend"
+    ./venv/bin/pip install -r requirements.txt -q > /dev/null 2>&1
+
+    # ربات: وابستگی‌ها و سرویس (اگر ماژول موجود باشد)
+    if [ -d "$INSTALL_DIR/bot" ]; then
+      ./venv/bin/pip install -r "$INSTALL_DIR/bot/requirements.txt" -q > /dev/null 2>&1
+
+      if [ ! -f /etc/systemd/system/nexora-bot.service ]; then
+        cat > /etc/systemd/system/nexora-bot.service << BOTEOF
+[Unit]
+Description=Nexora Telegram Bot
+After=network.target nexora-panel.service
+
+[Service]
+Type=simple
+WorkingDirectory=$INSTALL_DIR/bot
+Environment="BOT_DB_PATH=$INSTALL_DIR/data/bot.db"
+Environment="PANEL_CONFIG=$INSTALL_DIR/data/config.json"
+ExecStart=$INSTALL_DIR/backend/venv/bin/python run.py
+Restart=always
+RestartSec=10
+User=root
+
+[Install]
+WantedBy=multi-user.target
+BOTEOF
+        chmod 600 /etc/systemd/system/nexora-bot.service
+        systemctl daemon-reload
+        ok "Bot service created (start with: nexora bot enable)"
+      else
+        systemctl daemon-reload
+        # اگر ربات از قبل در حال اجرا بود، با کد جدید ری‌استارت شود
+        if systemctl is-active --quiet nexora-bot; then
+          systemctl restart nexora-bot
+          ok "Bot restarted with the new code"
+        fi
+      fi
+    fi
+
+    # هدرهای ضدکش nginx — بدون این، مرورگر بعد از به‌روزرسانی
+    # همچنان فایل‌های قدیمی را می‌خواهد
+    [ -f "$INSTALL_DIR/fix-nginx-cache.py" ] && \
+      python3 "$INSTALL_DIR/fix-nginx-cache.py" > /dev/null 2>&1
+
+    systemctl restart $SERVICE
+    sleep 4
+
+    if curl -s --max-time 5 http://127.0.0.1:8100/api/health 2>/dev/null | grep -q '"ok":true'; then
+      ok "Service restarted successfully"
+      systemctl is-active --quiet x-ui && { x-ui restart > /dev/null 2>&1; ok "x-ui restarted"; }
+      NEWVER=$(cat "$INSTALL_DIR/VERSION" 2>/dev/null || echo "?")
+      rm -rf "$TMP"
+      echo ""
+
+      # بررسی واقعی: آیا نسخه عوض شد؟ اگر نه، محتوای دانلودشده قدیمی بوده.
+      if [ "$NEWVER" = "$VER" ]; then
+        warn "Version did not change ($VER)"
+        echo ""
+        info "The downloaded package contained the same version."
+        info "This usually means the GitHub release tag points to an older commit."
+        echo ""
+        echo -e "  ${C_WHITE}How to fix:${C_RESET}"
+        echo -e "    1. Make sure the new files are pushed to GitHub"
+        echo -e "    2. Delete the release, then create it again with the same tag"
+        echo -e "    3. Run ${C_WHITE}nexora update${C_RESET} again"
+        echo ""
+        echo -e "  ${C_DIM}Or update directly from a local file:${C_RESET}"
+        echo -e "    ${C_WHITE}nexora update /path/to/package.zip${C_RESET}"
+        echo ""
+      else
+        echo -e "  ${C_GREEN}${C_BOLD}UPDATE COMPLETE${C_RESET}   ${C_DIM}$VER → $NEWVER${C_RESET}"
+        echo ""
+      fi
+    else
+      bad "Service failed after update"
+      warn "Roll back with:  nexora rollback"
+      warn "Check logs:  nexora logs"
+      echo ""
+      exit 1
+    fi
+    ;;
+
+  rebuild)
+    logo
+    echo -e "  ${C_BOLD}Rebuild Admin Panel${C_RESET}"
+    echo ""
+
+    # --- Pre-flight checks ---
+    NODE_V=$(node --version 2>/dev/null)
+    NODE_MAJOR=$(echo "$NODE_V" | sed 's/v//' | cut -d. -f1)
+    if [ -z "$NODE_V" ]; then
+      bad "Node.js is not installed"
+      echo ""; exit 1
+    elif [ "$NODE_MAJOR" -lt 20 ] 2>/dev/null; then
+      warn "Node.js $NODE_V — version 20+ recommended"
+      info "Upgrade:  curl -fsSL https://deb.nodesource.com/setup_20.x | sudo -E bash - && apt install -y nodejs"
+      echo ""
+    else
+      ok "Node.js $NODE_V"
+    fi
+
+    MEM=$(free -m | awk '/^Mem:/{print $2}')
+    SWP=$(free -m | awk '/^Swap:/{print $2}')
+    TOTAL=$((MEM + SWP))
+    if [ "$TOTAL" -lt 1500 ]; then
+      warn "Only ${TOTAL}MB memory available — build may fail"
+      info "Creating temporary swap..."
+      if [ ! -f /swapfile ]; then
+        fallocate -l 2G /swapfile 2>/dev/null && chmod 600 /swapfile && mkswap /swapfile > /dev/null 2>&1 && swapon /swapfile > /dev/null 2>&1 \
+          && ok "2GB swap enabled"
+      else
+        swapon /swapfile 2>/dev/null && ok "Existing swap activated"
+      fi
+    else
+      ok "Memory: ${MEM}MB RAM + ${SWP}MB swap"
+    fi
+
+    DISK=$(df -m "$INSTALL_DIR" 2>/dev/null | awk 'NR==2{print $4}')
+    if [ -n "$DISK" ] && [ "$DISK" -lt 1000 ]; then
+      warn "Only ${DISK}MB free disk space"
+    else
+      ok "Disk space: ${DISK}MB free"
+    fi
+
+    echo ""
+    cd "$INSTALL_DIR/frontend" || { bad "Frontend folder not found"; exit 1; }
+    export NODE_OPTIONS="--max-old-space-size=1536"
+
+    info "Installing packages..."
+    npm install --no-fund --no-audit --loglevel=error 2>&1 | tail -3
+    [ ! -d node_modules ] && { bad "npm install failed"; echo ""; exit 1; }
+    ok "Packages ready"
+
+    info "Building (this takes 1-3 minutes)..."
+    LOG=/tmp/nexora-rebuild.log
+    [ -d dist ] && rm -rf dist.prev && cp -r dist dist.prev 2>/dev/null
+    npm run build > "$LOG" 2>&1
+    RC=$?
+    JSFILE=$(ls -1 dist/assets/*.js 2>/dev/null | head -1)
+    JSSIZE=$([ -n "$JSFILE" ] && stat -c%s "$JSFILE" 2>/dev/null || echo 0)
+    if [ $RC -eq 0 ] && [ -f dist/index.html ] && [ "$JSSIZE" -gt 50000 ]; then
+      rm -rf dist.prev
+      ok "Build successful ($(du -sh dist | cut -f1))"
+      systemctl reload nginx 2>/dev/null
+      echo ""
+      echo -e "  ${C_GREEN}${C_BOLD}DONE${C_RESET}  ${C_DIM}Refresh your browser${C_RESET}"
+      echo ""
+    else
+      bad "Build failed"
+      echo ""
+      tail -20 "$LOG" | sed 's/^/      /'
+      echo ""
+      grep -qi "heap out of memory\|killed" "$LOG" && warn "Out of memory — add more swap"
+      grep -qi "unsupported engine\|EBADENGINE" "$LOG" && warn "Node.js version too old — upgrade to v20+"
+      echo ""
+      exit 1
+    fi
+    ;;
+
+  rollback)
+    # حالت غیرتعاملی برای فراخوانی از پنل:
+    #   nexora rollback <snapshot> --yes --settings=yes|no
+    NONINT=""
+    ROLL_TARGET=""
+    ROLL_SETTINGS="no"
+    for a in "$@"; do
+      case "$a" in
+        --yes) NONINT="1" ;;
+        --settings=yes) ROLL_SETTINGS="yes" ;;
+        --settings=no)  ROLL_SETTINGS="no" ;;
+        rollback) ;;
+        *) [ -z "$ROLL_TARGET" ] && ROLL_TARGET="$a" ;;
+      esac
+    done
+
+    logo
+    echo -e "  ${C_BOLD}Roll Back to a Previous Version${C_RESET}"
+    echo ""
+
+    SNAPDIR="/root/nexora-snapshots"
+    if [ ! -d "$SNAPDIR" ] || [ -z "$(ls -A "$SNAPDIR" 2>/dev/null)" ]; then
+      bad "No snapshots found"
+      info "Snapshots are created automatically before each update."
+      echo ""
+      exit 1
+    fi
+
+    # List snapshots, newest first
+    mapfile -t SNAPS < <(ls -1dt "$SNAPDIR"/*/ 2>/dev/null)
+    echo -e "  ${C_WHITE}Available snapshots:${C_RESET}"
+    echo ""
+    for i in "${!SNAPS[@]}"; do
+      S="${SNAPS[$i]}"
+      NAME=$(basename "$S")
+      FROMV=$(cat "$S/FROM_VERSION" 2>/dev/null || echo "?")
+      DATE=$(echo "$NAME" | sed 's/\(....\)\(..\)\(..\)-\(..\)\(..\)\(..\)/\1-\2-\3 \4:\5/')
+      echo -e "    ${C_LBLUE}$((i+1))${C_RESET})  ${C_WHITE}v$FROMV${C_RESET}   ${C_DIM}$DATE${C_RESET}"
+    done
+    echo ""
+    if [ -n "$NONINT" ]; then
+      PICK=""
+      for i in "${!SNAPS[@]}"; do
+        [ "$(basename "${SNAPS[$i]}")" = "$ROLL_TARGET" ] && PICK=$((i + 1))
+      done
+      if [ -z "$PICK" ]; then
+        bad "Snapshot not found: $ROLL_TARGET"
+        echo ""; exit 1
+      fi
+    else
+      read -p "$(echo -e "  ${C_WHITE}Which snapshot? [1-${#SNAPS[@]}, or 0 to cancel]${C_RESET}: ")" PICK
+    fi
+
+    [ "$PICK" = "0" ] || [ -z "$PICK" ] && { echo ""; info "Cancelled"; echo ""; exit 0; }
+    if ! [ "$PICK" -ge 1 ] 2>/dev/null || [ "$PICK" -gt "${#SNAPS[@]}" ]; then
+      bad "Invalid choice"; echo ""; exit 1
+    fi
+
+    TARGET="${SNAPS[$((PICK-1))]}"
+    TARGET="${TARGET%/}"
+    TARGETV=$(cat "$TARGET/FROM_VERSION" 2>/dev/null || echo "?")
+
+    echo ""
+    warn "This will replace the current version ($VER) with v$TARGETV"
+    if [ -n "$NONINT" ]; then CONF="yes"; else
+      read -p "$(echo -e "  ${C_WHITE}Type 'yes' to confirm${C_RESET}: ")" CONF
+    fi
+    [ "$CONF" != "yes" ] && { echo ""; info "Cancelled"; echo ""; exit 0; }
+
+    # Snapshot the CURRENT state first, so rollback itself is reversible
+    NOWTS=$(date +%Y%m%d-%H%M%S)
+    PRE="$SNAPDIR/$NOWTS"
+    mkdir -p "$PRE/frontend"
+    cp "$INSTALL_DIR/data/config.json" "$PRE/" 2>/dev/null
+    cp "$INSTALL_DIR/data/auth.json" "$PRE/" 2>/dev/null
+    cp "$INSTALL_DIR/sub-page-index.html" "$PRE/" 2>/dev/null
+    cp -r "$INSTALL_DIR/backend" "$PRE/backend" 2>/dev/null
+    rm -rf "$PRE/backend/venv" "$PRE/backend/__pycache__" 2>/dev/null
+    cp -r "$INSTALL_DIR/frontend/src" "$PRE/frontend/src" 2>/dev/null
+    cp "$INSTALL_DIR/frontend/package.json" "$PRE/frontend/" 2>/dev/null
+    echo "$VER" > "$PRE/FROM_VERSION"
+    ok "Current state saved (in case you want to come back)"
+
+    echo ""
+    info "Restoring v$TARGETV..."
+
+    # Keep the live settings unless the user wants the old ones too
+    echo ""
+    if [ -n "$NONINT" ]; then
+      RESTORE_CFG="$([ "$ROLL_SETTINGS" = "yes" ] && echo "y" || echo "n")"
+    else
+      read -p "$(echo -e "  ${C_WHITE}Also restore settings from that snapshot? [y/N]${C_RESET}: ")" RESTORE_CFG
+    fi
+
+    # --- Restore code ---
+    [ -d "$TARGET/backend" ] && {
+      find "$INSTALL_DIR/backend" -maxdepth 1 -type f -delete 2>/dev/null
+      cp "$TARGET/backend/"*.py "$TARGET/backend/"*.txt "$INSTALL_DIR/backend/" 2>/dev/null
+    }
+    [ -d "$TARGET/frontend/src" ] && {
+      rm -rf "$INSTALL_DIR/frontend/src"
+      cp -r "$TARGET/frontend/src" "$INSTALL_DIR/frontend/"
+    }
+    [ -d "$TARGET/bot" ] && {
+      mkdir -p "$INSTALL_DIR/bot"
+      rm -rf "$INSTALL_DIR/bot/__pycache__"
+      cp "$TARGET/bot/"*.py "$TARGET/bot/"*.txt "$INSTALL_DIR/bot/" 2>/dev/null
+    }
+    [ -f "$TARGET/frontend/package.json" ] && cp "$TARGET/frontend/package.json" "$INSTALL_DIR/frontend/"
+    [ -f "$TARGET/sub-page-index.html" ] && cp "$TARGET/sub-page-index.html" "$INSTALL_DIR/"
+    [ -f "$TARGET/VERSION" ] && cp "$TARGET/VERSION" "$INSTALL_DIR/"
+
+    # CLI هم باید به همان نسخه برگردد
+    if [ -f "$TARGET/nexora-cli.sh" ]; then
+      cp "$TARGET/nexora-cli.sh" "$INSTALL_DIR/"
+      chmod +x "$INSTALL_DIR/nexora-cli.sh"
+      cp "$INSTALL_DIR/nexora-cli.sh" /usr/local/bin/nexora.new
+      chmod +x /usr/local/bin/nexora.new
+      mv -f /usr/local/bin/nexora.new /usr/local/bin/nexora
+    fi
+    ok "Code restored"
+
+    # --- Restore settings if asked ---
+    if [[ "$RESTORE_CFG" =~ ^[Yy]$ ]]; then
+      [ -f "$TARGET/config.json" ] && cp "$TARGET/config.json" "$INSTALL_DIR/data/" && ok "Settings restored"
+      [ -f "$TARGET/auth.json" ] && cp "$TARGET/auth.json" "$INSTALL_DIR/data/" && ok "Password restored"
+      if [ -f "$TARGET/bot.db" ]; then
+        systemctl stop nexora-bot 2>/dev/null
+        cp "$TARGET/bot.db" "$INSTALL_DIR/data/" && ok "Bot database restored"
+      fi
+      if [ -f "$TARGET/billing.db" ]; then
+        cp "$TARGET/billing.db" "$INSTALL_DIR/data/" && ok "Billing data restored"
+      fi
+    else
+      info "Current settings kept"
+    fi
+
+    # --- Redeploy template ---
+    SUBPAGE_PATH=$(grep -o 'SUBPAGE_HTML_PATH=[^"]*' /etc/systemd/system/nexora-panel.service 2>/dev/null | cut -d= -f2)
+    [ -z "$SUBPAGE_PATH" ] && SUBPAGE_PATH="/root/sub-page/index.html"
+    cp "$INSTALL_DIR/sub-page-index.html" "$SUBPAGE_PATH" 2>/dev/null && chmod 644 "$SUBPAGE_PATH"
+    ok "Template redeployed"
+
+    # --- Rebuild ---
+    info "Rebuilding admin panel..."
+    cd "$INSTALL_DIR/frontend"
+    export NODE_OPTIONS="--max-old-space-size=1536"
+    npm install --no-fund --no-audit --loglevel=error > /dev/null 2>&1
+    if npm run build > /tmp/nexora-rollback.log 2>&1 && [ -f dist/index.html ]; then
+      ok "Panel rebuilt"
+    else
+      bad "Rebuild failed — see /tmp/nexora-rollback.log"
+      exit 1
+    fi
+
+    # --- Restart ---
+    cd "$INSTALL_DIR/backend"
+    ./venv/bin/pip install -r requirements.txt -q > /dev/null 2>&1
+    systemctl restart $SERVICE
+    systemctl is-enabled --quiet nexora-bot 2>/dev/null && systemctl restart nexora-bot 2>/dev/null
+    sleep 4
+
+    if curl -s --max-time 5 http://127.0.0.1:8100/api/health 2>/dev/null | grep -q '"ok":true'; then
+      systemctl is-active --quiet x-ui && x-ui restart > /dev/null 2>&1
+      echo ""
+      echo -e "  ${C_GREEN}${C_BOLD}ROLLBACK COMPLETE${C_RESET}   ${C_DIM}$VER → v$TARGETV${C_RESET}"
+      echo ""
+      info "To go back forward, run 'nexora rollback' and pick the newest snapshot"
+      echo ""
+    else
+      bad "Service did not start after rollback"
+      warn "Check logs:  nexora logs"
+      echo ""
+      exit 1
+    fi
+    ;;
+
+  snapshots)
+    logo
+    SNAPDIR="/root/nexora-snapshots"
+    if [ ! -d "$SNAPDIR" ] || [ -z "$(ls -A "$SNAPDIR" 2>/dev/null)" ]; then
+      info "No snapshots yet — one is created automatically before each update"
+      echo ""
+      exit 0
+    fi
+    echo -e "  ${C_WHITE}Saved snapshots${C_RESET}  ${C_DIM}(newest first, max 5 kept)${C_RESET}"
+    echo ""
+    for S in $(ls -1dt "$SNAPDIR"/*/ 2>/dev/null); do
+      NAME=$(basename "$S")
+      FROMV=$(cat "$S/FROM_VERSION" 2>/dev/null || echo "?")
+      SIZE=$(du -sh "$S" 2>/dev/null | cut -f1)
+      DATE=$(echo "$NAME" | sed 's/\(....\)\(..\)\(..\)-\(..\)\(..\)\(..\)/\1-\2-\3 \4:\5/')
+      echo -e "  ${C_GRAY}•${C_RESET} ${C_WHITE}v$FROMV${C_RESET}  ${C_DIM}$DATE  ($SIZE)${C_RESET}"
+    done
+    echo ""
+    info "Restore one with:  nexora rollback"
+    echo ""
+    ;;
+
+  doctor)
+    logo
+    echo -e "  ${C_BOLD}System Check${C_RESET}"
+    echo ""
+
+    # نسخه‌ی نصب‌شده در برابر نسخه‌ی CLI
+    INSTALLED=$(cat "$INSTALL_DIR/VERSION" 2>/dev/null || echo "?")
+    echo -e "  ${C_DIM}Installed version :${C_RESET} ${C_WHITE}$INSTALLED${C_RESET}"
+
+    if [ -f "$INSTALL_DIR/nexora-cli.sh" ] && [ -f /usr/local/bin/nexora ]; then
+      if cmp -s "$INSTALL_DIR/nexora-cli.sh" /usr/local/bin/nexora; then
+        ok "CLI is up to date"
+      else
+        warn "CLI is OUT OF DATE — new commands may be missing"
+        info "Fixing now..."
+        cp "$INSTALL_DIR/nexora-cli.sh" /usr/local/bin/nexora.new
+        chmod +x /usr/local/bin/nexora.new
+        mv -f /usr/local/bin/nexora.new /usr/local/bin/nexora
+        ok "CLI updated — run your command again"
+      fi
+    fi
+
+    echo ""
+    # ماژول ربات
+    if [ -d "$INSTALL_DIR/bot" ] && [ -f "$INSTALL_DIR/bot/run.py" ]; then
+      ok "Bot module:     present ($(ls -1 "$INSTALL_DIR/bot"/*.py 2>/dev/null | wc -l) files)"
+    else
+      bad "Bot module:     MISSING at $INSTALL_DIR/bot"
+      info "Run:  nexora update   (or reinstall)"
+    fi
+
+    if [ -f /etc/systemd/system/nexora-bot.service ]; then
+      ok "Bot service:    installed"
+    else
+      warn "Bot service:    not created"
+      if [ -d "$INSTALL_DIR/bot" ]; then
+        info "Creating it now..."
+        cat > /etc/systemd/system/nexora-bot.service << BOTEOF
+[Unit]
+Description=Nexora Telegram Bot
+After=network.target nexora-panel.service
+
+[Service]
+Type=simple
+WorkingDirectory=$INSTALL_DIR/bot
+Environment="BOT_DB_PATH=$INSTALL_DIR/data/bot.db"
+Environment="PANEL_CONFIG=$INSTALL_DIR/data/config.json"
+ExecStart=$INSTALL_DIR/backend/venv/bin/python run.py
+Restart=always
+RestartSec=10
+User=root
+
+[Install]
+WantedBy=multi-user.target
+BOTEOF
+        chmod 600 /etc/systemd/system/nexora-bot.service
+        systemctl daemon-reload
+        ok "Bot service created"
+      fi
+    fi
+
+    # وابستگی ربات
+    if [ -d "$INSTALL_DIR/bot" ]; then
+      if "$INSTALL_DIR/backend/venv/bin/python" -c "import requests" 2>/dev/null; then
+        ok "Bot deps:       installed"
+      else
+        warn "Bot deps:       missing — installing..."
+        "$INSTALL_DIR/backend/venv/bin/pip" install -r "$INSTALL_DIR/bot/requirements.txt" -q > /dev/null 2>&1 \
+          && ok "Bot deps installed" || bad "Failed to install"
+      fi
+    fi
+
+    # دیتابیس
+    if [ -f "$INSTALL_DIR/data/bot.db" ]; then
+      ok "Bot database:   $(du -h "$INSTALL_DIR/data/bot.db" | cut -f1)"
+    else
+      info "Bot database:   will be created when you open the bot section in the panel"
+    fi
+
+    if [ -f "$INSTALL_DIR/data/billing.db" ]; then
+      ok "Billing data:   $(du -h "$INSTALL_DIR/data/billing.db" | cut -f1)"
+    else
+      info "Billing data:   will be created when you open the accounting section"
+    fi
+
+    # دسترسی به دیتابیس x-ui — حسابداری بدون آن کار نمی‌کند
+    XUI="${XUI_DB:-/etc/x-ui/x-ui.db}"
+    if [ -f "$XUI" ]; then
+      if [ -r "$XUI" ]; then
+        ok "3x-ui database: readable"
+      else
+        bad "3x-ui database: exists but NOT readable"
+        info "Accounting needs read access. Fix with:  chmod +r $XUI"
+      fi
+    else
+      warn "3x-ui database: not found at $XUI"
+      info "Accounting will show an error until 3x-ui is installed here"
+    fi
+
+    echo ""
+    systemctl is-active --quiet $SERVICE && ok "Panel:          running" || bad "Panel:          stopped"
+    systemctl is-active --quiet nexora-bot && ok "Bot:            running" || warn "Bot:            stopped"
+    echo ""
+    ;;
+
+  bot)
+    logo
+    SUB="$2"
+    case "$SUB" in
+      start)
+        systemctl start nexora-bot && ok "Bot started" || bad "Failed to start"
+        sleep 3
+        systemctl is-active --quiet nexora-bot && ok "Running" || { bad "Not running"; warn "Check:  nexora bot logs"; }
+        ;;
+      stop)
+        systemctl stop nexora-bot && ok "Bot stopped"
+        ;;
+      restart)
+        systemctl restart nexora-bot && ok "Bot restarted"
+        sleep 3
+        systemctl is-active --quiet nexora-bot && ok "Running" || bad "Not running — check logs"
+        ;;
+      enable)
+        systemctl enable nexora-bot > /dev/null 2>&1 && ok "Bot will start on boot"
+        systemctl start nexora-bot && ok "Bot started"
+        ;;
+      disable)
+        systemctl disable nexora-bot > /dev/null 2>&1
+        systemctl stop nexora-bot 2>/dev/null
+        ok "Bot disabled"
+        ;;
+      logs)
+        journalctl -u nexora-bot -f --no-pager
+        ;;
+      *)
+        if systemctl is-active --quiet nexora-bot 2>/dev/null; then
+          ok "Bot service:  running"
+        else
+          warn "Bot service:  stopped"
+        fi
+
+        BOTDB="$INSTALL_DIR/data/bot.db"
+        if [ -f "$BOTDB" ]; then
+          ok "Database:     $(du -h "$BOTDB" | cut -f1)"
+          if command -v sqlite3 > /dev/null 2>&1; then
+            U=$(sqlite3 "$BOTDB" "SELECT COUNT(*) FROM users;" 2>/dev/null || echo "?")
+            P=$(sqlite3 "$BOTDB" "SELECT COUNT(*) FROM orders WHERE status IN ('awaiting','review');" 2>/dev/null || echo "?")
+            info "Users: $U   ·   Pending receipts: $P"
+          fi
+        else
+          warn "Database:     not created yet"
+        fi
+        echo ""
+        echo -e "  ${C_DIM}Commands${C_RESET}"
+        echo -e "  ${C_GRAY}├─${C_RESET} ${C_WHITE}nexora bot start${C_RESET}     ${C_DIM}start the bot${C_RESET}"
+        echo -e "  ${C_GRAY}├─${C_RESET} ${C_WHITE}nexora bot stop${C_RESET}      ${C_DIM}stop it${C_RESET}"
+        echo -e "  ${C_GRAY}├─${C_RESET} ${C_WHITE}nexora bot restart${C_RESET}   ${C_DIM}restart${C_RESET}"
+        echo -e "  ${C_GRAY}├─${C_RESET} ${C_WHITE}nexora bot enable${C_RESET}    ${C_DIM}start on boot${C_RESET}"
+        echo -e "  ${C_GRAY}└─${C_RESET} ${C_WHITE}nexora bot logs${C_RESET}      ${C_DIM}live logs${C_RESET}"
+        echo ""
+        ;;
+    esac
+    ;;
+
+  diagnose)
+    bash "$INSTALL_DIR/diagnose.sh"
+    ;;
+
+  password)
+    logo
+    read -s -p "  New admin password (min 8 chars): " NP; echo ""
+    if [ ${#NP} -lt 8 ]; then bad "Too short"; exit 1; fi
+    read -s -p "  Confirm: " NP2; echo ""
+    [ "$NP" != "$NP2" ] && { bad "Passwords do not match"; exit 1; }
+    python3 - "$INSTALL_DIR/data/auth.json" "$NP" << 'PYEOF'
+import json, sys, os
+path, pw = sys.argv[1], sys.argv[2]
+os.makedirs(os.path.dirname(path), exist_ok=True)
+json.dump({"password": pw}, open(path, "w"))
+os.chmod(path, 0o600)
+PYEOF
+    ok "Password changed (takes effect immediately)"
+    echo ""
+    ;;
+
+  *)
+    logo
+    echo -e "  ${C_BOLD}Commands${C_RESET}"
+    echo ""
+    echo -e "  ${C_WHITE}nexora status${C_RESET}                 ${C_DIM}show service health${C_RESET}"
+    echo -e "  ${C_WHITE}nexora logs${C_RESET}                   ${C_DIM}live logs (Ctrl+C to exit)${C_RESET}"
+    echo -e "  ${C_WHITE}nexora restart${C_RESET}                ${C_DIM}restart backend${C_RESET}"
+    echo -e "  ${C_WHITE}nexora start${C_RESET} / ${C_WHITE}stop${C_RESET}          ${C_DIM}start or stop backend${C_RESET}"
+    echo -e "  ${C_WHITE}nexora backup${C_RESET}                 ${C_DIM}backup settings now${C_RESET}"
+    echo -e "  ${C_WHITE}nexora update <file.zip>${C_RESET}      ${C_DIM}update to a new version${C_RESET}"
+    echo -e "  ${C_WHITE}nexora rebuild${C_RESET}                ${C_DIM}rebuild admin panel (fixes UI issues)${C_RESET}"
+    echo -e "  ${C_WHITE}nexora rollback${C_RESET}               ${C_DIM}go back to a previous version${C_RESET}"
+    echo -e "  ${C_WHITE}nexora snapshots${C_RESET}              ${C_DIM}list saved versions${C_RESET}"
+    echo -e "  ${C_WHITE}nexora bot${C_RESET}                    ${C_DIM}manage the Telegram bot${C_RESET}"
+    echo -e "  ${C_WHITE}nexora doctor${C_RESET}                 ${C_DIM}check and auto-fix common problems${C_RESET}"
+    echo -e "  ${C_WHITE}nexora password${C_RESET}               ${C_DIM}change admin password${C_RESET}"
+    echo -e "  ${C_WHITE}nexora diagnose${C_RESET}               ${C_DIM}troubleshoot template issues${C_RESET}"
+    echo ""
+    echo -e "${C_GRAY}  ─────────────────────────────────────────────────────${C_RESET}"
+    echo -e "  ${C_LBLUE}${C_BOLD}NEXORA VPN${C_RESET}  ${C_DIM}·${C_RESET}  ${C_GRAY}t.me/yanexoravpn${C_RESET}"
+    echo ""
+    ;;
+esac
