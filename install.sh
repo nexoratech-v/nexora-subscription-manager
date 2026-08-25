@@ -7,7 +7,7 @@
 
 set -o pipefail
 
-VERSION="1.0.0"
+VERSION="1.0.1"
 INSTALL_DIR="/opt/nexora-panel"
 SSL_DIR="/etc/nginx/ssl"
 
@@ -276,6 +276,10 @@ User=root
 WantedBy=multi-user.target
 EOF
 chmod 600 /etc/systemd/system/nexora-panel.service
+
+# نام مستعار: systemctl status nexora هم کار کند.
+# خیلی‌ها «nexora» را می‌زنند چون نام دستور همین است.
+ln -sf /etc/systemd/system/nexora-panel.service /etc/systemd/system/nexora.service 2>/dev/null
 systemctl daemon-reload
 systemctl enable nexora-panel > /dev/null 2>&1
 systemctl restart nexora-panel

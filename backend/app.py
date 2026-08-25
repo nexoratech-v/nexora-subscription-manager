@@ -2216,17 +2216,52 @@ def github_put(payload: dict, x_admin_password: str = Header(...)):
 #  نرخ‌ها، پرداخت‌ها و لاگ تمدید در دیتابیس خودمان ذخیره می‌شوند.
 # ═══════════════════════════════════════════════════════════
 
-XUI_DB = Path(os.getenv("XUI_DB_PATH", "/etc/x-ui/x-ui.db"))
+# مسیر دیتابیس x-ui.
+#
+# اولویت: تنظیمات پنل ← متغیر محیطی ← مسیرهای رایج.
+# اگر فقط به متغیر محیطی تکیه کنیم، نصب‌های قدیمی که آن را ندارند
+# حسابداری‌شان کار نمی‌کند و کاربر هم راهی برای اصلاحش ندارد.
+XUI_CANDIDATES = [
+    "/etc/x-ui/x-ui.db",
+    "/usr/local/x-ui/x-ui.db",
+    "/opt/x-ui/x-ui.db",
+    "/etc/x-ui/db/x-ui.db",
+]
+
+
+def _xui_db_path():
+    """مسیر فعلی دیتابیس x-ui را برمی‌گرداند."""
+    # ۱. تنظیم دستی در پنل
+    try:
+        cfg = load_config()
+        manual = ((cfg.get("advanced") or {}).get("xuiDbPath") or "").strip()
+        if manual:
+            return Path(manual)
+    except Exception:
+        pass
+
+    # ۲. متغیر محیطی
+    env = os.getenv("XUI_DB_PATH", "").strip()
+    if env:
+        return Path(env)
+
+    # ۳. مسیرهای رایج — اولین موجود
+    for p in XUI_CANDIDATES:
+        if Path(p).exists():
+            return Path(p)
+
+    return Path(XUI_CANDIDATES[0])
 BILLING_DB = Path(os.getenv("BILLING_DB_PATH", str(CONFIG_PATH.parent / "billing.db")))
 
 
 def _xui_conn():
     """اتصال فقط‌خواندنی به دیتابیس x-ui."""
-    if not XUI_DB.exists():
+    xdb = _xui_db_path()
+    if not xdb.exists():
         return None
     try:
         import sqlite3
-        con = sqlite3.connect(f"file:{XUI_DB}?mode=ro", uri=True, timeout=8)
+        con = sqlite3.connect(f"file:{xdb}?mode=ro", uri=True, timeout=8)
         con.row_factory = sqlite3.Row
         return con
     except Exception:
@@ -2287,7 +2322,7 @@ def _read_xui_clients():
     """
     con = _xui_conn()
     if not con:
-        return None, None, f"دیتابیس x-ui در {XUI_DB} پیدا نشد"
+        return None, None, f"دیتابیس x-ui در {_xui_db_path()} پیدا نشد"
 
     try:
         tables = {r["name"] for r in con.execute(
@@ -2434,7 +2469,7 @@ def billing_overview(x_admin_password: str = Header(...)):
 
     clients, known_groups, err = _read_xui_clients()
     if clients is None:
-        return {"ready": False, "error": err, "xuiPath": str(XUI_DB), "groups": []}
+        return {"ready": False, "error": err, "xuiPath": str(_xui_db_path()), "groups": []}
 
     bcon = _billing_conn()
     try:
@@ -2691,6 +2726,112 @@ def billing_invoice(group_key: str, x_admin_password: str = Header(...)):
             "unpriced": sum(1 for l in lines if l["price"] is None),
             "estimated": sum(1 for l in lines if l["kind"] == "تخمینی"),
         },
+    }
+
+
+@app.get("/api/admin/billing/backup")
+def billing_backup(x_admin_password: str = Header(...)):
+    """بک‌آپ کامل حسابداری — نرخ‌ها، پرداخت‌ها و لاگ تمدید."""
+    check_auth(x_admin_password)
+    con = _billing_conn()
+    try:
+        dump = {}
+        for t in ("group_config", "payments", "renewals"):
+            try:
+                dump[t] = [dict(r) for r in con.execute(f"SELECT * FROM {t}")]
+            except Exception:
+                dump[t] = []
+        return {
+            "version": 1,
+            "createdAt": datetime.now().isoformat(timespec="seconds"),
+            "counts": {k: len(v) for k, v in dump.items()},
+            "data": dump,
+        }
+    finally:
+        con.close()
+
+
+@app.post("/api/admin/billing/restore")
+def billing_restore(payload: dict, x_admin_password: str = Header(...)):
+    """
+    بازیابی بک‌آپ حسابداری.
+
+    قبل از هر کاری یک نسخه‌ی امن از وضعیت فعلی گرفته می‌شود، چون
+    نرخ‌ها و پرداخت‌ها داده‌ی مالی‌اند و از دست رفتنشان گران است.
+    """
+    check_auth(x_admin_password)
+    data = (payload or {}).get("data")
+    if not isinstance(data, dict):
+        raise HTTPException(status_code=400, detail="فایل بک‌آپ نامعتبر است")
+
+    safety = None
+    try:
+        import shutil
+        if BILLING_DB.exists():
+            safety = BILLING_DB.with_name(
+                f"billing-before-restore-{datetime.now():%Y%m%d-%H%M%S}.db")
+            shutil.copy2(BILLING_DB, safety)
+    except Exception:
+        pass
+
+    con = _billing_conn()
+    try:
+        restored = {}
+        for t in ("group_config", "payments", "renewals"):
+            rows = data.get(t) or []
+            try:
+                con.execute(f"DELETE FROM {t}")
+            except Exception:
+                pass
+            if not rows:
+                restored[t] = 0
+                continue
+            cols = [r[1] for r in con.execute(f"PRAGMA table_info({t})")]
+            usable = [x for x in cols if any(x in r for r in rows)]
+            if not usable:
+                restored[t] = 0
+                continue
+            ph = ",".join("?" * len(usable))
+            sql = f"INSERT OR REPLACE INTO {t} ({','.join(usable)}) VALUES ({ph})"
+            n = 0
+            for r in rows:
+                try:
+                    con.execute(sql, [r.get(x) for x in usable])
+                    n += 1
+                except Exception:
+                    pass
+            restored[t] = n
+        con.commit()
+        return {"ok": True, "restored": restored,
+                "safetyCopy": str(safety) if safety else None}
+    finally:
+        con.close()
+
+
+@app.get("/api/admin/billing/xui-path")
+def billing_xui_path(x_admin_password: str = Header(...)):
+    """
+    وضعیت مسیر دیتابیس x-ui — برای بخش تنظیمات.
+
+    مسیرهای رایج را هم بررسی می‌کند تا اگر جای دیگری نصب شده،
+    کاربر مجبور نباشد حدس بزند.
+    """
+    check_auth(x_admin_password)
+    cur = _xui_db_path()
+
+    found = []
+    for p in XUI_CANDIDATES:
+        pp = Path(p)
+        if pp.exists():
+            found.append({"path": p, "readable": os.access(pp, os.R_OK),
+                          "size": pp.stat().st_size})
+
+    return {
+        "current": str(cur),
+        "exists": cur.exists(),
+        "readable": cur.exists() and os.access(cur, os.R_OK),
+        "found": found,
+        "envVar": os.getenv("XUI_DB_PATH", ""),
     }
 
 

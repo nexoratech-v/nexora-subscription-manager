@@ -87,6 +87,7 @@ const WORKSPACES = {
           { key: "bill-groups", label: "واسطه‌ها و نرخ", icon: Users },
           { key: "bill-invoice", label: "صورتحساب", icon: FileText },
           { key: "bill-pay", label: "پرداخت‌ها", icon: Wallet },
+          { key: "bill-settings", label: "تنظیمات و بک‌آپ", icon: Sliders },
         ],
       },
     ],
@@ -4315,6 +4316,190 @@ function Modal({ title, onClose, children, width = "440px" }) {
   );
 }
 
+/* ── تنظیمات و بک‌آپ حسابداری ── */
+
+function BillingSettings({ password }) {
+  const [info, setInfo] = useState(null);
+  const [cfg, setCfg] = useState(null);
+  const [path, setPath] = useState("");
+  const [busy, setBusy] = useState(null);
+  const [msg, setMsg] = useState(null);
+  const fileRef = React.useRef(null);
+
+  const load = async () => {
+    try {
+      const [i, c2] = await Promise.all([
+        fetch(`${API_URL}/api/admin/billing/xui-path`, { headers: { "X-Admin-Password": password } }).then(r => r.json()),
+        fetch(`${API_URL}/api/admin/config`, { headers: { "X-Admin-Password": password } }).then(r => r.json()),
+      ]);
+      setInfo(i);
+      setCfg(c2);
+      setPath((c2.advanced?.xuiDbPath) || "");
+    } catch { setMsg({ t: "err", m: "اتصال برقرار نشد" }); }
+  };
+  useEffect(() => { load(); }, [password]);
+  useEffect(() => { if (msg) { const t = setTimeout(() => setMsg(null), 4500); return () => clearTimeout(t); } }, [msg]);
+
+  const savePath = async (p) => {
+    setBusy("path");
+    try {
+      const next = { ...cfg, advanced: { ...(cfg.advanced || {}), xuiDbPath: p } };
+      const res = await fetch(`${API_URL}/api/admin/config`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json", "X-Admin-Password": password },
+        body: JSON.stringify(next),
+      });
+      if (res.ok) { setMsg({ t: "ok", m: "مسیر ذخیره شد" }); load(); }
+      else setMsg({ t: "err", m: "ذخیره ناموفق" });
+    } catch { setMsg({ t: "err", m: "اتصال برقرار نشد" }); }
+    finally { setBusy(null); }
+  };
+
+  const backup = async () => {
+    setBusy("backup");
+    try {
+      const d = await fetch(`${API_URL}/api/admin/billing/backup`, {
+        headers: { "X-Admin-Password": password },
+      }).then(r => r.json());
+      const blob = new Blob([JSON.stringify(d, null, 2)], { type: "application/json" });
+      const a = document.createElement("a");
+      a.href = URL.createObjectURL(blob);
+      a.download = `nexora-billing-${new Date().toISOString().slice(0, 10)}.json`;
+      a.click();
+      URL.revokeObjectURL(a.href);
+      setMsg({ t: "ok", m: `دانلود شد — ${d.counts?.payments || 0} پرداخت، ${d.counts?.group_config || 0} گروه` });
+    } catch { setMsg({ t: "err", m: "بک‌آپ ناموفق" }); }
+    finally { setBusy(null); }
+  };
+
+  const restore = async (file) => {
+    setBusy("restore");
+    try {
+      const text = await file.text();
+      const parsed = JSON.parse(text);
+      const res = await fetch(`${API_URL}/api/admin/billing/restore`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "X-Admin-Password": password },
+        body: JSON.stringify({ data: parsed.data || parsed }),
+      });
+      const d = await res.json();
+      if (res.ok) setMsg({ t: "ok", m: `بازیابی شد — ${d.restored?.payments || 0} پرداخت` });
+      else setMsg({ t: "err", m: d.detail || "بازیابی ناموفق" });
+    } catch { setMsg({ t: "err", m: "فایل معتبر نبود" }); }
+    finally { setBusy(null); if (fileRef.current) fileRef.current.value = ""; }
+  };
+
+  if (!info) return <div className="flex justify-center py-16"><Loader2 className="animate-spin" style={{ color: "var(--muted)" }} /></div>;
+
+  return (
+    <div className="fx-anim">
+      <SectionHead title="تنظیمات و بک‌آپ"
+        desc="مسیر دیتابیس ۳x-ui و پشتیبان‌گیری از نرخ‌ها و پرداخت‌ها." />
+
+      {msg && <Msg msg={msg} />}
+
+      <div className="fx-card p-5 mb-4">
+        <div className="text-[13px] font-semibold text-white mb-1 flex items-center gap-2">
+          <Database size={15} style={{ color: "var(--accent-2)" }} /> مسیر دیتابیس ۳x-ui
+        </div>
+        <p className="text-[11px] mb-4 leading-relaxed" style={{ color: "var(--muted)" }}>
+          حسابداری گروه‌ها و مصرف را از این فایل می‌خواند — فقط‌خواندنی، بدون هیچ تغییری در آن.
+        </p>
+
+        <div className="rounded-xl p-3 mb-4 flex items-start gap-2.5"
+          style={{
+            background: info.readable ? "rgba(52,211,153,.08)" : "rgba(251,191,36,.08)",
+            border: `1px solid ${info.readable ? "rgba(52,211,153,.25)" : "rgba(251,191,36,.25)"}`,
+          }}>
+          {info.readable
+            ? <CheckCircle2 size={15} style={{ color: "var(--ok)", flexShrink: 0, marginTop: 1 }} />
+            : <AlertTriangle size={15} style={{ color: "var(--warn)", flexShrink: 0, marginTop: 1 }} />}
+          <div className="min-w-0">
+            <div className="text-[12px] font-semibold" style={{ color: info.readable ? "var(--ok)" : "var(--warn)" }}>
+              {info.readable ? "خوانده می‌شود" : info.exists ? "پیدا شد ولی دسترسی خواندن نیست" : "پیدا نشد"}
+            </div>
+            <div className="text-[10.5px] mt-1 break-all" dir="ltr"
+              style={{ color: "var(--muted)", fontFamily: "'JetBrains Mono',monospace" }}>
+              {info.current}
+            </div>
+            {info.exists && !info.readable && (
+              <div className="text-[10.5px] mt-2" style={{ color: "var(--warn)" }}>
+                روی سرور اجرا کنید: <code dir="ltr" className="px-1.5 py-0.5 rounded"
+                  style={{ background: "var(--surface-3)" }}>chmod +r {info.current}</code>
+              </div>
+            )}
+          </div>
+        </div>
+
+        {info.found?.length > 0 && (
+          <div className="mb-4">
+            <div className="text-[11px] mb-2" style={{ color: "var(--muted)" }}>
+              مسیرهای پیداشده روی این سرور:
+            </div>
+            {info.found.map((f) => (
+              <button key={f.path} onClick={() => { setPath(f.path); savePath(f.path); }}
+                className="w-full flex items-center justify-between gap-2 p-2.5 rounded-xl mb-1.5 text-right"
+                style={{
+                  background: f.path === info.current ? "var(--accent-soft)" : "var(--surface-3)",
+                  border: `1px solid ${f.path === info.current ? "rgba(43,127,214,.4)" : "var(--border)"}`,
+                }}>
+                <span className="text-[11px] truncate" dir="ltr"
+                  style={{ color: "var(--dim)", fontFamily: "'JetBrains Mono',monospace" }}>{f.path}</span>
+                <span className="text-[9.5px] shrink-0" style={{ color: "var(--muted)" }}>
+                  {(f.size / 1024 / 1024).toFixed(1)} MB
+                </span>
+              </button>
+            ))}
+          </div>
+        )}
+
+        <Field label="مسیر دستی" hint="اگر ۳x-ui جای دیگری نصب است">
+          <div className="flex gap-2">
+            <input className="fx-input" dir="ltr" value={path}
+              onChange={(e) => setPath(e.target.value)}
+              placeholder="/etc/x-ui/x-ui.db"
+              style={{ fontFamily: "'JetBrains Mono',monospace" }} />
+            <button onClick={() => savePath(path)} disabled={busy === "path"}
+              className="fx-btn px-4 py-2.5 text-[12px] shrink-0 flex items-center gap-1.5">
+              {busy === "path" ? <Loader2 size={13} className="animate-spin" /> : <Save size={13} />}
+              ذخیره
+            </button>
+          </div>
+        </Field>
+      </div>
+
+      <div className="fx-card p-5">
+        <div className="text-[13px] font-semibold text-white mb-1 flex items-center gap-2">
+          <Database size={15} style={{ color: "var(--accent-2)" }} /> بک‌آپ حسابداری
+        </div>
+        <p className="text-[11px] mb-4 leading-relaxed" style={{ color: "var(--muted)" }}>
+          نرخ‌ها، پرداخت‌ها و لاگ تمدید. داده‌ی ۳x-ui در بک‌آپ نیست — آن از خودش خوانده می‌شود.
+        </p>
+
+        <div className="fx-g3 grid grid-cols-2 gap-3">
+          <button onClick={backup} disabled={busy === "backup"}
+            className="fx-btn py-3 text-[12.5px] flex items-center justify-center gap-2">
+            {busy === "backup" ? <Loader2 size={14} className="animate-spin" /> : <Download size={14} />}
+            دریافت بک‌آپ
+          </button>
+          <button onClick={() => fileRef.current?.click()} disabled={busy === "restore"}
+            className="fx-btn-g py-3 text-[12.5px] flex items-center justify-center gap-2">
+            {busy === "restore" ? <Loader2 size={14} className="animate-spin" /> : <Upload size={14} />}
+            بازیابی از فایل
+          </button>
+        </div>
+        <input ref={fileRef} type="file" accept=".json" className="hidden"
+          onChange={(e) => e.target.files?.[0] && restore(e.target.files[0])} />
+
+        <InfoBox>
+          قبل از بازیابی، یک نسخه‌ی امن از وضعیت فعلی گرفته می‌شود — اگر فایل اشتباه بود،
+          داده‌ی فعلی از دست نرفته است.
+        </InfoBox>
+      </div>
+    </div>
+  );
+}
+
 /* ═══════════════════ حسابداری واسطه‌ها ═══════════════════ */
 
 const faNum = (n) => Number(n || 0).toLocaleString("fa-IR");
@@ -5941,6 +6126,7 @@ export default function App() {
           {active === "bill-groups" && <BillingGroups password={password} />}
           {active === "bill-invoice" && <BillingInvoice password={password} />}
           {active === "bill-pay" && <BillingPayments password={password} />}
+          {active === "bill-settings" && <BillingSettings password={password} />}
           {active === "bot-texts" && <BotTextsSection password={password} />}
           {active === "bot-preview" && <BotPreviewSection />}
           {active === "bot-stats" && <BotStatsSection password={password} />}

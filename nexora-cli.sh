@@ -787,6 +787,13 @@ BOTEOF
     fi
 
     echo ""
+    # نام مستعار — اگر نبود می‌سازیم
+    if [ ! -e /etc/systemd/system/nexora.service ] && [ -f /etc/systemd/system/nexora-panel.service ]; then
+      ln -sf /etc/systemd/system/nexora-panel.service /etc/systemd/system/nexora.service 2>/dev/null
+      systemctl daemon-reload 2>/dev/null
+      ok "Added alias: systemctl status nexora"
+    fi
+
     systemctl is-active --quiet $SERVICE && ok "Panel:          running" || bad "Panel:          stopped"
     systemctl is-active --quiet nexora-bot && ok "Bot:            running" || warn "Bot:            stopped"
     echo ""

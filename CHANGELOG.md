@@ -1,5 +1,24 @@
 # Changelog
 
+## [1.0.1]
+
+### Fixed
+- **`systemctl status nexora` didn't work** — the service is called `nexora-panel`.
+  An alias is now created at install, and `nexora doctor` adds it to existing setups
+- **Accounting couldn't find the 3x-ui database.** The path came only from an
+  environment variable, so installs that predate it had no way to fix it. The path is
+  now settable from the panel, falls back to the environment variable, and finally
+  probes the common install locations
+- **The usage ring ignored the palette.** Its colours were hard-coded teal, amber and
+  red, so a gold palette still drew a teal ring. It now uses the brand colour, and only
+  switches to a warning colour when the quota is nearly gone
+
+### Added
+- **Accounting settings page** — see where the 3x-ui database is, pick from paths found
+  on the server, or set one manually
+- **Backup and restore for accounting** — rates, payments and the renewal log. A safety
+  copy is taken before any restore
+
 ## [1.0.0] — First release
 
 ### Subscription page

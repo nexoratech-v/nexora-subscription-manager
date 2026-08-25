@@ -2942,11 +2942,24 @@
             updatePageTitle();
         }
 
+        /**
+         * رنگ حلقه‌ی مصرف.
+         *
+         * در حالت عادی رنگ برند پالت است — تا وقتی مدیر پالت طلایی
+         * انتخاب می‌کند، حلقه هم طلایی باشد نه فیروزه‌ای ثابت.
+         *
+         * فقط وقتی حجم رو به اتمام است رنگ هشدار می‌گیرد، چون آنجا
+         * پیام مهم‌تر از هماهنگی است.
+         */
         function getColorForPercentage(percent) {
-            if (percent >= 75) return '#2DD4BF';
-            if (percent >= 50) return '#F4A94A';
-            if (percent >= 25) return '#F4A94A';
-            return '#F0655F';
+            const cs = getComputedStyle(document.documentElement);
+            const brand = (cs.getPropertyValue('--accent') || '').trim() || '#2B7FD6';
+            const warn = (cs.getPropertyValue('--warn') || '').trim() || '#F4A94A';
+            const alert = (cs.getPropertyValue('--alert') || '').trim() || '#F0655F';
+
+            if (percent >= 25) return brand;   // وضعیت عادی — رنگ پالت
+            if (percent >= 10) return warn;    // رو به اتمام
+            return alert;                       // بحرانی
         }
 
         function renderPanelData() {
