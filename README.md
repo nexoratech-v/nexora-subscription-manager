@@ -16,8 +16,8 @@
 <br>
 <br>
 
-<a href="https://t.me/yanexoravpn"><img src="https://img.shields.io/badge/کانال-yanexoravpn-229ED9?style=for-the-badge&logo=telegram&logoColor=white&labelColor=06090F"></a>
-<a href="https://t.me/crm_nexoravpn"><img src="https://img.shields.io/badge/پشتیبانی-crm__nexoravpn-229ED9?style=for-the-badge&logo=telegram&logoColor=white&labelColor=06090F"></a>
+<a href="https://t.me/yanexoravpn"><img src="https://img.shields.io/badge/channel-yanexoravpn-229ED9?style=for-the-badge&logo=telegram&logoColor=white&labelColor=06090F"></a>
+<a href="https://t.me/crm_nexoravpn"><img src="https://img.shields.io/badge/support-crm__nexoravpn-229ED9?style=for-the-badge&logo=telegram&logoColor=white&labelColor=06090F"></a>
 
 <br>
 <br>
