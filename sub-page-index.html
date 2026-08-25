@@ -447,8 +447,25 @@
         .subscription-card.disconnected .radar-sweep::before { box-shadow: 0 0 8px 2px rgba(var(--alert-rgb), 0.9); }
 
         .progress-text { position: relative; z-index: 2; text-align: center; }
-        .progress-text .percent { font-size: 22px; font-weight: 700; color: #fff; font-family: 'JetBrains Mono', monospace; }
-        .progress-text .label { font-size: 10px; color: var(--text-muted); display: block; margin-top: 2px; }
+        .progress-text .percent {
+            font-size: 22px;
+            font-weight: 800;
+            color: #fff;
+            font-family: 'JetBrains Mono', monospace;
+            letter-spacing: -0.5px;
+            text-shadow: 0 1px 3px rgba(0, 0, 0, 0.5);
+        }
+        /* برچسب داخل حلقه با رنگ برند — نه خاکستری بی‌ربط.
+           رنگ کمی کم‌رنگ‌تر از خود حلقه تا با عدد رقابت نکند. */
+        .progress-text .label {
+            font-size: 10px;
+            font-weight: 600;
+            color: var(--accent);
+            opacity: 0.85;
+            display: block;
+            margin-top: 3px;
+            letter-spacing: 0.2px;
+        }
 
         /* ===== کارت آمار ===== */
         .stats-card {
@@ -799,14 +816,29 @@
         .faq-answer-inner { padding: 0 16px 14px; }
         .faq-item.open .faq-answer { max-height: 200px; }
 
+        /* عنوان بخش‌ها: یک خط رنگی کوتاه کنارش می‌گذاریم تا با پالت
+           هماهنگ باشد، بدون اینکه خود متن پررنگ‌تر از محتوا شود. */
         .section-title {
             font-size: 13px;
             font-weight: 700;
-            color: var(--text-muted);
+            color: var(--text);
+            opacity: 0.9;
             margin-bottom: 12px;
             text-align: right;
-            text-transform: uppercase;
-            letter-spacing: 0.4px;
+            letter-spacing: 0.2px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            flex-direction: row-reverse;
+            justify-content: flex-start;
+        }
+        .section-title::after {
+            content: '';
+            width: 3px;
+            height: 13px;
+            border-radius: 2px;
+            background: linear-gradient(180deg, var(--accent-2), var(--accent));
+            flex-shrink: 0;
         }
         html[dir="ltr"] .section-title { text-align: left; }
 

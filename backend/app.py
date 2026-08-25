@@ -2255,17 +2255,54 @@ BILLING_DB = Path(os.getenv("BILLING_DB_PATH", str(CONFIG_PATH.parent / "billing
 
 
 def _xui_conn():
-    """اتصال فقط‌خواندنی به دیتابیس x-ui."""
+    """
+    اتصال فقط‌خواندنی به دیتابیس x-ui.
+
+    برمی‌گرداند: (اتصال, پیام‌خطا)
+    خطای واقعی برگردانده می‌شود نه None خالی — چون «پیدا نشد» و
+    «مجوز ندارد» و «قفل است» سه مشکل کاملاً متفاوت‌اند و کاربر باید
+    بداند کدام است تا بتواند رفعش کند.
+    """
     xdb = _xui_db_path()
+
     if not xdb.exists():
-        return None
+        parent = xdb.parent
+        if not parent.exists():
+            return None, (f"پوشه‌ی {parent} وجود ندارد. "
+                          "مطمئن شوید ۳x-ui روی همین سرور نصب است.")
+        return None, f"فایل {xdb.name} در {parent} پیدا نشد"
+
+    if not os.access(xdb, os.R_OK):
+        try:
+            st = xdb.stat()
+            perm = oct(st.st_mode)[-3:]
+        except Exception:
+            perm = "?"
+        return None, (f"فایل هست ولی پنل اجازه‌ی خواندنش را ندارد "
+                      f"(مجوز فعلی: {perm}). روی سرور اجرا کنید: "
+                      f"chmod +r {xdb}")
+
     try:
         import sqlite3
         con = sqlite3.connect(f"file:{xdb}?mode=ro", uri=True, timeout=8)
         con.row_factory = sqlite3.Row
-        return con
-    except Exception:
-        return None
+        # SQLite تنبل است: تا به جدول‌ها دست نزنی، فایل خراب را هم
+        # بی‌صدا قبول می‌کند. پس فهرست جدول‌ها را می‌خوانیم.
+        con.execute("SELECT name FROM sqlite_master LIMIT 1").fetchone()
+        return con, None
+    except sqlite3.OperationalError as e:
+        msg = str(e)
+        if "locked" in msg.lower():
+            return None, "دیتابیس ۳x-ui قفل است. چند لحظه بعد دوباره امتحان کنید."
+        if "not a database" in msg.lower():
+            return None, f"فایل {xdb} یک دیتابیس SQLite معتبر نیست"
+        return None, f"باز کردن دیتابیس ناموفق: {msg[:120]}"
+    except sqlite3.DatabaseError as e:
+        if "not a database" in str(e).lower():
+            return None, f"فایل {xdb.name} یک دیتابیس SQLite معتبر نیست"
+        return None, f"خواندن دیتابیس ناموفق: {str(e)[:110]}"
+    except Exception as e:
+        return None, f"خطای غیرمنتظره: {type(e).__name__}: {str(e)[:110]}"
 
 
 def _billing_conn():
@@ -2320,9 +2357,9 @@ def _read_xui_clients():
     نسخه‌های قدیمی‌تر گروه ندارند و کلاینت داخل JSON اینباند است؛
     آن حالت هم پشتیبانی می‌شود تا پنل روی هر نسخه‌ای کار کند.
     """
-    con = _xui_conn()
+    con, cerr = _xui_conn()
     if not con:
-        return None, None, f"دیتابیس x-ui در {_xui_db_path()} پیدا نشد"
+        return None, None, cerr or f"دیتابیس x-ui در {_xui_db_path()} در دسترس نیست"
 
     try:
         tables = {r["name"] for r in con.execute(
@@ -2826,13 +2863,301 @@ def billing_xui_path(x_admin_password: str = Header(...)):
             found.append({"path": p, "readable": os.access(pp, os.R_OK),
                           "size": pp.stat().st_size})
 
+    # تست واقعی اتصال — نه فقط بررسی وجود فایل
+    con, err = _xui_conn()
+    tables = []
+    if con:
+        try:
+            tables = [r["name"] for r in con.execute(
+                "SELECT name FROM sqlite_master WHERE type='table' ORDER BY name")]
+        except Exception:
+            pass
+        finally:
+            con.close()
+
     return {
         "current": str(cur),
         "exists": cur.exists(),
         "readable": cur.exists() and os.access(cur, os.R_OK),
+        "connected": con is not None or err is None,
+        "error": err,
+        "tables": tables[:30],
+        "hasClients": "clients" in tables or "client_traffics" in tables,
+        "hasGroups": "client_groups" in tables,
         "found": found,
         "envVar": os.getenv("XUI_DB_PATH", ""),
     }
+
+
+def _fa(text):
+    """
+    آماده‌سازی متن فارسی برای PDF.
+
+    reportlab حروف را نمی‌چسباند و راست‌به‌چپ نمی‌کند، پس قبلش
+    خودمان شکل‌دهی و ترتیب را درست می‌کنیم. اگر کتابخانه‌ها نبودند،
+    متن خام برمی‌گردد تا حداقل چیزی چاپ شود.
+    """
+    s = str(text or "")
+    try:
+        import arabic_reshaper
+        from bidi.algorithm import get_display
+        return get_display(arabic_reshaper.reshape(s))
+    except Exception:
+        return s
+
+
+def _pdf_font():
+    """
+    فونتی که واقعاً حروف فارسیِ شکل‌دهی‌شده را دارد.
+
+    فقط به نام فونت نمی‌شود اعتماد کرد: خیلی فونت‌ها حروف پایه
+    (0600–06FF) را دارند ولی گلیف‌های اتصالی (FE70–FEFF) را نه، و
+    نتیجه مربع خالی می‌شود. پس هر فونت را با یک نمونه‌ی واقعی
+    آزمایش می‌کنیم.
+    """
+    from reportlab.pdfbase import pdfmetrics
+    from reportlab.pdfbase.ttfonts import TTFont
+
+    if "NexoraFA" in pdfmetrics.getRegisteredFontNames():
+        return "NexoraFA"
+
+    # نمونه‌ی آزمایشی: حروف پرکاربرد در شکل اتصالی
+    try:
+        import arabic_reshaper
+        probe = arabic_reshaper.reshape("صورتحساب مبلغ باقیمانده")
+    except Exception:
+        probe = "\ufebb\ufeee\ufead\ufe97\ufea4\ufeb4"
+
+    def covers(path):
+        """آیا این فونت همه‌ی گلیف‌های نمونه را دارد؟"""
+        try:
+            from fontTools.ttLib import TTFont as FT
+            ft = FT(path, fontNumber=0, lazy=True)
+            cmap = ft.getBestCmap()
+            ft.close()
+            need = {ord(ch) for ch in probe if ch.strip()}
+            return need.issubset(set(cmap.keys()))
+        except Exception:
+            return False
+
+    import glob
+    # اول فونت‌های همراه پروژه (اگر مدیر Vazirmatn گذاشته باشد)
+    candidates = sorted(glob.glob(str(_root_dir() / "assets" / "*.ttf")))
+    # بعد فونت‌های سیستم، با اولویت آن‌هایی که برای فارسی ساخته شده‌اند
+    system = glob.glob("/usr/share/fonts/**/*.ttf", recursive=True)
+    prefer = ("vazir", "sahel", "iran", "shabnam", "naskh", "arabic", "kufi")
+    candidates += [f for f in system if any(p in f.lower() for p in prefer)]
+    candidates += [f for f in system
+                   if "bold" not in f.lower() and "italic" not in f.lower()]
+
+    for path in candidates:
+        if covers(path):
+            try:
+                pdfmetrics.registerFont(TTFont("NexoraFA", path))
+                return "NexoraFA"
+            except Exception:
+                continue
+
+    # هیچ‌کدام نشد — با Helvetica ادامه می‌دهیم تا حداقل اعداد چاپ شوند
+    return "Helvetica"
+
+
+@app.get("/api/admin/billing/invoice/{group_key}/pdf")
+def billing_invoice_pdf(group_key: str, x_admin_password: str = Header(...)):
+    """
+    صورتحساب PDF با ریز کامل کانفیگ‌ها.
+
+    برای فرستادن به واسطه — غیرقابل ویرایش، با همه‌ی جزئیاتی که
+    ممکن است سرش بحث شود: حجم، ماه، تمدید، مصرف و مبلغ هر ردیف.
+    """
+    check_auth(x_admin_password)
+
+    try:
+        from reportlab.lib.pagesizes import A4, landscape
+        from reportlab.lib.units import mm
+        from reportlab.lib import colors
+        from reportlab.pdfgen import canvas as pdfcanvas
+    except ImportError:
+        raise HTTPException(status_code=500,
+                            detail="کتابخانه reportlab نصب نیست. اجرا کنید: "
+                                   "pip install reportlab arabic-reshaper python-bidi")
+
+    inv = billing_invoice(group_key, x_admin_password=x_admin_password)
+    font = _pdf_font()
+
+    import io
+    buf = io.BytesIO()
+    W, H = landscape(A4)
+    c = pdfcanvas.Canvas(buf, pagesize=landscape(A4))
+
+    BG = colors.HexColor("#0E1523")
+    ACC = colors.HexColor("#2B7FD6")
+    ACC2 = colors.HexColor("#5AA9E6")
+    TXT = colors.HexColor("#EDF2F9")
+    DIM = colors.HexColor("#8A98AC")
+    OK = colors.HexColor("#34D399")
+    WARN = colors.HexColor("#FBBF24")
+
+    def money(n):
+        return f"{int(n or 0):,}"
+
+    def header(page_no, total_pages):
+        c.setFillColor(BG)
+        c.rect(0, 0, W, H, fill=1, stroke=0)
+        c.setFillColor(ACC)
+        c.rect(0, H - 22 * mm, W, 22 * mm, fill=1, stroke=0)
+
+        c.setFont(font, 16)
+        c.setFillColor(colors.white)
+        c.drawRightString(W - 15 * mm, H - 13 * mm, _fa("صورتحساب واسطه"))
+        c.setFont(font, 10)
+        c.drawString(15 * mm, H - 13 * mm, "NEXORA")
+
+        c.setFont(font, 11)
+        c.setFillColor(TXT)
+        c.drawRightString(W - 15 * mm, H - 32 * mm, _fa(inv["label"]))
+        c.setFont(font, 8)
+        c.setFillColor(DIM)
+        c.drawString(15 * mm, H - 32 * mm,
+                     datetime.now().strftime("%Y-%m-%d %H:%M"))
+        c.drawCentredString(W / 2, 8 * mm, f"{page_no} / {total_pages}")
+
+    lines = inv["lines"]
+    t = inv["totals"]
+    per_page = 22
+    pages = max(1, (len(lines) + per_page - 1) // per_page)
+
+    # ── صفحه‌ی اول: خلاصه ──
+    header(1, pages + 1)
+    y = H - 48 * mm
+
+    boxes = [
+        (_fa("تعداد کانفیگ"), str(t["configs"]), ACC2),
+        (_fa("مجموع ماه"), str(t["months"]), ACC2),
+        (_fa("تمدید"), str(t["renewals"]), ACC2),
+        (_fa("مبلغ کل"), money(t["due"]), TXT),
+        (_fa("پرداخت‌شده"), money(t["paid"]), OK),
+        (_fa("مانده"), money(t["balance"]), WARN if t["balance"] > 0 else OK),
+    ]
+    bw = (W - 30 * mm - 5 * 4 * mm) / 6
+    for i, (label, val, col) in enumerate(boxes):
+        x = 15 * mm + i * (bw + 4 * mm)
+        c.setFillColor(colors.HexColor("#131C2E"))
+        c.roundRect(x, y - 20 * mm, bw, 20 * mm, 3 * mm, fill=1, stroke=0)
+        c.setFont(font, 7)
+        c.setFillColor(DIM)
+        c.drawCentredString(x + bw / 2, y - 7 * mm, label)
+        c.setFont(font, 12)
+        c.setFillColor(col)
+        c.drawCentredString(x + bw / 2, y - 15 * mm, val)
+
+    y -= 32 * mm
+    c.setFont(font, 10)
+    c.setFillColor(TXT)
+    c.drawRightString(W - 15 * mm, y, _fa("نرخ‌های این واسطه"))
+    y -= 8 * mm
+    c.setFont(font, 8)
+    for r in (inv.get("rates") or []):
+        gb = _fa("نامحدود") if int(r.get("gb", 0)) == 0 else f"{r['gb']} GB"
+        c.setFillColor(DIM)
+        c.drawRightString(W - 15 * mm, y, f"{gb}  —  {money(r.get('price'))}")
+        y -= 6 * mm
+
+    if t.get("estimated"):
+        y -= 4 * mm
+        c.setFillColor(WARN)
+        c.setFont(font, 8)
+        c.drawRightString(W - 15 * mm, y,
+                          _fa(f"{t['estimated']} ردیف تخمینی است — ۳x-ui تاریخچه‌ی تمدید ندارد"))
+
+    # ── صفحات ریز کانفیگ ──
+    cols = [
+        (_fa("ردیف"), 12 * mm, "c"),
+        (_fa("ایمیل"), 50 * mm, "l"),
+        (_fa("حجم"), 22 * mm, "c"),
+        (_fa("مصرف"), 24 * mm, "c"),
+        (_fa("ماه"), 16 * mm, "c"),
+        (_fa("تمدید"), 18 * mm, "c"),
+        (_fa("نوع"), 22 * mm, "c"),
+        (_fa("نرخ"), 28 * mm, "c"),
+        (_fa("مبلغ"), 30 * mm, "c"),
+        (_fa("وضعیت"), 20 * mm, "c"),
+    ]
+    total_w = sum(w for _, w, _ in cols)
+
+    for pi in range(pages):
+        c.showPage()
+        header(pi + 2, pages + 1)
+        y = H - 44 * mm
+
+        x0 = (W - total_w) / 2
+        c.setFillColor(colors.HexColor("#1A2537"))
+        c.rect(x0, y - 2 * mm, total_w, 8 * mm, fill=1, stroke=0)
+        c.setFont(font, 7.5)
+        c.setFillColor(ACC2)
+        x = x0
+        for label, w, _a in cols:
+            c.drawCentredString(x + w / 2, y + 0.5 * mm, label)
+            x += w
+        y -= 8 * mm
+
+        chunk = lines[pi * per_page:(pi + 1) * per_page]
+        for idx, ln in enumerate(chunk):
+            row_no = pi * per_page + idx + 1
+            if idx % 2:
+                c.setFillColor(colors.HexColor("#111A29"))
+                c.rect(x0, y - 1.5 * mm, total_w, 7 * mm, fill=1, stroke=0)
+
+            vals = [
+                str(row_no),
+                ln["email"][:26],
+                _fa("نامحدود") if ln["gb"] == 0 else f"{ln['gb']} GB",
+                f"{ln['usedGB']} GB",
+                str(ln["months"]),
+                str(ln["renewals"]) if ln["renewals"] else "—",
+                _fa(ln["kind"]) + (f" ({ln['drift']})" if ln.get("drift") else ""),
+                money(ln["price"]) if ln["price"] is not None else _fa("بدون نرخ"),
+                money(ln["amount"]),
+                _fa("فعال") if ln["active"] else _fa("غیرفعال"),
+            ]
+            c.setFont(font, 7)
+            x = x0
+            for (label, w, align), v in zip(cols, vals):
+                if label == _fa("مبلغ"):
+                    c.setFillColor(TXT)
+                elif label == _fa("نوع") and ln["kind"] == "تخمینی":
+                    c.setFillColor(WARN)
+                elif label == _fa("وضعیت"):
+                    c.setFillColor(OK if ln["active"] else DIM)
+                else:
+                    c.setFillColor(DIM)
+
+                if align == "l":
+                    c.drawString(x + 2 * mm, y + 0.5 * mm, v)
+                else:
+                    c.drawCentredString(x + w / 2, y + 0.5 * mm, v)
+                x += w
+            y -= 7 * mm
+
+        # جمع صفحه
+        page_sum = sum(l["amount"] for l in chunk)
+        y -= 3 * mm
+        c.setFillColor(colors.HexColor("#1A2537"))
+        c.rect(x0, y - 1 * mm, total_w, 8 * mm, fill=1, stroke=0)
+        c.setFont(font, 8)
+        c.setFillColor(ACC2)
+        c.drawRightString(x0 + total_w - 3 * mm, y + 1.5 * mm,
+                          _fa("جمع این صفحه") + f":  {money(page_sum)}")
+
+    c.save()
+    buf.seek(0)
+
+    safe = "".join(ch for ch in group_key if ch.isalnum() or ch in "-_") or "invoice"
+    return Response(
+        content=buf.read(),
+        media_type="application/pdf",
+        headers={"Content-Disposition":
+                 f'attachment; filename="nexora-{safe}-{datetime.now():%Y%m%d}.pdf"'})
 
 
 @app.get("/api/health")

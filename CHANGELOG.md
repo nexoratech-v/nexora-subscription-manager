@@ -1,5 +1,31 @@
 # Changelog
 
+## [1.0.2]
+
+### Fixed
+- **The 3x-ui connection error was always the same generic message.** Every failure
+  was swallowed and reported identically, so a permission problem looked the same as
+  a missing file. It now reports the actual cause — missing folder, missing file,
+  no read permission (with the `chmod` command), a locked database, or a file that
+  isn't SQLite at all
+- Opening the database now runs a real query, because SQLite accepts a corrupt file
+  silently until you touch a table
+- Warning boxes sat flush against the buttons above them
+
+### Added
+- **PDF invoices** — a landscape summary page plus a full per-config breakdown:
+  volume, usage, months, renewals, rate and amount for every client, with a running
+  total per page. Persian text is shaped and laid out right-to-left, and the font is
+  chosen by testing that it actually contains the joined glyphs rather than trusting
+  its name
+
+### Changed
+- The label inside the usage ring took the brand colour instead of a flat grey, and
+  section headings gained a coloured marker, so a gold palette no longer leaves grey
+  text sitting next to a gold ring
+- Panel font stack falls back through Segoe UI and Noto Sans Arabic if Vazirmatn
+  fails to load, with tabular figures so numbers don't jump
+
 ## [1.0.1]
 
 ### Fixed

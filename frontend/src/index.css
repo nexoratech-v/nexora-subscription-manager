@@ -25,7 +25,14 @@
 * { -webkit-tap-highlight-color: transparent; }
 
 body {
-  font-family: "Vazirmatn", sans-serif;
+  /* پشته‌ی فونت: اول Vazirmatn، بعد فونت‌های سیستمی که فارسی
+     خوب رندر می‌کنند. اگر Vazirmatn لود نشد، صفحه باز هم خوانا بماند. */
+  font-family: "Vazirmatn", "Segoe UI", "Noto Sans Arabic", "Tahoma",
+               -apple-system, BlinkMacSystemFont, system-ui, sans-serif;
+  font-feature-settings: "ss01", "kern";
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
   background: var(--bg);
   color: var(--text);
   overscroll-behavior-y: none;
@@ -513,3 +520,39 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
 }
 .nx-step:hover { background: rgba(255, 255, 255, .09); color: var(--text); }
 .nx-step:active { transform: scale(.94); }
+
+
+/* ═══════════════════════════════════════════════════════════
+   خوانایی متن
+
+   فارسی به فاصله‌ی خط بیشتری از لاتین نیاز دارد، و اعداد
+   باید هم‌عرض باشند تا هنگام تغییر نپرند.
+   ═══════════════════════════════════════════════════════════ */
+
+body, input, select, textarea, button {
+  font-family: inherit;
+}
+
+p, li, .fx-help {
+  line-height: 1.95;
+}
+
+/* اعداد هم‌عرض در همه‌جا — جدول و آمار نپرند */
+.fx-stat-num,
+.tabular,
+input[type="number"] {
+  font-variant-numeric: tabular-nums;
+}
+
+/* عنوان‌ها کمی فشرده‌تر تا فارسی خوش‌فرم‌تر بنشیند */
+h1, h2, h3, .fx-title {
+  letter-spacing: -0.2px;
+  line-height: 1.5;
+}
+
+/* متن انگلیسی داخل جمله‌ی فارسی — جهت درست */
+code, .ltr {
+  direction: ltr;
+  unicode-bidi: isolate;
+  display: inline-block;
+}

@@ -30,7 +30,11 @@
 
 <br>
 
+</div>
 
+---
+
+<div align="center">
 
 ## 🇮🇷 فارسی
 

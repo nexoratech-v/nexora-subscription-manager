@@ -246,7 +246,8 @@ function InfoBox({ children, tone = "info" }) {
     ? { bg: "rgba(251,191,36,.06)", bd: "rgba(251,191,36,.25)", c: "var(--warn)", Icon: AlertTriangle }
     : { bg: "rgba(43,127,214,.06)", bd: "rgba(43,127,214,.2)", c: "var(--accent-2)", Icon: Info };
   return (
-    <div className="rounded-2xl p-4 flex items-start gap-3" style={{ background: t.bg, border: `1px solid ${t.bd}` }}>
+    <div className="rounded-2xl p-4 flex items-start gap-3 mt-4"
+      style={{ background: t.bg, border: `1px solid ${t.bd}` }}>
       <t.Icon size={16} className="shrink-0 mt-0.5" style={{ color: t.c }} />
       <div className="text-[11.5px] leading-relaxed" style={{ color: "var(--dim)" }}>{children}</div>
     </div>
@@ -4492,8 +4493,8 @@ function BillingSettings({ password }) {
           onChange={(e) => e.target.files?.[0] && restore(e.target.files[0])} />
 
         <InfoBox>
-          قبل از بازیابی، یک نسخه‌ی امن از وضعیت فعلی گرفته می‌شود — اگر فایل اشتباه بود،
-          داده‌ی فعلی از دست نرفته است.
+          قبل از بازیابی، یک نسخه‌ی امن از وضعیت فعلی گرفته می‌شود — اگر فایل اشتباه
+          بود، داده‌ی فعلی از دست نرفته است.
         </InfoBox>
       </div>
     </div>
