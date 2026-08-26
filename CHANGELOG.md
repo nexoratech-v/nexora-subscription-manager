@@ -19,6 +19,14 @@ Three separate problems stacked on top of each other, each hiding the next.
   everything written since the last checkpoint — tables looked empty rather than
   erroring. That path is now only taken when no `-wal` file exists
 
+- **Accounting failed with an empty error while diagnosis passed.** The diagnosis and
+  the main page read different things: diagnosis only touches the 3x-ui database, while
+  the overview also opens Nexora's own billing database. A corrupt billing file made the
+  overview return a 500, and the panel — receiving no error field — fell back to a
+  message about the 3x-ui path, sending everyone looking in the wrong place. The
+  overview now always returns a readable error, and a corrupt billing file is set aside
+  and rebuilt rather than taking the whole section down
+
 ### Added
 - **Connection diagnosis inside the panel.** A button on the error screen walks every
   step — where the path came from, whether the file exists, permissions on all three

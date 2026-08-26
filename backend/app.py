@@ -2363,11 +2363,36 @@ def _xui_conn():
 
 
 def _billing_conn():
-    """دیتابیس حسابداری — جدا از x-ui تا هرگز به آن دست نزنیم."""
+    """
+    دیتابیس حسابداری — جدا از x-ui تا هرگز به آن دست نزنیم.
+
+    اگر فایل خراب باشد (قطع برق وسط نوشتن، کپی ناقص) کنارش
+    می‌گذاریم و از نو می‌سازیم. از دست رفتن نرخ‌ها بد است، ولی
+    از کار افتادن کل بخش حسابداری بدتر.
+    """
     import sqlite3
     BILLING_DB.parent.mkdir(parents=True, exist_ok=True)
-    con = sqlite3.connect(str(BILLING_DB), timeout=10)
-    con.row_factory = sqlite3.Row
+
+    def _open():
+        con = sqlite3.connect(str(BILLING_DB), timeout=10)
+        con.row_factory = sqlite3.Row
+        con.execute("SELECT name FROM sqlite_master LIMIT 1").fetchone()
+        return con
+
+    try:
+        con = _open()
+    except sqlite3.DatabaseError:
+        # فایل سالم نیست — کنار می‌گذاریم تا قابل بازیابی دستی بماند
+        try:
+            broken = BILLING_DB.with_name(
+                f"{BILLING_DB.stem}-corrupt-{datetime.now():%Y%m%d-%H%M%S}.db")
+            BILLING_DB.replace(broken)
+        except Exception:
+            try:
+                BILLING_DB.unlink(missing_ok=True)
+            except Exception:
+                pass
+        con = _open()
     con.executescript("""
         CREATE TABLE IF NOT EXISTS group_config (
             group_key   TEXT PRIMARY KEY,
@@ -2561,6 +2586,20 @@ def billing_overview(x_admin_password: str = Header(...)):
     """گروه‌ها با محاسبه‌ی کامل — پایه‌ی همه‌ی صفحات حسابداری."""
     check_auth(x_admin_password)
 
+    try:
+        return _billing_overview_impl()
+    except HTTPException:
+        raise
+    except Exception as e:
+        # هرگز ۵۰۰ نمی‌دهیم: فرانت‌اند وقتی پاسخ JSON بدون error بگیرد،
+        # متن پیش‌فرض گمراه‌کننده نشان می‌دهد و کاربر فکر می‌کند مشکل
+        # از مسیر دیتابیس است.
+        return {"ready": False, "groups": [],
+                "xuiPath": str(_xui_db_path()),
+                "error": f"محاسبه ناموفق: {type(e).__name__}: {str(e)[:150]}"}
+
+
+def _billing_overview_impl():
     clients, known_groups, err = _read_xui_clients()
     if clients is None:
         return {"ready": False, "error": err, "xuiPath": str(_xui_db_path()), "groups": []}
@@ -2701,7 +2740,11 @@ def billing_group_put(group_key: str, payload: dict, x_admin_password: str = Hea
 def billing_payments_get(group: str = "", x_admin_password: str = Header(...)):
     """فهرست پرداخت‌ها."""
     check_auth(x_admin_password)
-    con = _billing_conn()
+    try:
+        con = _billing_conn()
+    except Exception as e:
+        raise HTTPException(status_code=500,
+                            detail=f"دیتابیس حسابداری باز نشد: {str(e)[:120]}")
     try:
         if group:
             rows = con.execute(
@@ -2827,7 +2870,11 @@ def billing_invoice(group_key: str, x_admin_password: str = Header(...)):
 def billing_backup(x_admin_password: str = Header(...)):
     """بک‌آپ کامل حسابداری — نرخ‌ها، پرداخت‌ها و لاگ تمدید."""
     check_auth(x_admin_password)
-    con = _billing_conn()
+    try:
+        con = _billing_conn()
+    except Exception as e:
+        raise HTTPException(status_code=500,
+                            detail=f"دیتابیس حسابداری باز نشد: {str(e)[:120]}")
     try:
         dump = {}
         for t in ("group_config", "payments", "renewals"):
