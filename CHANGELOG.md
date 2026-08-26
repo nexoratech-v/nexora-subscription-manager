@@ -1,5 +1,16 @@
 # Changelog
 
+## [1.0.4]
+
+### Fixed
+- The system page showed the rollback card twice — once interactive, once as a static
+  command reference
+
+### Added
+- **`billing-trace.py`** — runs the exact code path the panel uses and prints the full
+  traceback instead of swallowing it. When accounting fails, this says which line broke
+  rather than leaving you to guess
+
 ## [1.0.3]
 
 ### Fixed — Accounting couldn't reach the 3x-ui database

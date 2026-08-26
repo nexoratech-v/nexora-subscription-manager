@@ -3109,8 +3109,9 @@ function RollbackCard({ password }) {
         <History size={15} style={{ color: "var(--warn)" }} />
         <span className="text-[13px] font-semibold text-white">بازگشت به نسخه قبلی</span>
       </div>
-      <p className="text-[11px] mb-4" style={{ color: "var(--muted)" }}>
-        قبل از هر به‌روزرسانی یک نسخه ذخیره می‌شود. اگر نسخه‌ی جدید مشکل داشت، از اینجا برگردید.
+      <p className="text-[11px] mb-4 leading-relaxed" style={{ color: "var(--muted)" }}>
+        قبل از هر به‌روزرسانی یک نسخه‌ی کامل ذخیره می‌شود و پنج نسخه‌ی آخر نگه داشته می‌شوند.
+        وضعیت فعلی هم قبل از بازگشت ذخیره می‌شود، پس همیشه می‌توانید دوباره جلو بروید.
       </p>
 
       <Msg msg={msg} />
@@ -5755,27 +5756,6 @@ function SystemSection({ password }) {
       <GithubCard password={password} />
       <UpdateCard password={password} />
       <RollbackCard password={password} />
-
-      {/* بازگشت به نسخه قبل */}
-      <div className="fx-card p-5 mb-4">
-        <div className="text-[13px] font-semibold text-white mb-1 flex items-center gap-2">
-          <RefreshCw size={15} style={{ color: "var(--warn)" }} className="scale-x-[-1]" /> بازگشت به نسخه قبل
-        </div>
-        <p className="text-[11.5px] mb-4 leading-relaxed" style={{ color: "var(--muted)" }}>
-          قبل از هر به‌روزرسانی، یک نسخه‌ی کامل از سیستم ذخیره می‌شود (۵ نسخه‌ی آخر نگه داشته می‌شود).
-          اگر نسخه‌ی جدید مشکلی داشت، می‌توانید برگردید.
-        </p>
-        <div className="rounded-xl p-4" style={{ background: "var(--surface-3)", border: "1px solid var(--border)" }}>
-          <div className="text-[11.5px] mb-2" style={{ color: "var(--dim)" }}>مشاهده نسخه‌های ذخیره‌شده:</div>
-          <CMD>nexora snapshots</CMD>
-          <div className="text-[11.5px] mt-3 mb-2" style={{ color: "var(--dim)" }}>بازگشت به یکی از آن‌ها:</div>
-          <CMD>nexora rollback</CMD>
-          <p className="text-[10.5px] mt-3 leading-relaxed" style={{ color: "var(--muted)" }}>
-            هنگام بازگشت می‌پرسد که تنظیمات فعلی حفظ شود یا تنظیمات همان نسخه برگردد.
-            وضعیت فعلی هم قبل از بازگشت ذخیره می‌شود، پس همیشه می‌توانید دوباره جلو بروید.
-          </p>
-        </div>
-      </div>
 
       {/* دستورات */}
       <div className="fx-card p-5 mb-4">
