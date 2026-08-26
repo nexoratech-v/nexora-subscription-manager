@@ -687,6 +687,84 @@ BOTEOF
     echo ""
     ;;
 
+  fix-xui)
+    # مسیر دیتابیس x-ui را هم در سرویس و هم در تنظیمات پنل می‌گذارد.
+    # دو جا، چون اگر یکی به هر دلیل نخواند، دیگری کار می‌کند.
+    NEWPATH="${2:-}"
+
+    if [ -z "$NEWPATH" ]; then
+      echo -e "${C_DIM}جستجوی دیتابیس x-ui...${C_RESET}"
+      for p in /etc/x-ui/x-ui.db /usr/local/x-ui/x-ui.db /opt/x-ui/x-ui.db /etc/x-ui/db/x-ui.db; do
+        [ -f "$p" ] && { NEWPATH="$p"; break; }
+      done
+      [ -z "$NEWPATH" ] && NEWPATH=$(find / -name "x-ui.db" -not -path "*/proc/*" 2>/dev/null | head -1)
+    fi
+
+    if [ -z "$NEWPATH" ] || [ ! -f "$NEWPATH" ]; then
+      err "دیتابیس x-ui پیدا نشد"
+      info "مسیر را دستی بدهید:  nexora fix-xui /path/to/x-ui.db"
+      exit 1
+    fi
+
+    ok "پیدا شد: $NEWPATH"
+
+    # مجوز خواندن — فایل اصلی و فایل‌های جانبی WAL
+    #
+    # اگر x-ui در حالت WAL باشد، فایل‌های -wal و -shm هم لازم‌اند و
+    # بدون آن‌ها SQLite کل دیتابیس را باز نمی‌کند.
+    FIXED=0
+    for f in "$NEWPATH" "$NEWPATH-wal" "$NEWPATH-shm" "$NEWPATH-journal"; do
+      if [ -f "$f" ] && [ ! -r "$f" ]; then
+        chmod +r "$f" 2>/dev/null && { ok "مجوز اصلاح شد: $(basename "$f")"; FIXED=1; }
+      fi
+    done
+    [ "$FIXED" = "0" ] && ok "مجوزها از قبل درست بودند"
+
+    # پوشه هم باید قابل ورود باشد
+    chmod o+x "$(dirname "$NEWPATH")" 2>/dev/null
+
+    if [ -f "$NEWPATH-wal" ]; then
+      info "دیتابیس در حالت WAL است — فایل‌های جانبی هم بررسی شدند"
+    fi
+
+    # ۱. در سرویس
+    SVC="/etc/systemd/system/nexora-panel.service"
+    if [ -f "$SVC" ]; then
+      if grep -q "XUI_DB_PATH=" "$SVC"; then
+        sed -i "s|Environment=\"XUI_DB_PATH=.*\"|Environment=\"XUI_DB_PATH=$NEWPATH\"|" "$SVC"
+      else
+        sed -i "/^\[Service\]/a Environment=\"XUI_DB_PATH=$NEWPATH\"" "$SVC"
+      fi
+      systemctl daemon-reload
+      ok "در سرویس تنظیم شد"
+    fi
+
+    # ۲. در تنظیمات پنل
+    CFG="$INSTALL_DIR/data/config.json"
+    if [ -f "$CFG" ]; then
+      python3 - "$CFG" "$NEWPATH" <<'PY'
+import json, sys
+p, path = sys.argv[1], sys.argv[2]
+try:
+    d = json.load(open(p, encoding="utf-8"))
+except Exception:
+    d = {}
+if not isinstance(d, dict):
+    d = {}
+adv = d.get("advanced")
+if not isinstance(adv, dict):
+    adv = d["advanced"] = {}
+adv["xuiDbPath"] = path
+json.dump(d, open(p, "w", encoding="utf-8"), ensure_ascii=False, indent=2)
+PY
+      ok "در تنظیمات پنل ذخیره شد"
+    fi
+
+    systemctl restart nexora-panel 2>/dev/null && ok "پنل ری‌استارت شد"
+    echo
+    ok "حالا بخش حسابداری را باز کنید"
+    ;;
+
   doctor)
     logo
     echo -e "  ${C_BOLD}System Check${C_RESET}"

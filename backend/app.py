@@ -2231,18 +2231,25 @@ XUI_CANDIDATES = [
 
 def _xui_db_path():
     """مسیر فعلی دیتابیس x-ui را برمی‌گرداند."""
-    # ۱. تنظیم دستی در پنل
+    # ۱. تنظیم دستی در پنل.
+    #
+    # اگر مسیر دستی وجود نداشته باشد (غلط تایپی، فاصله‌ی اضافه،
+    # جابه‌جایی فایل) نباید همان‌جا شکست بخوریم — بقیه‌ی راه‌ها را
+    # امتحان می‌کنیم. وگرنه یک اشتباه کوچک، حسابداری را برای همیشه
+    # از کار می‌اندازد.
     try:
         cfg = load_config()
         manual = ((cfg.get("advanced") or {}).get("xuiDbPath") or "").strip()
-        if manual:
+        # کاراکترهای نامرئی که هنگام کپی‌پیست می‌آیند
+        manual = manual.strip("\u200c\u200e\u200f\ufeff'\" ")
+        if manual and Path(manual).exists():
             return Path(manual)
     except Exception:
-        pass
+        manual = ""
 
     # ۲. متغیر محیطی
     env = os.getenv("XUI_DB_PATH", "").strip()
-    if env:
+    if env and Path(env).exists():
         return Path(env)
 
     # ۳. مسیرهای رایج — اولین موجود
@@ -2250,6 +2257,12 @@ def _xui_db_path():
         if Path(p).exists():
             return Path(p)
 
+    # هیچ‌کدام پیدا نشد — مسیری که کاربر انتظار دارد را برمی‌گردانیم
+    # تا پیام خطا به همان اشاره کند، نه به یک مسیر پیش‌فرض گیج‌کننده.
+    if manual:
+        return Path(manual)
+    if env:
+        return Path(env)
     return Path(XUI_CANDIDATES[0])
 BILLING_DB = Path(os.getenv("BILLING_DB_PATH", str(CONFIG_PATH.parent / "billing.db")))
 
@@ -2282,14 +2295,58 @@ def _xui_conn():
                       f"(مجوز فعلی: {perm}). روی سرور اجرا کنید: "
                       f"chmod +r {xdb}")
 
-    try:
-        import sqlite3
-        con = sqlite3.connect(f"file:{xdb}?mode=ro", uri=True, timeout=8)
+    import sqlite3
+
+    def _try_open(uri):
+        con = sqlite3.connect(uri, uri=True, timeout=8)
         con.row_factory = sqlite3.Row
         # SQLite تنبل است: تا به جدول‌ها دست نزنی، فایل خراب را هم
         # بی‌صدا قبول می‌کند. پس فهرست جدول‌ها را می‌خوانیم.
         con.execute("SELECT name FROM sqlite_master LIMIT 1").fetchone()
-        return con, None
+        return con
+
+    # فایل‌های جانبی WAL هم باید خواندنی باشند، وگرنه SQLite کل
+    # دیتابیس را باز نمی‌کند. این را قبل از تلاش بررسی می‌کنیم چون
+    # پیام خطای خودش گمراه‌کننده است.
+    for suffix in ("-wal", "-shm"):
+        side = xdb.with_name(xdb.name + suffix)
+        if side.exists() and not os.access(side, os.R_OK):
+            return None, (f"فایل {side.name} خواندنی نیست. ۳x-ui در حالت WAL است و "
+                          f"این فایل هم لازم است. اجرا کنید: "
+                          f"chmod +r {xdb.parent}/{xdb.name}*")
+
+    try:
+        # حالت اول: فقط‌خواندنی معمولی
+        return _try_open(f"file:{xdb}?mode=ro"), None
+    except sqlite3.OperationalError as first:
+        # اگر دیتابیس در حالت WAL باشد، mode=ro به فایل‌های جانبی
+        # (-wal و -shm) هم نیاز دارد و اگر آن‌ها خواندنی نباشند
+        # شکست می‌خورد. immutable=1 این وابستگی را دور می‌زند.
+        #
+        # امن است چون x-ui در حال نوشتن است ولی ما فقط می‌خوانیم؛
+        # بدترین حالت این است که چند ثانیه داده‌ی قدیمی‌تر ببینیم.
+        # immutable فقط وقتی درست است که فایل -wal وجود نداشته باشد،
+        # وگرنه داده‌های اخیر دیده نمی‌شوند و جدول‌ها خالی به نظر می‌رسند.
+        if not xdb.with_name(xdb.name + "-wal").exists():
+            try:
+                return _try_open(f"file:{xdb}?immutable=1"), None
+            except Exception:
+                pass
+
+        msg = str(first)
+        low = msg.lower()
+        if "locked" in low:
+            return None, "دیتابیس ۳x-ui قفل است. چند لحظه بعد دوباره امتحان کنید."
+        if "unable to open" in low:
+            wal = xdb.with_name(xdb.name + "-wal")
+            hint = ""
+            if wal.exists() and not os.access(wal, os.R_OK):
+                hint = f" فایل {wal.name} هم باید خواندنی باشد: chmod +r {wal}"
+            return None, (f"باز کردن دیتابیس ممکن نشد. معمولاً یعنی پنل به پوشه‌ی "
+                          f"{xdb.parent} دسترسی ندارد: chmod o+x {xdb.parent}" + hint)
+        if "not a database" in low:
+            return None, f"فایل {xdb.name} یک دیتابیس SQLite معتبر نیست"
+        return None, f"باز کردن دیتابیس ناموفق: {msg[:120]}"
     except sqlite3.OperationalError as e:
         msg = str(e)
         if "locked" in msg.lower():
@@ -3158,6 +3215,111 @@ def billing_invoice_pdf(group_key: str, x_admin_password: str = Header(...)):
         media_type="application/pdf",
         headers={"Content-Disposition":
                  f'attachment; filename="nexora-{safe}-{datetime.now():%Y%m%d}.pdf"'})
+
+
+@app.get("/api/admin/billing/diagnose")
+def billing_diagnose(x_admin_password: str = Header(...)):
+    """
+    تشخیص کامل مشکل اتصال — هر مرحله جدا گزارش می‌شود.
+
+    وقتی «نمی‌تواند بخواند» می‌بینید، این می‌گوید دقیقاً کدام مرحله
+    شکست خورده: پیدا کردن فایل، مجوز، باز کردن، یا خواندن جدول.
+    """
+    check_auth(x_admin_password)
+    steps = []
+
+    def step(title, ok, detail="", hint=""):
+        steps.append({"title": title, "ok": ok, "detail": detail, "hint": hint})
+        return ok
+
+    # ۱. مسیر انتخابی و منبعش
+    manual = env = ""
+    try:
+        cfg = load_config()
+        manual = ((cfg.get("advanced") or {}).get("xuiDbPath") or "").strip()
+    except Exception:
+        pass
+    env = os.getenv("XUI_DB_PATH", "").strip()
+    path = _xui_db_path()
+
+    source = ("تنظیمات پنل" if manual and str(path) == manual
+              else "متغیر سرویس" if env and str(path) == env
+              else "جستجوی خودکار")
+    step("مسیر انتخابی", True, f"{path}  (از {source})")
+
+    if manual and not Path(manual).exists():
+        step("مسیر دستی", False, f"{manual} وجود ندارد",
+             "در بخش تنظیمات و بک‌آپ اصلاحش کنید یا خالی بگذارید")
+
+    # ۲. وجود فایل
+    if not step("فایل موجود است", path.exists(), str(path),
+                "" if path.exists() else "روی سرور اجرا کنید: nexora fix-xui"):
+        return {"ok": False, "steps": steps}
+
+    # ۳. مجوزها — فایل اصلی و جانبی‌ها
+    import stat as _stat
+    perms = []
+    blocked = []
+    for suffix in ("", "-wal", "-shm"):
+        f = path.with_name(path.name + suffix) if suffix else path
+        if not f.exists():
+            continue
+        try:
+            mode = oct(f.stat().st_mode)[-3:]
+        except Exception:
+            mode = "?"
+        readable = os.access(f, os.R_OK)
+        perms.append(f"{f.name}: {mode}{'' if readable else ' (خوانا نیست)'}")
+        if not readable:
+            blocked.append(f.name)
+
+    step("مجوزها", not blocked, " · ".join(perms),
+         f"chmod +r {path.parent}/{path.name}*" if blocked else "")
+
+    # ۴. کاربر اجراکننده
+    try:
+        import pwd
+        me = pwd.getpwuid(os.geteuid()).pw_name
+    except Exception:
+        me = str(os.geteuid())
+    step("کاربر پنل", True, me)
+
+    # ۵. باز کردن
+    con, err = _xui_conn()
+    if not step("باز کردن دیتابیس", con is not None, err or "موفق",
+                "" if con else "پیام بالا را دنبال کنید"):
+        return {"ok": False, "steps": steps}
+
+    # ۶. جدول‌ها
+    try:
+        tables = [r["name"] for r in con.execute(
+            "SELECT name FROM sqlite_master WHERE type='table' ORDER BY name")]
+        has_new = "clients" in tables
+        has_old = "inbounds" in tables
+        step("ساختار دیتابیس", has_new or has_old,
+             f"{len(tables)} جدول — " +
+             ("نسخه ۳.۵ به بالا" if has_new else "نسخه کلاسیک" if has_old else "ناشناخته"))
+
+        if has_new:
+            n = con.execute("SELECT COUNT(*) FROM clients").fetchone()[0]
+            step("خواندن کلاینت‌ها", True, f"{n} کانفیگ")
+            try:
+                g = [r[0] for r in con.execute("SELECT name FROM client_groups")]
+                step("خواندن گروه‌ها", True,
+                     f"{len(g)} گروه: " + "، ".join(g[:8]) + ("..." if len(g) > 8 else ""))
+            except Exception as e:
+                step("خواندن گروه‌ها", False, str(e)[:90])
+    except Exception as e:
+        step("خواندن جدول‌ها", False, str(e)[:110])
+    finally:
+        con.close()
+
+    # ۷. مسیر کامل
+    clients, groups, rerr = _read_xui_clients()
+    step("پردازش نهایی", clients is not None,
+         f"{len(clients)} کانفیگ، {len(groups or [])} گروه" if clients else (rerr or "ناموفق"))
+
+    return {"ok": all(s["ok"] for s in steps), "steps": steps}
 
 
 @app.get("/api/health")

@@ -1800,7 +1800,7 @@ function Msg({ msg }) {
   if (!msg) return null;
   const err = msg.t === "err";
   return (
-    <div className="rounded-xl p-3 mb-4 flex items-center gap-2 text-[12px]"
+    <div className="rounded-xl p-3 mt-3 mb-4 flex items-center gap-2 text-[12px]"
       style={{
         background: err ? "rgba(248,113,113,.1)" : "rgba(52,211,153,.1)",
         border: `1px solid ${err ? "rgba(248,113,113,.3)" : "rgba(52,211,153,.3)"}`,
@@ -3127,8 +3127,9 @@ function RollbackCard({ password }) {
             تنظیمات فعلی حفظ شود (توصیه می‌شود)
           </label>
 
+          <div className="mt-4">
           {snaps.map((s) => (
-            <div key={s.id} className="flex items-center justify-between gap-3 p-3 rounded-xl mb-2 flex-wrap"
+            <div key={s.id} className="flex items-center justify-between gap-3 p-3.5 rounded-xl mb-3 flex-wrap"
               style={{ background: "var(--surface-3)", border: "1px solid var(--border)" }}>
               <div className="min-w-0">
                 <div className="flex items-center gap-2">
@@ -3145,6 +3146,7 @@ function RollbackCard({ password }) {
               </button>
             </div>
           ))}
+          </div>
         </>
       )}
 
@@ -4621,7 +4623,59 @@ function useBilling(password) {
   return { data, loading, reload: load };
 }
 
-function BillingUnavailable({ info }) {
+function BillingUnavailable({ info, password }) {
+  const [diag, setDiag] = useState(null);
+  const [busy, setBusy] = useState(false);
+
+  const run = async () => {
+    setBusy(true);
+    try {
+      const d = await fetch(`${API_URL}/api/admin/billing/diagnose`, {
+        headers: { "X-Admin-Password": password },
+      }).then((r) => r.json());
+      setDiag(d);
+    } catch {
+      setDiag({ ok: false, steps: [{ title: "اتصال به سرور برقرار نشد", ok: false }] });
+    } finally { setBusy(false); }
+  };
+
+  if (diag) {
+    return (
+      <div className="fx-card p-5">
+        <div className="text-[13px] font-semibold text-white mb-4 flex items-center gap-2">
+          <ShieldCheck size={15} style={{ color: "var(--accent-2)" }} /> تشخیص اتصال
+        </div>
+        {diag.steps.map((s, i) => (
+          <div key={i} className="flex gap-3 py-2.5"
+            style={{ borderBottom: i < diag.steps.length - 1 ? "1px solid var(--border)" : "none" }}>
+            <div className="shrink-0 mt-0.5">
+              {s.ok ? <CheckCircle2 size={15} style={{ color: "var(--ok)" }} />
+                    : <XCircle size={15} style={{ color: "var(--danger)" }} />}
+            </div>
+            <div className="min-w-0 flex-1">
+              <div className="text-[12px] font-semibold"
+                style={{ color: s.ok ? "var(--text)" : "var(--danger)" }}>{s.title}</div>
+              {s.detail && (
+                <div className="text-[10.5px] mt-1 break-all" dir="auto"
+                  style={{ color: "var(--muted)", fontFamily: "'JetBrains Mono',monospace" }}>
+                  {s.detail}
+                </div>
+              )}
+              {s.hint && (
+                <div className="text-[11px] mt-2 px-2.5 py-1.5 rounded-lg break-all" dir="auto"
+                  style={{ color: "var(--warn)", background: "rgba(251,191,36,.08)" }}>
+                  {s.hint}
+                </div>
+              )}
+            </div>
+          </div>
+        ))}
+        <button onClick={() => setDiag(null)}
+          className="fx-btn-g w-full py-2.5 text-[12px] mt-4">بازگشت</button>
+      </div>
+    );
+  }
+
   return (
     <div className="fx-card p-8 text-center" style={{ borderStyle: "dashed" }}>
       <AlertTriangle size={24} style={{ color: "var(--warn)" }} className="mx-auto mb-3" />
@@ -4631,18 +4685,29 @@ function BillingUnavailable({ info }) {
       <p className="text-[11.5px] mb-4 max-w-sm mx-auto leading-relaxed" style={{ color: "var(--muted)" }}>
         {info?.error || "مسیر دیتابیس در دسترس نیست."}
       </p>
-      {info?.dbPath && (
+      {(info?.xuiPath || info?.dbPath) && (
         <code dir="ltr" className="text-[10.5px] px-3 py-1.5 rounded-lg inline-block"
           style={{ background: "var(--surface-3)", color: "var(--accent-2)", fontFamily: "'JetBrains Mono',monospace" }}>
-          {info.dbPath}
+          {info.xuiPath || info.dbPath}
         </code>
       )}
-      <p className="text-[11px] mt-5 pt-4 max-w-sm mx-auto leading-relaxed"
-        style={{ color: "var(--muted)", borderTop: "1px solid var(--border)" }}>
-        حسابداری نیاز دارد پنل روی همان سروری باشد که ۳x-ui نصب است.
-        اگر مسیر دیتابیس متفاوت است، متغیر <code dir="ltr" style={{ color: "var(--accent-2)" }}>XUI_DB_PATH</code> را
-        در سرویس تنظیم کنید.
-      </p>
+      <div className="mt-5 pt-4 max-w-sm mx-auto" style={{ borderTop: "1px solid var(--border)" }}>
+        <p className="text-[11px] leading-relaxed mb-3" style={{ color: "var(--muted)" }}>
+          روی سرور این را اجرا کنید تا مسیر خودکار پیدا و تنظیم شود:
+        </p>
+        <code dir="ltr" className="text-[11px] px-3 py-2 rounded-lg inline-block"
+          style={{ background: "var(--surface-3)", color: "var(--ok)", fontFamily: "'JetBrains Mono',monospace" }}>
+          nexora fix-xui
+        </code>
+        <p className="text-[10.5px] leading-relaxed mt-3" style={{ color: "var(--muted)" }}>
+          یا مسیر را دستی در بخش «تنظیمات و بک‌آپ» وارد کنید.
+        </p>
+        <button onClick={run} disabled={busy}
+          className="fx-btn w-full py-2.5 text-[12px] mt-4 flex items-center justify-center gap-2">
+          {busy ? <Loader2 size={14} className="animate-spin" /> : <ShieldCheck size={14} />}
+          تشخیص دقیق مشکل
+        </button>
+      </div>
     </div>
   );
 }
@@ -4653,7 +4718,7 @@ function BillingDash({ password }) {
   if (!data?.ready) return (
     <div className="fx-anim">
       <SectionHead title="داشبورد حسابداری" desc="" />
-      <BillingUnavailable info={data} />
+      <BillingUnavailable info={data} password={password} />
     </div>
   );
 
@@ -4755,7 +4820,7 @@ function BillingGroups({ password }) {
   if (!data?.ready) return (
     <div className="fx-anim">
       <SectionHead title="واسطه‌ها و نرخ" desc="" />
-      <BillingUnavailable info={data} />
+      <BillingUnavailable info={data} password={password} />
     </div>
   );
 
@@ -4911,7 +4976,7 @@ function BillingInvoice({ password }) {
 
   if (loading) return <div className="flex justify-center py-16"><Loader2 className="animate-spin" style={{ color: "var(--muted)" }} /></div>;
   if (!data?.ready) return (
-    <div className="fx-anim"><SectionHead title="صورتحساب" desc="" /><BillingUnavailable info={data} /></div>
+    <div className="fx-anim"><SectionHead title="صورتحساب" desc="" /><BillingUnavailable info={data} password={password} /></div>
   );
 
   return (
