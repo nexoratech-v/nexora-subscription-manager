@@ -1,3 +1,33 @@
+/* ═══════════════════════════════════════════════════════════
+   ایران‌سنس ایکس — فونت اصلی پنل
+
+   نسخه‌ی متغیر (woff2) همه‌ی وزن‌ها را در یک فایل دارد، پس
+   یک درخواست به‌جای چهارتا. نسخه‌های ثابت برای مرورگرهای
+   قدیمی‌تر که فونت متغیر را نمی‌شناسند.
+   ═══════════════════════════════════════════════════════════ */
+
+@font-face {
+  font-family: "IRANSansX";
+  src: url("/fonts/IRANSansXV.woff2") format("woff2-variations"),
+       url("/fonts/IRANSansXV.woff2") format("woff2");
+  font-weight: 100 900;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "IRANSansX Static";
+  src: url("/fonts/IRANSansX-Regular.woff") format("woff");
+  font-weight: 400;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "IRANSansX Static";
+  src: url("/fonts/IRANSansX-Bold.woff") format("woff");
+  font-weight: 700;
+  font-display: swap;
+}
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
@@ -27,7 +57,8 @@
 body {
   /* پشته‌ی فونت: اول Vazirmatn، بعد فونت‌های سیستمی که فارسی
      خوب رندر می‌کنند. اگر Vazirmatn لود نشد، صفحه باز هم خوانا بماند. */
-  font-family: "Vazirmatn", "Segoe UI", "Noto Sans Arabic", "Tahoma",
+  font-family: "IRANSansX", "IRANSansX Static", "Vazirmatn",
+               "Segoe UI", "Noto Sans Arabic", Tahoma,
                -apple-system, BlinkMacSystemFont, system-ui, sans-serif;
   font-feature-settings: "ss01", "kern";
   -webkit-font-smoothing: antialiased;

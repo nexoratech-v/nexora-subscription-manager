@@ -3104,7 +3104,7 @@ function RollbackCard({ password }) {
   if (loading) return null;
 
   return (
-    <div className="fx-card p-5 mt-4">
+    <div className="fx-card p-5 mb-4">
       <div className="flex items-center gap-2 mb-1">
         <History size={15} style={{ color: "var(--warn)" }} />
         <span className="text-[13px] font-semibold text-white">بازگشت به نسخه قبلی</span>

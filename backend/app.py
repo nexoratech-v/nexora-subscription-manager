@@ -1783,14 +1783,43 @@ def run_rollback(payload: dict, x_admin_password: str = Header(...)):
 
     keep = "yes" if (payload or {}).get("keepSettings", True) else "no"
 
+    # مسیر کامل دستور — نه فقط نام.
+    #
+    # سرویس systemd متغیر PATH محدودی دارد و ممکن است
+    # /usr/local/bin در آن نباشد، پس «nexora» پیدا نمی‌شود و
+    # دستور بی‌صدا شکست می‌خورد.
+    import shutil
+    cli = shutil.which("nexora") or "/usr/local/bin/nexora"
+    if not Path(cli).exists():
+        local = _root_dir() / "nexora-cli.sh"
+        if local.exists():
+            cli = f"bash {local}"
+        else:
+            raise HTTPException(
+                status_code=500,
+                detail="دستور nexora پیدا نشد. روی سرور اجرا کنید: nexora doctor")
+
+    log = "/tmp/nexora-update.log"
     try:
         import subprocess
-        cmd = (f"nohup nexora rollback {snap} --yes --settings={keep} "
-               f"> /tmp/nexora-update.log 2>&1 &")
-        subprocess.Popen(["bash", "-lc", cmd])
-        return {"ok": True, "started": snap}
+        # لاگ را پاک می‌کنیم تا رابط کاربری فقط این اجرا را ببیند
+        try:
+            Path(log).write_text(
+                f"[{datetime.now():%H:%M:%S}] بازگشت به نسخه {snap} آغاز شد\n",
+                encoding="utf-8")
+        except Exception:
+            pass
+
+        cmd = (f"setsid {cli} rollback {snap} --yes --settings={keep} "
+               f">> {log} 2>&1 < /dev/null &")
+        subprocess.Popen(["bash", "-lc", cmd],
+                         start_new_session=True,
+                         stdout=subprocess.DEVNULL,
+                         stderr=subprocess.DEVNULL)
+        return {"ok": True, "started": snap, "log": log}
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"اجرای بازگشت ناموفق: {str(e)[:200]}")
+        raise HTTPException(status_code=500,
+                            detail=f"اجرای بازگشت ناموفق: {str(e)[:200]}")
 
 
 @app.get("/api/admin/bot/receipt/{order_id}")
@@ -3176,60 +3205,64 @@ def _fa(text):
         return s
 
 
-def _pdf_font():
+def _pdf_font(bold=False):
     """
-    فونتی که واقعاً حروف فارسیِ شکل‌دهی‌شده را دارد.
+    فونت فارسی برای PDF.
 
-    فقط به نام فونت نمی‌شود اعتماد کرد: خیلی فونت‌ها حروف پایه
-    (0600–06FF) را دارند ولی گلیف‌های اتصالی (FE70–FEFF) را نه، و
-    نتیجه مربع خالی می‌شود. پس هر فونت را با یک نمونه‌ی واقعی
-    آزمایش می‌کنیم.
+    اول ایران‌سنس همراه پروژه، بعد فونت‌های سیستم. هر فونت با یک
+    نمونه‌ی واقعی آزمایش می‌شود چون خیلی‌ها حروف پایه را دارند ولی
+    گلیف‌های اتصالی را نه، و نتیجه مربع خالی می‌شود.
     """
     from reportlab.pdfbase import pdfmetrics
     from reportlab.pdfbase.ttfonts import TTFont
 
-    if "NexoraFA" in pdfmetrics.getRegisteredFontNames():
-        return "NexoraFA"
+    key = "NexoraFA-Bold" if bold else "NexoraFA"
+    if key in pdfmetrics.getRegisteredFontNames():
+        return key
 
-    # نمونه‌ی آزمایشی: حروف پرکاربرد در شکل اتصالی
     try:
         import arabic_reshaper
-        probe = arabic_reshaper.reshape("صورتحساب مبلغ باقیمانده")
+        probe = arabic_reshaper.reshape("صورتحساب مبلغ باقی‌مانده")
     except Exception:
         probe = "\ufebb\ufeee\ufead\ufe97\ufea4\ufeb4"
 
     def covers(path):
-        """آیا این فونت همه‌ی گلیف‌های نمونه را دارد؟"""
         try:
             from fontTools.ttLib import TTFont as FT
             ft = FT(path, fontNumber=0, lazy=True)
-            cmap = ft.getBestCmap()
+            cmap = set(ft.getBestCmap().keys())
             ft.close()
-            need = {ord(ch) for ch in probe if ch.strip()}
-            return need.issubset(set(cmap.keys()))
+            return {ord(ch) for ch in probe if ch.strip()}.issubset(cmap)
         except Exception:
             return False
 
     import glob
-    # اول فونت‌های همراه پروژه (اگر مدیر Vazirmatn گذاشته باشد)
-    candidates = sorted(glob.glob(str(_root_dir() / "assets" / "*.ttf")))
-    # بعد فونت‌های سیستم، با اولویت آن‌هایی که برای فارسی ساخته شده‌اند
+    fonts_dir = _root_dir() / "assets" / "fonts"
+    want = "Bold" if bold else "Regular"
+
+    candidates = []
+    # فونت همراه پروژه، با وزن درست
+    candidates += sorted(glob.glob(str(fonts_dir / f"*{want}*.ttf")))
+    candidates += sorted(glob.glob(str(fonts_dir / "*.ttf")))
+    candidates += sorted(glob.glob(str(_root_dir() / "assets" / "*.ttf")))
+
     system = glob.glob("/usr/share/fonts/**/*.ttf", recursive=True)
-    prefer = ("vazir", "sahel", "iran", "shabnam", "naskh", "arabic", "kufi")
-    candidates += [f for f in system if any(p in f.lower() for p in prefer)]
+    prefer = ("iransans", "vazir", "sahel", "shabnam", "naskh", "arabic")
+    candidates += [f for f in system
+                   if any(p in f.lower() for p in prefer)
+                   and (want.lower() in f.lower() or not bold)]
     candidates += [f for f in system
                    if "bold" not in f.lower() and "italic" not in f.lower()]
 
     for path in candidates:
         if covers(path):
             try:
-                pdfmetrics.registerFont(TTFont("NexoraFA", path))
-                return "NexoraFA"
+                pdfmetrics.registerFont(TTFont(key, path))
+                return key
             except Exception:
                 continue
 
-    # هیچ‌کدام نشد — با Helvetica ادامه می‌دهیم تا حداقل اعداد چاپ شوند
-    return "Helvetica"
+    return "Helvetica-Bold" if bold else "Helvetica"
 
 
 @app.get("/api/admin/billing/invoice/{group_key}/pdf")
@@ -3237,12 +3270,8 @@ def billing_invoice_pdf(group_key: str, x_admin_password: str = Header(...)):
     """
     صورتحساب PDF برای ارسال به واسطه.
 
-    ساختار: خلاصه‌ی مبلغ، جدول کامل هر کانفیگ با تاریخ شمسی و
-    مصرف واقعی، جمع هر گروه، و در پایان روش محاسبه و مواردی که
-    نیاز به بررسی دستی دارند.
-
-    هر عددی که اینجا چاپ می‌شود ممکن است سر آن بحث شود، پس
-    تخمین‌ها صریح علامت می‌خورند.
+    زمینه‌ی روشن و چاپ‌پذیر — چون این فایل ممکن است چاپ شود یا در
+    مکاتبات بماند، نه فقط روی صفحه دیده شود.
     """
     check_auth(x_admin_password)
 
@@ -3254,312 +3283,365 @@ def billing_invoice_pdf(group_key: str, x_admin_password: str = Header(...)):
     except ImportError:
         raise HTTPException(
             status_code=500,
-            detail="reportlab نصب نیست. اجرا کنید: "
-                   "pip install reportlab arabic-reshaper python-bidi")
+            detail="reportlab نصب نیست: pip install reportlab arabic-reshaper python-bidi")
 
     inv = billing_invoice(group_key, x_admin_password=x_admin_password)
     lines, t = inv["lines"], inv["totals"]
-    font = _pdf_font()
+    F = _pdf_font()
+    FB = _pdf_font(bold=True)
 
     import io
     buf = io.BytesIO()
     W, H = landscape(A4)
     c = pdfcanvas.Canvas(buf, pagesize=landscape(A4))
 
-    BG = colors.HexColor("#0B1220")
-    CARD = colors.HexColor("#131C2E")
-    ACC = colors.HexColor("#2B7FD6")
-    ACC2 = colors.HexColor("#5AA9E6")
-    TXT = colors.HexColor("#EDF2F9")
-    DIM = colors.HexColor("#8A98AC")
-    MUTE = colors.HexColor("#5A6880")
-    OK = colors.HexColor("#34D399")
-    WARN = colors.HexColor("#FBBF24")
+    # پالت روشن — برای چاپ
+    NAVY = colors.HexColor("#1F3864")
+    INK = colors.HexColor("#1A1A1A")
+    GREY = colors.HexColor("#555555")
+    MUTE = colors.HexColor("#8A92A0")
+    LINE = colors.HexColor("#CFD6E4")
+    SOFT = colors.HexColor("#F6F8FC")
+    CARD = colors.HexColor("#FAFBFD")
+    HEAD = colors.HexColor("#E8EDF6")
+    REN = colors.HexColor("#DCE9FA")
+    RENT = colors.HexColor("#14508C")
+    WARNBG = colors.HexColor("#FDF6F0")
+    WARNBD = colors.HexColor("#E4C9B4")
+    WARNT = colors.HexColor("#9A4B12")
 
     def money(n):
         return f"{int(n or 0):,}"
 
-    def pct(n):
-        return "—" if n is None else f"{n}٪"
-
-    # شماره‌ی فاکتور — قابل ارجاع در مکاتبات
     stamp = datetime.now()
     jnow = inv.get("generatedAt") or stamp.strftime("%Y/%m/%d")
-    inv_no = f"G-{jnow.replace('/', '')}-{abs(hash(group_key)) % 100:02d}NX"
+    inv_no = f"NX-{jnow.replace('/', '')}-1G"
 
+    dates = [l.get("createdJalali") for l in lines if l.get("createdJalali")]
+    span = f"{min(dates)} تا {max(dates)}" if dates else "—"
+
+    ML, MR = 10 * mm, 10 * mm
+    CW = W - ML - MR
     page = [0]
-    total_pages = [1]
+    pages_total = [1]
 
-    def header(first=False):
+    def footer():
+        c.setFont(F, 7)
+        c.setFillColor(MUTE)
+        c.drawCentredString(W / 2, 7 * mm,
+                            _fa(f"صفحه {page[0]} از {pages_total[0]}"))
+
+    def header():
         page[0] += 1
-        c.setFillColor(BG)
+        c.setFillColor(colors.white)
         c.rect(0, 0, W, H, fill=1, stroke=0)
 
-        # نوار بالا
-        c.setFillColor(ACC)
-        c.rect(0, H - 20 * mm, W, 20 * mm, fill=1, stroke=0)
-        c.setFont(font, 9)
-        c.setFillColor(colors.white)
-        c.drawString(14 * mm, H - 12.5 * mm, "NEXORA")
-        c.setFont(font, 14)
-        c.drawRightString(W - 14 * mm, H - 12.5 * mm,
-                          _fa("صورتحساب واسطه") + " — " + _fa(inv["label"]))
+        y = H - 12 * mm
+        c.setFont(FB, 19)
+        c.setFillColor(NAVY)
+        c.drawString(ML, y - 4 * mm, "NEXORA")
+        c.setFont(F, 8)
+        c.setFillColor(GREY)
+        c.drawString(ML, y - 9.5 * mm,
+                     _fa("صورتحساب واسطه — گزارش کانفیگ‌های فروخته‌شده"))
 
-        # نوار اطلاعات
-        c.setFont(font, 7.5)
-        c.setFillColor(MUTE)
-        c.drawRightString(W - 14 * mm, H - 26 * mm,
-                          _fa("شماره صورتحساب") + f": {inv_no}")
-        c.drawString(14 * mm, H - 26 * mm,
-                     _fa("تاریخ صدور") + f": {jnow}  ({stamp:%Y-%m-%d})")
-        c.drawCentredString(W / 2, 7 * mm,
-                            f"{page[0]} / {total_pages[0]}")
+        c.setFont(F, 8)
+        c.setFillColor(GREY)
+        rows_meta = [
+            (_fa("شماره صورتحساب") + ": ", inv_no),
+            (_fa("تاریخ صدور") + ": ", f"{jnow} ({stamp:%Y-%m-%d})"),
+            (_fa("بازه کانفیگ‌ها") + ": ", _fa(span)),
+        ]
+        yy = y - 3 * mm
+        for label, val in rows_meta:
+            c.setFillColor(GREY)
+            tw = c.stringWidth(val, F, 8)
+            c.drawRightString(W - MR, yy, val)
+            c.setFillColor(MUTE)
+            c.drawRightString(W - MR - tw - 1 * mm, yy, label)
+            yy -= 4.5 * mm
 
-    # ── صفحه ۱: خلاصه ──
-    header(first=True)
-    y = H - 40 * mm
+        c.setStrokeColor(NAVY)
+        c.setLineWidth(1.8)
+        c.line(ML, H - 26 * mm, W - MR, H - 26 * mm)
+        footer()
+        return H - 34 * mm
 
-    # کادر مبلغ اصلی
-    c.setFillColor(CARD)
-    c.roundRect(14 * mm, y - 26 * mm, W - 28 * mm, 26 * mm, 3 * mm, fill=1, stroke=0)
-    c.setFont(font, 8)
-    c.setFillColor(DIM)
-    c.drawRightString(W - 22 * mm, y - 8 * mm, _fa("مبلغ قابل پرداخت"))
-    c.setFont(font, 22)
-    c.setFillColor(TXT)
-    c.drawRightString(W - 22 * mm, y - 19 * mm,
-                      money(t["due"]) + "  " + _fa("تومان"))
-    c.setFont(font, 8)
-    c.setFillColor(MUTE)
-    rate_txt = ""
-    if inv.get("rates"):
-        r0 = inv["rates"][0]
-        rate_txt = f"{t['months']} " + _fa("ماه") + f" × {money(r0.get('price'))}"
-    c.drawString(22 * mm, y - 19 * mm, rate_txt)
+    # ─────────── صفحه‌ی اول ───────────
+    y = header()
 
-    y -= 34 * mm
+    # کادرهای خلاصه
+    gap = 2.5 * mm
+    hero_w = CW * 0.26
+    small_w = (CW - hero_w - 4 * gap) / 4
+    box_h = 19 * mm
 
-    # کادرهای آماری
-    boxes = [
+    c.setFillColor(NAVY)
+    c.roundRect(W - MR - hero_w, y - box_h, hero_w, box_h, 2 * mm, fill=1, stroke=0)
+    c.setFont(F, 7.5)
+    c.setFillColor(colors.HexColor("#B9C6DE"))
+    c.drawRightString(W - MR - 3 * mm, y - 6 * mm, _fa("مبلغ قابل پرداخت"))
+    c.setFont(FB, 17)
+    c.setFillColor(colors.white)
+    c.drawRightString(W - MR - 3 * mm, y - 13 * mm,
+                      money(t["due"]) + " " + _fa("تومان"))
+    c.setFont(F, 6.5)
+    c.setFillColor(colors.HexColor("#9FB0CD"))
+    rate0 = inv["rates"][0]["price"] if inv.get("rates") else 0
+    c.drawRightString(W - MR - 3 * mm, y - 17 * mm,
+                      f"{t['months']} " + _fa("ماه") + f" × {money(rate0)} " + _fa("تومان"))
+
+    cards = [
         (_fa("تعداد کانفیگ"), str(t["configs"]),
          _fa(f"{t['active']} فعال · {t['inactive']} غیرفعال")),
         (_fa("مجموع ماه"), str(t["months"]), _fa("دوره اول + تمدیدها")),
         (_fa("تعداد تمدید"), str(t["renewals"]),
          _fa("نرخ تمدید") + f" {t['renewalRate']}٪"),
-        (_fa("ترافیک مصرفی"), f"{t['usedGB']:,} GB",
-         _fa("از") + f" {t['quotaGB']:,} GB " + _fa("سهمیه") + f" ({t['usagePct']}٪)"),
-        (_fa("پرداخت‌شده"), money(t["paid"]),
-         _fa("مانده") + f": {money(t['balance'])}"),
+        (_fa("ترافیک مصرفی"), f"{t['usedGB']:,.0f} GB",
+         _fa("از") + f" {t['quotaGB']:,} GB ({t['usagePct']}٪)"),
     ]
-    bw = (W - 28 * mm - 4 * 3 * mm) / 5
-    for i, (label, val, sub) in enumerate(boxes):
-        x = 14 * mm + i * (bw + 3 * mm)
+    x = W - MR - hero_w - gap
+    for label, val, sub in cards:
+        x -= small_w
         c.setFillColor(CARD)
-        c.roundRect(x, y - 22 * mm, bw, 22 * mm, 2.5 * mm, fill=1, stroke=0)
-        c.setFont(font, 7)
+        c.setStrokeColor(colors.HexColor("#D6DCE8"))
+        c.setLineWidth(0.5)
+        c.roundRect(x, y - box_h, small_w, box_h, 2 * mm, fill=1, stroke=1)
+        c.setFont(F, 7)
         c.setFillColor(MUTE)
-        c.drawCentredString(x + bw / 2, y - 7 * mm, label)
-        c.setFont(font, 13)
-        c.setFillColor(ACC2 if i < 4 else OK)
-        c.drawCentredString(x + bw / 2, y - 14.5 * mm, val)
-        c.setFont(font, 6)
+        c.drawRightString(x + small_w - 2.5 * mm, y - 5.5 * mm, label)
+        c.setFont(FB, 12)
+        c.setFillColor(NAVY)
+        c.drawRightString(x + small_w - 2.5 * mm, y - 12 * mm, val)
+        c.setFont(F, 6)
         c.setFillColor(MUTE)
-        c.drawCentredString(x + bw / 2, y - 19 * mm, sub)
+        c.drawRightString(x + small_w - 2.5 * mm, y - 16.5 * mm, sub)
+        x -= gap
 
-    y -= 30 * mm
+    y -= box_h + 7 * mm
 
-    # نرخ‌ها
-    if inv.get("rates"):
-        c.setFont(font, 9)
-        c.setFillColor(TXT)
-        c.drawRightString(W - 14 * mm, y, _fa("نرخ‌های این واسطه"))
-        y -= 7 * mm
-        c.setFont(font, 8)
-        for r in inv["rates"]:
-            gbl = _fa("نامحدود") if int(r.get("gb", 0)) == 0 else f"{r['gb']} GB"
-            c.setFillColor(DIM)
-            c.drawRightString(W - 14 * mm, y,
-                              f"{gbl}  —  {money(r.get('price'))} " + _fa("تومان"))
-            y -= 5.5 * mm
-
-    # ── جدول ریز کانفیگ‌ها ──
+    # ─────────── جدول ───────────
     cols = [
-        (_fa("ردیف"), 11 * mm, "c"),
-        (_fa("نام کاربر"), 42 * mm, "r"),
-        (_fa("تاریخ ایجاد"), 24 * mm, "c"),
-        (_fa("تاریخ انقضا"), 24 * mm, "c"),
-        (_fa("مدت (روز)"), 19 * mm, "c"),
-        (_fa("ماه"), 12 * mm, "c"),
-        (_fa("تمدید"), 14 * mm, "c"),
-        (_fa("حجم (GB)"), 19 * mm, "c"),
-        (_fa("مصرفی (GB)"), 21 * mm, "c"),
-        (_fa("درصد"), 14 * mm, "c"),
-        (_fa("دستگاه"), 15 * mm, "c"),
-        (_fa("مبلغ (تومان)"), 26 * mm, "c"),
+        ("ردیف", 10 * mm, "c"),
+        ("نام کاربر", 40 * mm, "r"),
+        ("تاریخ ایجاد", 23 * mm, "c"),
+        ("تاریخ انقضا", 23 * mm, "c"),
+        ("مدت (روز)", 18 * mm, "c"),
+        ("ماه", 11 * mm, "c"),
+        ("تمدید", 13 * mm, "c"),
+        ("حجم (GB)", 18 * mm, "c"),
+        ("مصرفی (GB)", 20 * mm, "c"),
+        ("درصد", 13 * mm, "c"),
+        ("دستگاه", 14 * mm, "c"),
+        ("مبلغ (تومان)", 26 * mm, "c"),
     ]
     tw = sum(w for _, w, _ in cols)
-    x0 = (W - tw) / 2
-    per_page = 24
+    x0 = W - MR - tw
+    ROW = 5.6 * mm
 
-    def table_header(yy):
-        c.setFillColor(colors.HexColor("#1A2537"))
-        c.rect(x0, yy - 2 * mm, tw, 7.5 * mm, fill=1, stroke=0)
-        c.setFont(font, 6.5)
-        c.setFillColor(ACC2)
-        x = x0
+    def draw_thead(yy):
+        c.setFillColor(NAVY)
+        c.rect(x0, yy - 1.5 * mm, tw, 6.5 * mm, fill=1, stroke=0)
+        c.setFont(FB, 6.8)
+        c.setFillColor(colors.white)
+        x = x0 + tw
         for label, w, _a in cols:
-            c.drawCentredString(x + w / 2, yy + 0.5 * mm, label)
-            x += w
-        return yy - 7.5 * mm
+            x -= w
+            c.drawCentredString(x + w / 2, yy + 0.6 * mm, _fa(label))
+        return yy - 6.5 * mm
 
-    pages_needed = max(1, (len(lines) + per_page - 1) // per_page)
-    total_pages[0] = pages_needed + 2
+    # سربرگ گروه
+    c.setFillColor(HEAD)
+    c.rect(x0, y - 1.5 * mm, tw, 6.5 * mm, fill=1, stroke=0)
+    c.setStrokeColor(NAVY)
+    c.setLineWidth(1)
+    c.line(x0, y + 5 * mm, x0 + tw, y + 5 * mm)
+    c.setFont(F, 8)
+    c.setFillColor(NAVY)
+    c.drawRightString(x0 + tw - 2.5 * mm, y + 0.6 * mm,
+                      _fa("گروه") + f"  {inv['label']}  ·  {t['configs']} " +
+                      _fa("کانفیگ") + f"  ·  {t['months']} " + _fa("ماه") +
+                      f"  ·  {t['renewals']} " + _fa("تمدید") +
+                      f"  ·  {money(t['due'])} " + _fa("تومان"))
+    y -= 6.5 * mm
+    y = draw_thead(y)
+
+    rows_per_page = int((y - 22 * mm) / ROW)
+    pages_total[0] = max(1, -(-len(lines) // max(1, rows_per_page))) + 1
 
     idx = 0
-    for pi in range(pages_needed):
-        c.showPage()
-        header()
-        yy = H - 36 * mm
+    for ln in lines:
+        if y < 22 * mm:
+            c.showPage()
+            y = header()
+            y = draw_thead(y)
 
-        c.setFont(font, 9)
-        c.setFillColor(TXT)
-        c.drawRightString(W - 14 * mm, yy,
-                          _fa("گروه") + f" {inv['label']} · {t['configs']} " +
-                          _fa("کانفیگ") + f" · {t['months']} " + _fa("ماه") +
-                          f" · {money(t['due'])} " + _fa("تومان"))
-        yy -= 8 * mm
-        yy = table_header(yy)
+        idx += 1
+        if idx % 2 == 0:
+            c.setFillColor(SOFT)
+            c.rect(x0, y - 1.2 * mm, tw, ROW, fill=1, stroke=0)
 
-        chunk = lines[pi * per_page:(pi + 1) * per_page]
-        page_sum = 0
-        for ln in chunk:
-            idx += 1
-            page_sum += ln["amount"]
-            if idx % 2 == 0:
-                c.setFillColor(colors.HexColor("#101927"))
-                c.rect(x0, yy - 1.5 * mm, tw, 6.5 * mm, fill=1, stroke=0)
+        vals = [
+            str(idx),
+            ln["email"][:22],
+            ln.get("createdJalali") or "—",
+            ln.get("expiryJalali") or "—",
+            str(ln["days"]) if ln["days"] else "—",
+            str(ln["months"]),
+            str(ln["renewals"]) if ln["renewals"] else "—",
+            ln["gbLabel"],
+            f"{ln['usedGB']}",
+            "—" if ln.get("usagePct") is None else f"{ln['usagePct']}٪",
+            "∞" if not ln["limitIp"] else str(ln["limitIp"]),
+            money(ln["amount"]),
+        ]
 
-            vals = [
-                str(idx),
-                ln["email"][:24],
-                ln.get("createdJalali") or "—",
-                ln.get("expiryJalali") or "—",
-                str(ln["days"]) if ln["days"] else "—",
-                str(ln["months"]),
-                str(ln["renewals"]) if ln["renewals"] else "—",
-                ln["gbLabel"],
-                f"{ln['usedGB']}",
-                pct(ln.get("usagePct")),
-                str(ln["limitIp"]) if ln["limitIp"] else "∞",
-                money(ln["amount"]),
-            ]
+        x = x0 + tw
+        for i, ((label, w, align), v) in enumerate(zip(cols, vals)):
+            x -= w
+            # سلول تمدید رنگی
+            if label == "تمدید" and ln["renewals"]:
+                c.setFillColor(REN)
+                c.rect(x, y - 1.2 * mm, w, ROW, fill=1, stroke=0)
+                c.setFillColor(RENT)
+                c.setFont(FB, 6.6)
+            elif label in ("ماه", "مبلغ (تومان)"):
+                c.setFillColor(INK)
+                c.setFont(FB, 6.6)
+            elif label == "نام کاربر":
+                c.setFillColor(INK if ln["active"] else MUTE)
+                c.setFont(F, 6.6)
+            else:
+                c.setFillColor(GREY)
+                c.setFont(F, 6.6)
 
-            c.setFont(font, 6.5)
-            x = x0
-            for (label, w, align), v in zip(cols, vals):
-                if label == _fa("مبلغ (تومان)"):
-                    c.setFillColor(TXT)
-                elif label == _fa("نام کاربر"):
-                    c.setFillColor(DIM if ln["active"] else MUTE)
-                elif label == _fa("مدت (روز)") and ln["kind"] == "تخمینی":
-                    c.setFillColor(WARN)
-                else:
-                    c.setFillColor(DIM)
+            txt = _fa(v) if any("\u0600" <= ch <= "\u06FF" for ch in v) else v
+            if align == "r":
+                c.drawRightString(x + w - 2 * mm, y + 0.5 * mm, txt)
+            else:
+                c.drawCentredString(x + w / 2, y + 0.5 * mm, txt)
 
-                if align == "r":
-                    c.drawRightString(x + w - 2 * mm, yy + 0.3 * mm, v)
-                else:
-                    c.drawCentredString(x + w / 2, yy + 0.3 * mm, v)
-                x += w
-            yy -= 6.5 * mm
+        # خط جداکننده
+        c.setStrokeColor(LINE)
+        c.setLineWidth(0.3)
+        c.line(x0, y - 1.2 * mm, x0 + tw, y - 1.2 * mm)
+        y -= ROW
 
-        # جمع صفحه
-        yy -= 2 * mm
-        c.setFillColor(colors.HexColor("#1A2537"))
-        c.rect(x0, yy - 1 * mm, tw, 7 * mm, fill=1, stroke=0)
-        c.setFont(font, 7.5)
-        c.setFillColor(ACC2)
-        c.drawRightString(x0 + tw - 3 * mm, yy + 1 * mm,
-                          _fa("جمع این صفحه") + f":  {money(page_sum)}")
+    # جمع گروه
+    y -= 1 * mm
+    c.setFillColor(colors.HexColor("#EEF1F7"))
+    c.rect(x0, y - 1.2 * mm, tw, 6.5 * mm, fill=1, stroke=0)
+    c.setFont(FB, 7.2)
+    c.setFillColor(INK)
+    c.drawRightString(x0 + tw - 2.5 * mm, y + 0.8 * mm,
+                      _fa("جمع گروه") + f" {inv['label']}")
+    # ستون‌های عددی جمع
+    xs = x0 + tw
+    for label, w, _a in cols:
+        xs -= w
+        v = None
+        if label == "ماه":
+            v = str(t["months"])
+        elif label == "تمدید":
+            v = str(t["renewals"])
+        elif label == "حجم (GB)":
+            v = f"{t['quotaGB']:,}"
+        elif label == "مصرفی (GB)":
+            v = f"{t['usedGB']:,}"
+        elif label == "مبلغ (تومان)":
+            v = money(t["due"])
+        if v:
+            c.drawCentredString(xs + w / 2, y + 0.8 * mm, v)
+    y -= 8 * mm
 
-        # جمع کل در صفحه‌ی آخر جدول
-        if pi == pages_needed - 1:
-            yy -= 9 * mm
-            c.setFillColor(ACC)
-            c.rect(x0, yy - 1 * mm, tw, 8 * mm, fill=1, stroke=0)
-            c.setFont(font, 8.5)
-            c.setFillColor(colors.white)
-            c.drawRightString(x0 + tw - 3 * mm, yy + 1.5 * mm,
-                              _fa("جمع کل") + f" ({t['configs']} " +
-                              _fa("کانفیگ") + f"):  {money(t['due'])} " + _fa("تومان"))
+    # جمع کل
+    c.setFillColor(NAVY)
+    c.rect(x0, y - 1.5 * mm, tw, 7.5 * mm, fill=1, stroke=0)
+    c.setFont(FB, 8.5)
+    c.setFillColor(colors.white)
+    c.drawRightString(x0 + tw - 2.5 * mm, y + 1 * mm,
+                      _fa("جمع کل") + f" ({t['configs']} " + _fa("کانفیگ") + ")")
+    xs = x0 + tw
+    for label, w, _a in cols:
+        xs -= w
+        if label == "مبلغ (تومان)":
+            c.drawCentredString(xs + w / 2, y + 1 * mm,
+                                money(t["due"]) )
+    y -= 12 * mm
 
-    # ── صفحه‌ی آخر: روش محاسبه و موارد بررسی ──
+    # ─────────── صفحه‌ی توضیحات ───────────
     c.showPage()
-    header()
-    yy = H - 40 * mm
+    y = header()
 
-    c.setFont(font, 10)
-    c.setFillColor(TXT)
-    c.drawRightString(W - 14 * mm, yy, _fa("روش محاسبه"))
-    yy -= 8 * mm
+    c.setStrokeColor(NAVY)
+    c.setLineWidth(2)
+    c.line(W - MR, y, W - MR, y - 30 * mm)
 
-    method = [
+    c.setFont(FB, 9)
+    c.setFillColor(NAVY)
+    c.drawRightString(W - MR - 4 * mm, y - 4 * mm, _fa("روش محاسبه"))
+    c.setFont(F, 7.8)
+    y -= 10 * mm
+    for m in [
         "پنل ۳x-ui تاریخچه‌ی تمدید نگه نمی‌دارد. تنها اثر تمدید این است که تاریخ انقضا",
         "جلو می‌رود در حالی که تاریخ ایجاد ثابت می‌ماند. بنابراین:",
-        "",
-        "مدت اشتراک = تاریخ انقضا − تاریخ ایجاد",
-        "تعداد ماه = گِردشده‌ی (مدت ÷ ۳۰)، حداقل ۱",
-        "تعداد تمدید = تعداد ماه − ۱",
-        "مبلغ هر کانفیگ = تعداد ماه × نرخ حجم آن پلن",
-    ]
-    c.setFont(font, 8)
-    for m in method:
-        if not m:
-            yy -= 3 * mm
-            continue
-        c.setFillColor(DIM)
-        c.drawRightString(W - 14 * mm, yy, _fa(m))
-        yy -= 5.5 * mm
+        "مدت اشتراک = تاریخ انقضا منهای تاریخ ایجاد",
+        "تعداد ماه = گِردشده‌ی مدت تقسیم بر ۳۰، حداقل ۱",
+        "تعداد تمدید = تعداد ماه منهای یک",
+        "مبلغ هر کانفیگ = تعداد ماه ضربدر نرخ حجم آن پلن",
+    ]:
+        c.setFillColor(GREY)
+        c.drawRightString(W - MR - 4 * mm, y, _fa(m))
+        y -= 5 * mm
 
-    yy -= 4 * mm
-    c.setFont(font, 7.5)
-    c.setFillColor(MUTE)
+    y -= 3 * mm
+    c.setFont(F, 7.5)
     for m in [
         "مصرف ترافیک از جدول client_traffics پنل خوانده شده و داده‌ی واقعی است.",
-        "حجم ∞ یعنی پلن نامحدود. دستگاه ∞ یعنی بدون محدودیت اتصال همزمان.",
-        "این عدد کل بدهی دوره است؛ پرداخت‌های ثبت‌شده در کادر بالا جدا آمده‌اند.",
+        "حجم ∞ یعنی پلن نامحدود · دستگاه ∞ یعنی بدون محدودیت اتصال همزمان.",
+        f"پرداخت ثبت‌شده: {money(t['paid'])} تومان · مانده: {money(t['balance'])} تومان.",
     ]:
-        c.drawRightString(W - 14 * mm, yy, _fa(m))
-        yy -= 5 * mm
+        c.setFillColor(MUTE)
+        c.drawRightString(W - MR - 4 * mm, y, _fa(m))
+        y -= 5 * mm
 
-    # موارد نیازمند بررسی
+    # موارد بررسی
     review = inv.get("review") or []
     if review:
-        yy -= 6 * mm
-        c.setFont(font, 10)
-        c.setFillColor(WARN)
-        c.drawRightString(W - 14 * mm, yy,
+        y -= 6 * mm
+        box_h2 = min(len(review), 18) * 4.5 * mm + 12 * mm
+        c.setFillColor(WARNBG)
+        c.setStrokeColor(WARNBD)
+        c.setLineWidth(0.6)
+        c.roundRect(ML, y - box_h2, CW, box_h2, 2 * mm, fill=1, stroke=1)
+
+        c.setFont(FB, 8.5)
+        c.setFillColor(WARNT)
+        c.drawRightString(W - MR - 4 * mm, y - 6 * mm,
                           _fa(f"موارد نیازمند بررسی دستی ({len(review)} مورد)"))
-        yy -= 8 * mm
-        c.setFont(font, 7.5)
-        for r in review[:22]:
-            c.setFillColor(DIM)
-            c.drawRightString(W - 14 * mm, yy,
+        yy = y - 12 * mm
+        c.setFont(F, 7.2)
+        for r in review[:18]:
+            c.setFillColor(GREY)
+            c.drawRightString(W - MR - 4 * mm, yy,
                               f"{r['email']} — " + _fa(r["status"]) + " · " +
-                              _fa(r["reason"]) + " · " +
-                              _fa("دقت تشخیص") + ": " + _fa(r["accuracy"]))
-            yy -= 5 * mm
-        if len(review) > 22:
+                              _fa(r["reason"]) + " · " + _fa("دقت") + ": " +
+                              _fa(r["accuracy"]))
+            yy -= 4.5 * mm
+        if len(review) > 18:
             c.setFillColor(MUTE)
-            c.drawRightString(W - 14 * mm, yy,
-                              _fa(f"و {len(review) - 22} مورد دیگر"))
+            c.drawRightString(W - MR - 4 * mm, yy,
+                              _fa(f"و {len(review) - 18} مورد دیگر"))
 
     # پاورقی
-    c.setFont(font, 6.5)
+    c.setStrokeColor(colors.HexColor("#CCD3E0"))
+    c.setLineWidth(0.5)
+    c.line(ML, 13 * mm, W - MR, 13 * mm)
+    c.setFont(F, 6.8)
     c.setFillColor(MUTE)
-    c.drawCentredString(W / 2, 13 * mm,
-                        f"{inv_no}  ·  " + _fa("گزارش تولیدشده از دیتابیس ۳x-ui") +
-                        "  ·  Nexora  ·  @yanexoravpn")
+    c.drawRightString(W - MR, 9.5 * mm,
+                      _fa("گزارش تولیدشده از دیتابیس پنل ۳x-ui") + "  ·  NEXORA  ·  @yanexoravpn")
+    c.drawString(ML, 9.5 * mm, f"{inv_no}  ·  {jnow}")
 
     c.save()
     buf.seek(0)

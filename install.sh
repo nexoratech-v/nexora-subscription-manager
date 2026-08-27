@@ -7,7 +7,7 @@
 
 set -o pipefail
 
-VERSION="1.0.7"
+VERSION="1.0.8"
 INSTALL_DIR="/opt/nexora-panel"
 SSL_DIR="/etc/nginx/ssl"
 
@@ -265,6 +265,7 @@ Environment="NEXORA_SUBPAGE_ADMIN_PASSWORD=$ADMIN_PW"
 Environment="ALLOWED_ORIGIN=*"
 Environment="CONFIG_PATH=$INSTALL_DIR/data/config.json"
 Environment="AUTH_PATH=$INSTALL_DIR/data/auth.json"
+Environment="PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
 Environment="XUI_DB_PATH=/etc/x-ui/x-ui.db"
 Environment="SUBPAGE_HTML_PATH=$SUBPAGE_DIR/index.html"
 ExecStart=$INSTALL_DIR/backend/venv/bin/uvicorn app:app --host 127.0.0.1 --port 8100

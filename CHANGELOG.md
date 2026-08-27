@@ -1,5 +1,23 @@
 # Changelog
 
+## [1.0.8]
+
+### Changed
+- **IRANSansX is now the panel and invoice font**, bundled locally rather than fetched
+  from Google. The variable web font covers every weight in one file, and the TTFs
+  carry the joined Arabic glyphs the PDF needs
+- **The PDF invoice was rebuilt on a light, print-ready layout** — navy header rule,
+  summary cards with the payable amount set apart, a bordered table with alternating
+  rows, highlighted renewal cells, per-group and grand totals, then a closing page for
+  the calculation method and rows needing review
+
+### Fixed
+- **Rollback did nothing when triggered from the panel.** The service runs with a
+  minimal PATH that may not include /usr/local/bin, so calling `nexora` by name failed
+  silently. The full path is resolved first, the process is detached properly, and PATH
+  is now set in the unit file
+- The rollback card sat flush against the card above it
+
 ## [1.0.7]
 
 ### Added — Full PDF invoices
