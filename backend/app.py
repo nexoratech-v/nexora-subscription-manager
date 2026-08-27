@@ -2473,6 +2473,8 @@ def _read_xui_clients():
         if "clients" in tables:
             cols = {r[1] for r in con.execute("PRAGMA table_info(clients)")}
             sel = ["email", "total_gb", "expiry_time", "enable", "created_at"]
+            if "limit_ip" in cols:
+                sel.append("limit_ip")
             if "group_name" in cols:
                 sel.append("group_name")
             if "comment" in cols:
@@ -2487,6 +2489,7 @@ def _read_xui_clients():
                         "expiry": int(d.get("expiry_time") or 0),
                         "enable": bool(d.get("enable")),
                         "createdAt": d.get("created_at"),
+                        "limitIp": int(d.get("limit_ip") or 0),
                         "comment": d.get("comment") or "",
                     })
             except Exception as e:
@@ -2508,6 +2511,7 @@ def _read_xui_clients():
                             "expiry": int(cl.get("expiryTime") or 0),
                             "enable": bool(cl.get("enable", True)),
                             "createdAt": None,
+                            "limitIp": int(cl.get("limitIp") or 0),
                             "comment": "",
                         })
             except Exception as e:
@@ -2530,6 +2534,66 @@ def _read_xui_clients():
         return out, known_groups, None
     finally:
         con.close()
+
+
+# ═══════════════════════════════════════════════════════════
+#  محاسبات حسابداری
+#
+#  هر عددی که اینجا حساب می‌شود روی فاکتور واسطه می‌رود، پس
+#  گرد کردن و حالت‌های لبه باید صریح و قابل توضیح باشند.
+# ═══════════════════════════════════════════════════════════
+
+TEHRAN_OFFSET = 3.5 * 3600      # UTC+3:30
+
+
+def _to_jalali(epoch_ms):
+    """
+    میلی‌ثانیه‌ی epoch به تاریخ شمسی به وقت تهران.
+
+    برمی‌گرداند: (شمسی, میلادی) یا (None, None) اگر مقدار معنادار نباشد.
+    """
+    if not epoch_ms or epoch_ms <= 0:
+        return None, None
+    try:
+        from datetime import datetime as _dt, timezone as _tz, timedelta as _td
+        d = _dt.fromtimestamp(epoch_ms / 1000, _tz.utc) + _td(seconds=TEHRAN_OFFSET)
+        try:
+            import jdatetime
+            j = jdatetime.date.fromgregorian(date=d.date())
+            return f"{j.year:04d}/{j.month:02d}/{j.day:02d}", d.strftime("%Y-%m-%d")
+        except ImportError:
+            return None, d.strftime("%Y-%m-%d")
+    except Exception:
+        return None, None
+
+
+def _duration_days(created, expiry):
+    """
+    مدت اشتراک به روز.
+
+    اگر یکی از دو تاریخ نباشد، None برمی‌گردد — نه صفر، چون صفر
+    یعنی «مدت صفر» و این با «نمی‌دانیم» فرق دارد.
+    """
+    if not expiry or expiry <= 0 or not created:
+        return None
+    try:
+        c0 = float(created)
+        if c0 <= 0:
+            return None
+        days = (float(expiry) - c0) / 86400000.0
+        return round(days, 1) if days > 0 else None
+    except (TypeError, ValueError):
+        return None
+
+
+def _usage_percent(used_bytes, quota_bytes):
+    """
+    درصد مصرف. برای پلن نامحدود None برمی‌گردد چون درصدی از
+    بی‌نهایت معنا ندارد.
+    """
+    if not quota_bytes or quota_bytes <= 0:
+        return None
+    return round(used_bytes * 100.0 / quota_bytes)
 
 
 def _months_for(cl, logged):
@@ -2868,10 +2932,33 @@ def billing_invoice(group_key: str, x_admin_password: str = Header(...)):
         price = _price_for(gb, rates)
         amount = (months * price) if price is not None else 0
         due += amount
+        created_j, created_g = _to_jalali(cl.get("createdAt"))
+        expiry_j, expiry_g = _to_jalali(cl.get("expiry"))
+        days = _duration_days(cl.get("createdAt"), cl.get("expiry"))
+        pct = _usage_percent(cl["used"], cl["totalGB"])
+
+        # وضعیت هر ردیف — برای بخش «نیازمند بررسی دستی»
+        if not cl.get("expiry"):
+            status = "بدون انقضا"
+        elif cl.get("expiry", 0) < 0:
+            status = "شروع‌نشده"
+        elif not cl["enable"]:
+            status = "غیرفعال"
+        else:
+            status = "فعال"
+
         lines.append({
             "email": cl["email"],
             "gb": gb,
-            "usedGB": round(cl["used"] / (1024 ** 3), 2),
+            "gbLabel": "∞" if gb == 0 else str(gb),
+            "usedGB": round(cl["used"] / (1024 ** 3), 1),
+            "usagePct": pct,
+            "limitIp": cl.get("limitIp") or 0,
+            "createdJalali": created_j,
+            "createdGregorian": created_g,
+            "expiryJalali": expiry_j,
+            "expiryGregorian": expiry_g,
+            "days": days,
             "months": months,
             "renewals": months - 1,
             "kind": kind,
@@ -2879,21 +2966,53 @@ def billing_invoice(group_key: str, x_admin_password: str = Header(...)):
             "price": price,
             "amount": amount,
             "active": cl["enable"],
+            "status": status,
             "expiry": cl["expiry"],
         })
 
-    lines.sort(key=lambda x: -x["amount"])
+    # ترتیب: بر اساس تاریخ ایجاد، مثل فاکتور دستی — چون واسطه
+    # می‌خواهد ترتیب زمانی فروش را ببیند، نه ترتیب مبلغ
+    lines.sort(key=lambda x: (x.get("createdGregorian") or "9999", x["email"]))
+
+    quota_gb = sum(l["gb"] for l in lines)
+    used_gb = round(sum(l["usedGB"] for l in lines), 1)
+    configs = len(lines)
+    renewals = sum(l["renewals"] for l in lines)
 
     totals = {
-        "configs": len(lines),
+        "configs": configs,
         "months": sum(l["months"] for l in lines),
-        "renewals": sum(l["renewals"] for l in lines),
+        "renewals": renewals,
+        "renewalRate": round(renewals * 100.0 / configs, 1) if configs else 0,
+        "quotaGB": quota_gb,
+        "usedGB": used_gb,
+        "usagePct": round(used_gb * 100.0 / quota_gb, 1) if quota_gb else 0,
         "due": due,
         "paid": paid,
         "balance": due - paid,
         "unpriced": sum(1 for l in lines if l["price"] is None),
         "estimated": sum(1 for l in lines if l["kind"] == "تخمینی"),
+        "active": sum(1 for l in lines if l["status"] == "فعال"),
+        "inactive": sum(1 for l in lines if l["status"] == "غیرفعال"),
+        "notStarted": sum(1 for l in lines if l["status"] == "شروع‌نشده"),
+        "noExpiry": sum(1 for l in lines if l["status"] == "بدون انقضا"),
     }
+
+    # ردیف‌هایی که حسابدار باید خودش نگاهشان کند
+    review = []
+    for l in lines:
+        reason = None
+        if l["kind"] == "تخمینی" and l.get("drift", 0) >= 5:
+            reason = f"مدت {l['days']} روز — انحراف {l['drift']} روز از مضرب ۳۰"
+        elif l["status"] in ("بدون انقضا", "شروع‌نشده"):
+            reason = "بدون تاریخ انقضا"
+        elif l["price"] is None:
+            reason = f"حجم {l['gbLabel']} GB نرخ ندارد"
+        if reason:
+            review.append({"email": l["email"], "status": l["status"],
+                           "reason": reason,
+                           "accuracy": "نامشخص" if l["status"] in ("بدون انقضا", "شروع‌نشده")
+                                       else "پایین"})
 
     return {
         "group": group_key,
@@ -2908,6 +3027,8 @@ def billing_invoice(group_key: str, x_admin_password: str = Header(...)):
         "balance": totals["balance"],
         "unpricedVolumes": totals["unpriced"],
         "totals": totals,
+        "review": review,
+        "generatedAt": _to_jalali(int(datetime.now().timestamp() * 1000))[0],
     }
 
 
@@ -3114,10 +3235,14 @@ def _pdf_font():
 @app.get("/api/admin/billing/invoice/{group_key}/pdf")
 def billing_invoice_pdf(group_key: str, x_admin_password: str = Header(...)):
     """
-    صورتحساب PDF با ریز کامل کانفیگ‌ها.
+    صورتحساب PDF برای ارسال به واسطه.
 
-    برای فرستادن به واسطه — غیرقابل ویرایش، با همه‌ی جزئیاتی که
-    ممکن است سرش بحث شود: حجم، ماه، تمدید، مصرف و مبلغ هر ردیف.
+    ساختار: خلاصه‌ی مبلغ، جدول کامل هر کانفیگ با تاریخ شمسی و
+    مصرف واقعی، جمع هر گروه، و در پایان روش محاسبه و مواردی که
+    نیاز به بررسی دستی دارند.
+
+    هر عددی که اینجا چاپ می‌شود ممکن است سر آن بحث شود، پس
+    تخمین‌ها صریح علامت می‌خورند.
     """
     check_auth(x_admin_password)
 
@@ -3127,11 +3252,13 @@ def billing_invoice_pdf(group_key: str, x_admin_password: str = Header(...)):
         from reportlab.lib import colors
         from reportlab.pdfgen import canvas as pdfcanvas
     except ImportError:
-        raise HTTPException(status_code=500,
-                            detail="کتابخانه reportlab نصب نیست. اجرا کنید: "
-                                   "pip install reportlab arabic-reshaper python-bidi")
+        raise HTTPException(
+            status_code=500,
+            detail="reportlab نصب نیست. اجرا کنید: "
+                   "pip install reportlab arabic-reshaper python-bidi")
 
     inv = billing_invoice(group_key, x_admin_password=x_admin_password)
+    lines, t = inv["lines"], inv["totals"]
     font = _pdf_font()
 
     import io
@@ -3139,164 +3266,300 @@ def billing_invoice_pdf(group_key: str, x_admin_password: str = Header(...)):
     W, H = landscape(A4)
     c = pdfcanvas.Canvas(buf, pagesize=landscape(A4))
 
-    BG = colors.HexColor("#0E1523")
+    BG = colors.HexColor("#0B1220")
+    CARD = colors.HexColor("#131C2E")
     ACC = colors.HexColor("#2B7FD6")
     ACC2 = colors.HexColor("#5AA9E6")
     TXT = colors.HexColor("#EDF2F9")
     DIM = colors.HexColor("#8A98AC")
+    MUTE = colors.HexColor("#5A6880")
     OK = colors.HexColor("#34D399")
     WARN = colors.HexColor("#FBBF24")
 
     def money(n):
         return f"{int(n or 0):,}"
 
-    def header(page_no, total_pages):
+    def pct(n):
+        return "—" if n is None else f"{n}٪"
+
+    # شماره‌ی فاکتور — قابل ارجاع در مکاتبات
+    stamp = datetime.now()
+    jnow = inv.get("generatedAt") or stamp.strftime("%Y/%m/%d")
+    inv_no = f"G-{jnow.replace('/', '')}-{abs(hash(group_key)) % 100:02d}NX"
+
+    page = [0]
+    total_pages = [1]
+
+    def header(first=False):
+        page[0] += 1
         c.setFillColor(BG)
         c.rect(0, 0, W, H, fill=1, stroke=0)
+
+        # نوار بالا
         c.setFillColor(ACC)
-        c.rect(0, H - 22 * mm, W, 22 * mm, fill=1, stroke=0)
-
-        c.setFont(font, 16)
+        c.rect(0, H - 20 * mm, W, 20 * mm, fill=1, stroke=0)
+        c.setFont(font, 9)
         c.setFillColor(colors.white)
-        c.drawRightString(W - 15 * mm, H - 13 * mm, _fa("صورتحساب واسطه"))
-        c.setFont(font, 10)
-        c.drawString(15 * mm, H - 13 * mm, "NEXORA")
+        c.drawString(14 * mm, H - 12.5 * mm, "NEXORA")
+        c.setFont(font, 14)
+        c.drawRightString(W - 14 * mm, H - 12.5 * mm,
+                          _fa("صورتحساب واسطه") + " — " + _fa(inv["label"]))
 
-        c.setFont(font, 11)
-        c.setFillColor(TXT)
-        c.drawRightString(W - 15 * mm, H - 32 * mm, _fa(inv["label"]))
-        c.setFont(font, 8)
-        c.setFillColor(DIM)
-        c.drawString(15 * mm, H - 32 * mm,
-                     datetime.now().strftime("%Y-%m-%d %H:%M"))
-        c.drawCentredString(W / 2, 8 * mm, f"{page_no} / {total_pages}")
-
-    lines = inv["lines"]
-    t = inv["totals"]
-    per_page = 22
-    pages = max(1, (len(lines) + per_page - 1) // per_page)
-
-    # ── صفحه‌ی اول: خلاصه ──
-    header(1, pages + 1)
-    y = H - 48 * mm
-
-    boxes = [
-        (_fa("تعداد کانفیگ"), str(t["configs"]), ACC2),
-        (_fa("مجموع ماه"), str(t["months"]), ACC2),
-        (_fa("تمدید"), str(t["renewals"]), ACC2),
-        (_fa("مبلغ کل"), money(t["due"]), TXT),
-        (_fa("پرداخت‌شده"), money(t["paid"]), OK),
-        (_fa("مانده"), money(t["balance"]), WARN if t["balance"] > 0 else OK),
-    ]
-    bw = (W - 30 * mm - 5 * 4 * mm) / 6
-    for i, (label, val, col) in enumerate(boxes):
-        x = 15 * mm + i * (bw + 4 * mm)
-        c.setFillColor(colors.HexColor("#131C2E"))
-        c.roundRect(x, y - 20 * mm, bw, 20 * mm, 3 * mm, fill=1, stroke=0)
-        c.setFont(font, 7)
-        c.setFillColor(DIM)
-        c.drawCentredString(x + bw / 2, y - 7 * mm, label)
-        c.setFont(font, 12)
-        c.setFillColor(col)
-        c.drawCentredString(x + bw / 2, y - 15 * mm, val)
-
-    y -= 32 * mm
-    c.setFont(font, 10)
-    c.setFillColor(TXT)
-    c.drawRightString(W - 15 * mm, y, _fa("نرخ‌های این واسطه"))
-    y -= 8 * mm
-    c.setFont(font, 8)
-    for r in (inv.get("rates") or []):
-        gb = _fa("نامحدود") if int(r.get("gb", 0)) == 0 else f"{r['gb']} GB"
-        c.setFillColor(DIM)
-        c.drawRightString(W - 15 * mm, y, f"{gb}  —  {money(r.get('price'))}")
-        y -= 6 * mm
-
-    if t.get("estimated"):
-        y -= 4 * mm
-        c.setFillColor(WARN)
-        c.setFont(font, 8)
-        c.drawRightString(W - 15 * mm, y,
-                          _fa(f"{t['estimated']} ردیف تخمینی است — ۳x-ui تاریخچه‌ی تمدید ندارد"))
-
-    # ── صفحات ریز کانفیگ ──
-    cols = [
-        (_fa("ردیف"), 12 * mm, "c"),
-        (_fa("ایمیل"), 50 * mm, "l"),
-        (_fa("حجم"), 22 * mm, "c"),
-        (_fa("مصرف"), 24 * mm, "c"),
-        (_fa("ماه"), 16 * mm, "c"),
-        (_fa("تمدید"), 18 * mm, "c"),
-        (_fa("نوع"), 22 * mm, "c"),
-        (_fa("نرخ"), 28 * mm, "c"),
-        (_fa("مبلغ"), 30 * mm, "c"),
-        (_fa("وضعیت"), 20 * mm, "c"),
-    ]
-    total_w = sum(w for _, w, _ in cols)
-
-    for pi in range(pages):
-        c.showPage()
-        header(pi + 2, pages + 1)
-        y = H - 44 * mm
-
-        x0 = (W - total_w) / 2
-        c.setFillColor(colors.HexColor("#1A2537"))
-        c.rect(x0, y - 2 * mm, total_w, 8 * mm, fill=1, stroke=0)
+        # نوار اطلاعات
         c.setFont(font, 7.5)
+        c.setFillColor(MUTE)
+        c.drawRightString(W - 14 * mm, H - 26 * mm,
+                          _fa("شماره صورتحساب") + f": {inv_no}")
+        c.drawString(14 * mm, H - 26 * mm,
+                     _fa("تاریخ صدور") + f": {jnow}  ({stamp:%Y-%m-%d})")
+        c.drawCentredString(W / 2, 7 * mm,
+                            f"{page[0]} / {total_pages[0]}")
+
+    # ── صفحه ۱: خلاصه ──
+    header(first=True)
+    y = H - 40 * mm
+
+    # کادر مبلغ اصلی
+    c.setFillColor(CARD)
+    c.roundRect(14 * mm, y - 26 * mm, W - 28 * mm, 26 * mm, 3 * mm, fill=1, stroke=0)
+    c.setFont(font, 8)
+    c.setFillColor(DIM)
+    c.drawRightString(W - 22 * mm, y - 8 * mm, _fa("مبلغ قابل پرداخت"))
+    c.setFont(font, 22)
+    c.setFillColor(TXT)
+    c.drawRightString(W - 22 * mm, y - 19 * mm,
+                      money(t["due"]) + "  " + _fa("تومان"))
+    c.setFont(font, 8)
+    c.setFillColor(MUTE)
+    rate_txt = ""
+    if inv.get("rates"):
+        r0 = inv["rates"][0]
+        rate_txt = f"{t['months']} " + _fa("ماه") + f" × {money(r0.get('price'))}"
+    c.drawString(22 * mm, y - 19 * mm, rate_txt)
+
+    y -= 34 * mm
+
+    # کادرهای آماری
+    boxes = [
+        (_fa("تعداد کانفیگ"), str(t["configs"]),
+         _fa(f"{t['active']} فعال · {t['inactive']} غیرفعال")),
+        (_fa("مجموع ماه"), str(t["months"]), _fa("دوره اول + تمدیدها")),
+        (_fa("تعداد تمدید"), str(t["renewals"]),
+         _fa("نرخ تمدید") + f" {t['renewalRate']}٪"),
+        (_fa("ترافیک مصرفی"), f"{t['usedGB']:,} GB",
+         _fa("از") + f" {t['quotaGB']:,} GB " + _fa("سهمیه") + f" ({t['usagePct']}٪)"),
+        (_fa("پرداخت‌شده"), money(t["paid"]),
+         _fa("مانده") + f": {money(t['balance'])}"),
+    ]
+    bw = (W - 28 * mm - 4 * 3 * mm) / 5
+    for i, (label, val, sub) in enumerate(boxes):
+        x = 14 * mm + i * (bw + 3 * mm)
+        c.setFillColor(CARD)
+        c.roundRect(x, y - 22 * mm, bw, 22 * mm, 2.5 * mm, fill=1, stroke=0)
+        c.setFont(font, 7)
+        c.setFillColor(MUTE)
+        c.drawCentredString(x + bw / 2, y - 7 * mm, label)
+        c.setFont(font, 13)
+        c.setFillColor(ACC2 if i < 4 else OK)
+        c.drawCentredString(x + bw / 2, y - 14.5 * mm, val)
+        c.setFont(font, 6)
+        c.setFillColor(MUTE)
+        c.drawCentredString(x + bw / 2, y - 19 * mm, sub)
+
+    y -= 30 * mm
+
+    # نرخ‌ها
+    if inv.get("rates"):
+        c.setFont(font, 9)
+        c.setFillColor(TXT)
+        c.drawRightString(W - 14 * mm, y, _fa("نرخ‌های این واسطه"))
+        y -= 7 * mm
+        c.setFont(font, 8)
+        for r in inv["rates"]:
+            gbl = _fa("نامحدود") if int(r.get("gb", 0)) == 0 else f"{r['gb']} GB"
+            c.setFillColor(DIM)
+            c.drawRightString(W - 14 * mm, y,
+                              f"{gbl}  —  {money(r.get('price'))} " + _fa("تومان"))
+            y -= 5.5 * mm
+
+    # ── جدول ریز کانفیگ‌ها ──
+    cols = [
+        (_fa("ردیف"), 11 * mm, "c"),
+        (_fa("نام کاربر"), 42 * mm, "r"),
+        (_fa("تاریخ ایجاد"), 24 * mm, "c"),
+        (_fa("تاریخ انقضا"), 24 * mm, "c"),
+        (_fa("مدت (روز)"), 19 * mm, "c"),
+        (_fa("ماه"), 12 * mm, "c"),
+        (_fa("تمدید"), 14 * mm, "c"),
+        (_fa("حجم (GB)"), 19 * mm, "c"),
+        (_fa("مصرفی (GB)"), 21 * mm, "c"),
+        (_fa("درصد"), 14 * mm, "c"),
+        (_fa("دستگاه"), 15 * mm, "c"),
+        (_fa("مبلغ (تومان)"), 26 * mm, "c"),
+    ]
+    tw = sum(w for _, w, _ in cols)
+    x0 = (W - tw) / 2
+    per_page = 24
+
+    def table_header(yy):
+        c.setFillColor(colors.HexColor("#1A2537"))
+        c.rect(x0, yy - 2 * mm, tw, 7.5 * mm, fill=1, stroke=0)
+        c.setFont(font, 6.5)
         c.setFillColor(ACC2)
         x = x0
         for label, w, _a in cols:
-            c.drawCentredString(x + w / 2, y + 0.5 * mm, label)
+            c.drawCentredString(x + w / 2, yy + 0.5 * mm, label)
             x += w
-        y -= 8 * mm
+        return yy - 7.5 * mm
+
+    pages_needed = max(1, (len(lines) + per_page - 1) // per_page)
+    total_pages[0] = pages_needed + 2
+
+    idx = 0
+    for pi in range(pages_needed):
+        c.showPage()
+        header()
+        yy = H - 36 * mm
+
+        c.setFont(font, 9)
+        c.setFillColor(TXT)
+        c.drawRightString(W - 14 * mm, yy,
+                          _fa("گروه") + f" {inv['label']} · {t['configs']} " +
+                          _fa("کانفیگ") + f" · {t['months']} " + _fa("ماه") +
+                          f" · {money(t['due'])} " + _fa("تومان"))
+        yy -= 8 * mm
+        yy = table_header(yy)
 
         chunk = lines[pi * per_page:(pi + 1) * per_page]
-        for idx, ln in enumerate(chunk):
-            row_no = pi * per_page + idx + 1
-            if idx % 2:
-                c.setFillColor(colors.HexColor("#111A29"))
-                c.rect(x0, y - 1.5 * mm, total_w, 7 * mm, fill=1, stroke=0)
+        page_sum = 0
+        for ln in chunk:
+            idx += 1
+            page_sum += ln["amount"]
+            if idx % 2 == 0:
+                c.setFillColor(colors.HexColor("#101927"))
+                c.rect(x0, yy - 1.5 * mm, tw, 6.5 * mm, fill=1, stroke=0)
 
             vals = [
-                str(row_no),
-                ln["email"][:26],
-                _fa("نامحدود") if ln["gb"] == 0 else f"{ln['gb']} GB",
-                f"{ln['usedGB']} GB",
+                str(idx),
+                ln["email"][:24],
+                ln.get("createdJalali") or "—",
+                ln.get("expiryJalali") or "—",
+                str(ln["days"]) if ln["days"] else "—",
                 str(ln["months"]),
                 str(ln["renewals"]) if ln["renewals"] else "—",
-                _fa(ln["kind"]) + (f" ({ln['drift']})" if ln.get("drift") else ""),
-                money(ln["price"]) if ln["price"] is not None else _fa("بدون نرخ"),
+                ln["gbLabel"],
+                f"{ln['usedGB']}",
+                pct(ln.get("usagePct")),
+                str(ln["limitIp"]) if ln["limitIp"] else "∞",
                 money(ln["amount"]),
-                _fa("فعال") if ln["active"] else _fa("غیرفعال"),
             ]
-            c.setFont(font, 7)
+
+            c.setFont(font, 6.5)
             x = x0
             for (label, w, align), v in zip(cols, vals):
-                if label == _fa("مبلغ"):
+                if label == _fa("مبلغ (تومان)"):
                     c.setFillColor(TXT)
-                elif label == _fa("نوع") and ln["kind"] == "تخمینی":
+                elif label == _fa("نام کاربر"):
+                    c.setFillColor(DIM if ln["active"] else MUTE)
+                elif label == _fa("مدت (روز)") and ln["kind"] == "تخمینی":
                     c.setFillColor(WARN)
-                elif label == _fa("وضعیت"):
-                    c.setFillColor(OK if ln["active"] else DIM)
                 else:
                     c.setFillColor(DIM)
 
-                if align == "l":
-                    c.drawString(x + 2 * mm, y + 0.5 * mm, v)
+                if align == "r":
+                    c.drawRightString(x + w - 2 * mm, yy + 0.3 * mm, v)
                 else:
-                    c.drawCentredString(x + w / 2, y + 0.5 * mm, v)
+                    c.drawCentredString(x + w / 2, yy + 0.3 * mm, v)
                 x += w
-            y -= 7 * mm
+            yy -= 6.5 * mm
 
         # جمع صفحه
-        page_sum = sum(l["amount"] for l in chunk)
-        y -= 3 * mm
+        yy -= 2 * mm
         c.setFillColor(colors.HexColor("#1A2537"))
-        c.rect(x0, y - 1 * mm, total_w, 8 * mm, fill=1, stroke=0)
-        c.setFont(font, 8)
+        c.rect(x0, yy - 1 * mm, tw, 7 * mm, fill=1, stroke=0)
+        c.setFont(font, 7.5)
         c.setFillColor(ACC2)
-        c.drawRightString(x0 + total_w - 3 * mm, y + 1.5 * mm,
+        c.drawRightString(x0 + tw - 3 * mm, yy + 1 * mm,
                           _fa("جمع این صفحه") + f":  {money(page_sum)}")
+
+        # جمع کل در صفحه‌ی آخر جدول
+        if pi == pages_needed - 1:
+            yy -= 9 * mm
+            c.setFillColor(ACC)
+            c.rect(x0, yy - 1 * mm, tw, 8 * mm, fill=1, stroke=0)
+            c.setFont(font, 8.5)
+            c.setFillColor(colors.white)
+            c.drawRightString(x0 + tw - 3 * mm, yy + 1.5 * mm,
+                              _fa("جمع کل") + f" ({t['configs']} " +
+                              _fa("کانفیگ") + f"):  {money(t['due'])} " + _fa("تومان"))
+
+    # ── صفحه‌ی آخر: روش محاسبه و موارد بررسی ──
+    c.showPage()
+    header()
+    yy = H - 40 * mm
+
+    c.setFont(font, 10)
+    c.setFillColor(TXT)
+    c.drawRightString(W - 14 * mm, yy, _fa("روش محاسبه"))
+    yy -= 8 * mm
+
+    method = [
+        "پنل ۳x-ui تاریخچه‌ی تمدید نگه نمی‌دارد. تنها اثر تمدید این است که تاریخ انقضا",
+        "جلو می‌رود در حالی که تاریخ ایجاد ثابت می‌ماند. بنابراین:",
+        "",
+        "مدت اشتراک = تاریخ انقضا − تاریخ ایجاد",
+        "تعداد ماه = گِردشده‌ی (مدت ÷ ۳۰)، حداقل ۱",
+        "تعداد تمدید = تعداد ماه − ۱",
+        "مبلغ هر کانفیگ = تعداد ماه × نرخ حجم آن پلن",
+    ]
+    c.setFont(font, 8)
+    for m in method:
+        if not m:
+            yy -= 3 * mm
+            continue
+        c.setFillColor(DIM)
+        c.drawRightString(W - 14 * mm, yy, _fa(m))
+        yy -= 5.5 * mm
+
+    yy -= 4 * mm
+    c.setFont(font, 7.5)
+    c.setFillColor(MUTE)
+    for m in [
+        "مصرف ترافیک از جدول client_traffics پنل خوانده شده و داده‌ی واقعی است.",
+        "حجم ∞ یعنی پلن نامحدود. دستگاه ∞ یعنی بدون محدودیت اتصال همزمان.",
+        "این عدد کل بدهی دوره است؛ پرداخت‌های ثبت‌شده در کادر بالا جدا آمده‌اند.",
+    ]:
+        c.drawRightString(W - 14 * mm, yy, _fa(m))
+        yy -= 5 * mm
+
+    # موارد نیازمند بررسی
+    review = inv.get("review") or []
+    if review:
+        yy -= 6 * mm
+        c.setFont(font, 10)
+        c.setFillColor(WARN)
+        c.drawRightString(W - 14 * mm, yy,
+                          _fa(f"موارد نیازمند بررسی دستی ({len(review)} مورد)"))
+        yy -= 8 * mm
+        c.setFont(font, 7.5)
+        for r in review[:22]:
+            c.setFillColor(DIM)
+            c.drawRightString(W - 14 * mm, yy,
+                              f"{r['email']} — " + _fa(r["status"]) + " · " +
+                              _fa(r["reason"]) + " · " +
+                              _fa("دقت تشخیص") + ": " + _fa(r["accuracy"]))
+            yy -= 5 * mm
+        if len(review) > 22:
+            c.setFillColor(MUTE)
+            c.drawRightString(W - 14 * mm, yy,
+                              _fa(f"و {len(review) - 22} مورد دیگر"))
+
+    # پاورقی
+    c.setFont(font, 6.5)
+    c.setFillColor(MUTE)
+    c.drawCentredString(W / 2, 13 * mm,
+                        f"{inv_no}  ·  " + _fa("گزارش تولیدشده از دیتابیس ۳x-ui") +
+                        "  ·  Nexora  ·  @yanexoravpn")
 
     c.save()
     buf.seek(0)
@@ -3306,7 +3569,7 @@ def billing_invoice_pdf(group_key: str, x_admin_password: str = Header(...)):
         content=buf.read(),
         media_type="application/pdf",
         headers={"Content-Disposition":
-                 f'attachment; filename="nexora-{safe}-{datetime.now():%Y%m%d}.pdf"'})
+                 f'attachment; filename="nexora-{safe}-{stamp:%Y%m%d}.pdf"'})
 
 
 @app.get("/api/admin/billing/diagnose")
@@ -3314,8 +3577,8 @@ def billing_diagnose(x_admin_password: str = Header(...)):
     """
     تشخیص کامل مشکل اتصال — هر مرحله جدا گزارش می‌شود.
 
-    وقتی «نمی‌تواند بخواند» می‌بینید، این می‌گوید دقیقاً کدام مرحله
-    شکست خورده: پیدا کردن فایل، مجوز، باز کردن، یا خواندن جدول.
+    وقتی حسابداری کار نمی‌کند، این می‌گوید دقیقاً کدام مرحله شکست
+    خورده: مسیر، مجوز، باز کردن، ساختار، یا محاسبه.
     """
     check_auth(x_admin_password)
     steps = []
@@ -3324,7 +3587,6 @@ def billing_diagnose(x_admin_password: str = Header(...)):
         steps.append({"title": title, "ok": ok, "detail": detail, "hint": hint})
         return ok
 
-    # ۱. مسیر انتخابی و منبعش
     manual = env = ""
     try:
         cfg = load_config()
@@ -3343,15 +3605,11 @@ def billing_diagnose(x_admin_password: str = Header(...)):
         step("مسیر دستی", False, f"{manual} وجود ندارد",
              "در بخش تنظیمات و بک‌آپ اصلاحش کنید یا خالی بگذارید")
 
-    # ۲. وجود فایل
     if not step("فایل موجود است", path.exists(), str(path),
                 "" if path.exists() else "روی سرور اجرا کنید: nexora fix-xui"):
         return {"ok": False, "steps": steps}
 
-    # ۳. مجوزها — فایل اصلی و جانبی‌ها
-    import stat as _stat
-    perms = []
-    blocked = []
+    perms, blocked = [], []
     for suffix in ("", "-wal", "-shm"):
         f = path.with_name(path.name + suffix) if suffix else path
         if not f.exists():
@@ -3368,7 +3626,6 @@ def billing_diagnose(x_admin_password: str = Header(...)):
     step("مجوزها", not blocked, " · ".join(perms),
          f"chmod +r {path.parent}/{path.name}*" if blocked else "")
 
-    # ۴. کاربر اجراکننده
     try:
         import pwd
         me = pwd.getpwuid(os.geteuid()).pw_name
@@ -3376,13 +3633,11 @@ def billing_diagnose(x_admin_password: str = Header(...)):
         me = str(os.geteuid())
     step("کاربر پنل", True, me)
 
-    # ۵. باز کردن
     con, err = _xui_conn()
     if not step("باز کردن دیتابیس", con is not None, err or "موفق",
                 "" if con else "پیام بالا را دنبال کنید"):
         return {"ok": False, "steps": steps}
 
-    # ۶. جدول‌ها
     try:
         tables = [r["name"] for r in con.execute(
             "SELECT name FROM sqlite_master WHERE type='table' ORDER BY name")]
@@ -3406,7 +3661,17 @@ def billing_diagnose(x_admin_password: str = Header(...)):
     finally:
         con.close()
 
-    # ۷. مسیر کامل
+    # دیتابیس حسابداری خودمان — جایی که یک‌بار مشکل ساخت
+    try:
+        bcon = _billing_conn()
+        bt = [r[0] for r in bcon.execute(
+            "SELECT name FROM sqlite_master WHERE type='table'")]
+        bcon.close()
+        step("دیتابیس حسابداری", True, f"{len(bt)} جدول")
+    except Exception as e:
+        step("دیتابیس حسابداری", False, f"{type(e).__name__}: {str(e)[:90]}",
+             f"فایل را کنار بگذارید: mv {BILLING_DB} {BILLING_DB}.broken")
+
     clients, groups, rerr = _read_xui_clients()
     step("پردازش نهایی", clients is not None,
          f"{len(clients)} کانفیگ، {len(groups or [])} گروه" if clients else (rerr or "ناموفق"))

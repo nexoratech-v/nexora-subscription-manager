@@ -4962,6 +4962,35 @@ function BillingInvoice({ password }) {
   const [busy, setBusy] = useState(false);
 
   const billed = data?.groups?.filter((g) => g.billed) || [];
+
+  /**
+   * دانلود صورتحساب PDF.
+   *
+   * چون endpoint هدر رمز می‌خواهد، نمی‌شود مستقیم لینک داد —
+   * باید fetch کنیم و blob را دانلود کنیم.
+   */
+  const downloadPdf = async () => {
+    if (!sel) return;
+    setBusy(true);
+    try {
+      const res = await fetch(
+        `${API_URL}/api/admin/billing/invoice/${encodeURIComponent(sel)}/pdf`,
+        { headers: { "X-Admin-Password": password } });
+      if (!res.ok) {
+        const d = await res.json().catch(() => ({}));
+        alert(d.detail || "ساخت PDF ناموفق بود");
+        return;
+      }
+      const blob = await res.blob();
+      const a = document.createElement("a");
+      a.href = URL.createObjectURL(blob);
+      a.download = `nexora-${sel}-${new Date().toISOString().slice(0, 10)}.pdf`;
+      a.click();
+      URL.revokeObjectURL(a.href);
+    } catch {
+      alert("اتصال به سرور برقرار نشد");
+    } finally { setBusy(false); }
+  };
   useEffect(() => { if (!sel && billed.length) setSel(billed[0].name); }, [data]);
 
   const gen = async () => {
@@ -4999,11 +5028,17 @@ function BillingInvoice({ password }) {
                 {billed.map((g) => <option key={g.name} value={g.name}>{g.label}</option>)}
               </select>
             </Field>
-            <button onClick={gen} disabled={busy}
-              className="fx-btn w-full py-2.5 text-[12.5px] flex items-center justify-center gap-2">
-              {busy ? <Loader2 size={14} className="animate-spin" /> : <FileText size={14} />}
-              ساخت صورتحساب
-            </button>
+            <div className="fx-g3 grid grid-cols-2 gap-3">
+              <button onClick={gen} disabled={busy}
+                className="fx-btn py-2.5 text-[12.5px] flex items-center justify-center gap-2">
+                {busy ? <Loader2 size={14} className="animate-spin" /> : <FileText size={14} />}
+                نمایش صورتحساب
+              </button>
+              <button onClick={downloadPdf} disabled={busy || !sel}
+                className="fx-btn-g py-2.5 text-[12.5px] flex items-center justify-center gap-2">
+                <Download size={14} /> دانلود PDF
+              </button>
+            </div>
           </div>
 
           {inv && (

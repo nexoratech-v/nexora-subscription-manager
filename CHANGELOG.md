@@ -1,5 +1,25 @@
 # Changelog
 
+## [1.0.7]
+
+### Added — Full PDF invoices
+The invoice now carries everything a reseller might question, so the numbers can be
+defended line by line:
+
+- Jalali and Gregorian dates for creation and expiry, converted at Tehran time
+- Subscription length in days, months billed, and renewals per config
+- Plan volume, real traffic used, and usage percentage
+- Device limit per config
+- Per-page subtotals and a grand total
+- A closing page explaining how months are derived, plus every row that needs a human
+  look — estimated durations, configs with no expiry, volumes with no rate
+
+Estimated durations are marked in amber in the table rather than presented as fact.
+
+### Fixed
+- Restored the connection diagnosis endpoint, which was removed while rewriting the
+  PDF generator. `tools/check-api-contract.py` caught it
+
 ## [1.0.6]
 
 ### Fixed — The reseller toggle switched itself back off
