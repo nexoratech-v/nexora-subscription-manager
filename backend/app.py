@@ -2717,7 +2717,16 @@ def billing_group_put(group_key: str, payload: dict, x_admin_password: str = Hea
     """ذخیره‌ی نرخ و وضعیت یک گروه."""
     check_auth(x_admin_password)
 
-    rates = (payload or {}).get("rates", [])
+    payload = payload or {}
+
+    # رابط کاربری در جاهایی billed می‌فرستد و در جاهایی billable.
+    # هر دو را می‌پذیریم — وگرنه کلید روشن/خاموش بی‌صدا ذخیره نمی‌شود
+    # و کاربر فکر می‌کند دکمه کار نمی‌کند.
+    billable = payload.get("billable")
+    if billable is None:
+        billable = payload.get("billed")
+
+    rates = payload.get("rates", [])
     if not isinstance(rates, list):
         raise HTTPException(status_code=400, detail="فهرست نرخ نامعتبر است")
 
@@ -2739,11 +2748,13 @@ def billing_group_put(group_key: str, payload: dict, x_admin_password: str = Hea
             "rates=excluded.rates, note=excluded.note, updated_at=CURRENT_TIMESTAMP",
             (group_key,
              (payload.get("label") or group_key).strip(),
-             1 if payload.get("billable") else 0,
+             1 if billable else 0,
              json.dumps(clean, ensure_ascii=False),
              (payload.get("note") or "").strip()))
         con.commit()
-        return {"ok": True, "rates": clean}
+        return {"ok": True, "rates": clean,
+                "billable": bool(billable), "billed": bool(billable),
+                "label": (payload.get("label") or group_key).strip()}
     finally:
         con.close()
 
@@ -2780,7 +2791,11 @@ def billing_payments_get(group: str = "", x_admin_password: str = Header(...)):
 def billing_payment_add(payload: dict, x_admin_password: str = Header(...)):
     """ثبت یک پرداخت."""
     check_auth(x_admin_password)
-    g = (payload or {}).get("group_key", "").strip()
+    payload = payload or {}
+
+    # نام‌های مترادف — رابط کاربری group/date می‌فرستد،
+    # اسکریپت‌ها و API از group_key/paid_at استفاده می‌کنند
+    g = (payload.get("group_key") or payload.get("group") or "").strip()
     if not g:
         raise HTTPException(status_code=400, detail="واسطه مشخص نشده است")
     try:
@@ -2795,7 +2810,8 @@ def billing_payment_add(payload: dict, x_admin_password: str = Header(...)):
         cur = con.execute(
             "INSERT INTO payments (group_key,amount,paid_at,note) VALUES (?,?,?,?)",
             (g, amount,
-             (payload.get("paid_at") or datetime.now().strftime("%Y-%m-%d")),
+             (payload.get("paid_at") or payload.get("date")
+              or datetime.now().strftime("%Y-%m-%d")),
              (payload.get("note") or "").strip()))
         con.commit()
         return {"ok": True, "id": cur.lastrowid}

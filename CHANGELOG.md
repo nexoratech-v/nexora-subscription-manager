@@ -1,5 +1,20 @@
 # Changelog
 
+## [1.0.6]
+
+### Fixed — The reseller toggle switched itself back off
+Saving a group sent `billed`, but the endpoint read `billable`, so the flag was always
+stored as off. The rate saved fine; the switch did not. Recording a payment had the
+same problem with `group` and `date` against `group_key` and `paid_at`.
+
+Both endpoints now accept either spelling, and the save response echoes the stored
+value so the interface can confirm rather than assume.
+
+### Added
+- `tools/check-api-contract.py` — walks every URL the panel calls and checks it has a
+  matching route, then checks the field names both sides use. This class of mismatch
+  fails silently: no error, no log, just a blank page or a button that does nothing
+
 ## [1.0.5]
 
 ### Fixed — The accounting page called endpoints that did not exist
