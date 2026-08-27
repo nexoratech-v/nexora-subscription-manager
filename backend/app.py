@@ -2581,6 +2581,7 @@ def _price_for(gb, rates):
     return None
 
 
+@app.get("/api/admin/billing/groups")
 @app.get("/api/admin/billing/overview")
 def billing_overview(x_admin_password: str = Header(...)):
     """گروه‌ها با محاسبه‌ی کامل — پایه‌ی همه‌ی صفحات حسابداری."""
@@ -2774,6 +2775,7 @@ def billing_payments_get(group: str = "", x_admin_password: str = Header(...)):
         con.close()
 
 
+@app.post("/api/admin/billing/payment")
 @app.post("/api/admin/billing/payments")
 def billing_payment_add(payload: dict, x_admin_password: str = Header(...)):
     """ثبت یک پرداخت."""
@@ -2801,6 +2803,7 @@ def billing_payment_add(payload: dict, x_admin_password: str = Header(...)):
         con.close()
 
 
+@app.delete("/api/admin/billing/payment/{pid}")
 @app.delete("/api/admin/billing/payments/{pid}")
 def billing_payment_del(pid: int, x_admin_password: str = Header(...)):
     """حذف یک پرداخت."""

@@ -1,5 +1,17 @@
 # Changelog
 
+## [1.0.5]
+
+### Fixed — The accounting page called endpoints that did not exist
+The panel requested `/api/admin/billing/groups` and `/api/admin/billing/payment`, but
+the backend only defined `/overview` and `/payments`. Both returned 404, and since a
+404 body carries no `error` field, the page fell back to its generic message about the
+database path — pointing at the one thing that was never wrong.
+
+Every diagnostic passed because they used the endpoints that did exist. The request the
+page actually made was never tested. Both spellings now resolve, and a check across all
+frontend URLs confirms each one has a matching route.
+
 ## [1.0.4]
 
 ### Fixed — Accounting read the data but showed nothing
