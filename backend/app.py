@@ -2686,6 +2686,17 @@ def _billing_overview_impl():
         g["usedGB"] = round(g["used"] / (1024 ** 3), 1)
         g["quotaGB"] = round(g["quota"] / (1024 ** 3), 1) if g["quota"] > 1024 else g["quota"]
 
+        # نام‌های مترادف.
+        #
+        # رابط کاربری در جاهایی name/billed/amount/uncertain می‌خواند و در
+        # جاهایی key/billable/due/estimated. هر دو را می‌فرستیم تا هیچ
+        # بخشی خالی نماند — ارزان‌تر از این است که یک اسم فراموش شود و
+        # کل صفحه بی‌صدا خالی بماند.
+        g["name"] = g["key"]
+        g["billed"] = g["billable"]
+        g["amount"] = g["due"]
+        g["uncertain"] = g["estimated"]
+
     billed = [g for g in out if g["billable"]]
     return {
         "ready": True,
@@ -2753,7 +2764,12 @@ def billing_payments_get(group: str = "", x_admin_password: str = Header(...)):
         else:
             rows = con.execute(
                 "SELECT * FROM payments ORDER BY paid_at DESC, id DESC LIMIT 200").fetchall()
-        return {"payments": [dict(r) for r in rows]}
+        out = []
+        for r in rows:
+            d = dict(r)
+            d["group_name"] = d.get("group_key")   # نام مترادف
+            out.append(d)
+        return {"payments": out}
     finally:
         con.close()
 
@@ -2848,21 +2864,31 @@ def billing_invoice(group_key: str, x_admin_password: str = Header(...)):
         })
 
     lines.sort(key=lambda x: -x["amount"])
+
+    totals = {
+        "configs": len(lines),
+        "months": sum(l["months"] for l in lines),
+        "renewals": sum(l["renewals"] for l in lines),
+        "due": due,
+        "paid": paid,
+        "balance": due - paid,
+        "unpriced": sum(1 for l in lines if l["price"] is None),
+        "estimated": sum(1 for l in lines if l["kind"] == "تخمینی"),
+    }
+
     return {
         "group": group_key,
+        "name": group_key,
         "label": conf.get("label") or group_key,
         "rates": rates,
         "lines": lines,
-        "totals": {
-            "configs": len(lines),
-            "months": sum(l["months"] for l in lines),
-            "renewals": sum(l["renewals"] for l in lines),
-            "due": due,
-            "paid": paid,
-            "balance": due - paid,
-            "unpriced": sum(1 for l in lines if l["price"] is None),
-            "estimated": sum(1 for l in lines if l["kind"] == "تخمینی"),
-        },
+        # نام‌های مترادف برای بخش‌هایی از رابط که اسم دیگری می‌خوانند
+        "items": lines,
+        "totalAmount": totals["due"],
+        "paid": totals["paid"],
+        "balance": totals["balance"],
+        "unpricedVolumes": totals["unpriced"],
+        "totals": totals,
     }
 
 

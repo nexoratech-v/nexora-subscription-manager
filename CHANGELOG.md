@@ -2,6 +2,16 @@
 
 ## [1.0.4]
 
+### Fixed — Accounting read the data but showed nothing
+The panel was reading the 3x-ui database correctly all along — 202 configs, 9 groups,
+every diagnostic green — but the page stayed empty. The two sides used different field
+names for the same values, so every lookup came back `undefined` and rendered as blank
+rather than raising an error: `key` vs `name`, `billable` vs `billed`, `due` vs
+`amount`, `estimated` vs `uncertain`, `lines` vs `items`, `group_key` vs `group_name`.
+
+The backend now sends both names for each value. A mismatch like this fails silently,
+which is why four rounds of checking paths, permissions and WAL files found nothing.
+
 ### Fixed
 - The system page showed the rollback card twice — once interactive, once as a static
   command reference
