@@ -4390,10 +4390,15 @@ function BillingClients({ password }) {
         else { setSort(key); setOrder("desc"); }
         setPage(0);
       }}
-        className="px-2 py-2 cursor-pointer select-none whitespace-nowrap"
+        className="px-3 py-3 cursor-pointer select-none whitespace-nowrap text-[12px] transition-colors"
         style={{ width: w, color: on ? "var(--accent-2)" : "var(--muted)",
-                 fontWeight: on ? 700 : 500 }}>
-        {label}{on && (order === "asc" ? " ↑" : " ↓")}
+                 fontWeight: on ? 700 : 600 }}>
+        <span className="inline-flex items-center gap-1">
+          {label}
+          <span style={{ opacity: on ? 1 : 0.25, fontSize: 9 }}>
+            {on ? (order === "asc" ? "▲" : "▼") : "▼"}
+          </span>
+        </span>
       </th>
     );
   };
@@ -4517,99 +4522,203 @@ function BillingClients({ password }) {
       {/* جدول */}
       <div className="fx-card overflow-hidden" style={{ padding: 0 }}>
         <div style={{ overflowX: "auto" }}>
-          <table className="w-full text-[11.5px]" style={{ borderCollapse: "collapse", minWidth: 900 }}>
+          <table className="w-full" style={{ borderCollapse: "collapse", minWidth: 1080 }}>
             <thead>
               <tr style={{ background: "var(--surface-3)", borderBottom: "1px solid var(--border-2)" }}>
-                {th("email", "کاربر", "20%")}
-                {th("group", "گروه", "14%")}
-                <th className="px-2 py-2" style={{ color: "var(--muted)", width: "10%" }}>وضعیت</th>
-                {th("remaining", "روز مانده", "9%")}
+                {th("email", "کاربر", "22%")}
+                {th("group", "گروه", "13%")}
+                <th className="px-3 py-3 text-[12px]" style={{ color: "var(--muted)", width: "11%" }}>وضعیت</th>
+                {th("created", "ایجاد", "10%")}
+                {th("expiry", "انقضا", "10%")}
+                {th("remaining", "مانده", "8%")}
                 {th("months", "ماه", "6%")}
                 {th("renewals", "تمدید", "7%")}
-                {th("used", "مصرف", "11%")}
-                {th("usage", "درصد", "7%")}
-                {th("amount", "مبلغ", "12%")}
+                {th("used", "مصرف", "13%")}
+                {th("amount", "مبلغ", "10%")}
               </tr>
             </thead>
             <tbody>
               {data.clients.map((c, i) => {
                 const col = CLIENT_STATUS_COLOR[c.status] || "var(--muted)";
+                const pctColor = c.usagePct === null ? "var(--muted)"
+                  : c.usagePct >= 90 ? "var(--danger)"
+                  : c.usagePct >= 70 ? "var(--warn)" : "var(--accent)";
                 return (
                   <tr key={c.email} onClick={() => setDetail(c)}
-                    className="cursor-pointer transition-colors"
+                    className="cursor-pointer nx-row"
                     style={{
                       borderBottom: i < data.clients.length - 1 ? "1px solid var(--border)" : "none",
-                      background: i % 2 ? "rgba(255,255,255,.012)" : "transparent",
+                      background: i % 2 ? "rgba(255,255,255,.015)" : "transparent",
                     }}>
-                    <td className="px-2 py-2.5" dir="ltr"
-                      style={{ color: c.enable ? "var(--text)" : "var(--muted)",
-                               fontFamily: "'JetBrains Mono',monospace", textAlign: "right" }}>
-                      {c.email}
+
+                    {/* کاربر */}
+                    <td className="px-3 py-3">
+                      <div className="text-[13px] font-semibold" dir="ltr"
+                        style={{ color: c.enable ? "var(--text)" : "var(--muted)",
+                                 textAlign: "right",
+                                 fontFamily: "'JetBrains Mono',monospace" }}>
+                        {c.email}
+                      </div>
+                      <div className="flex items-center gap-2 mt-1 flex-wrap">
+                        <span className="text-[10.5px]" style={{ color: "var(--muted)" }}>
+                          {c.gbLabel}
+                        </span>
+                        {c.limitIp > 0 && (
+                          <span className="text-[10px] px-1.5 py-0.5 rounded"
+                            style={{ background: "rgba(255,255,255,.05)", color: "var(--muted)" }}>
+                            {faNum(c.limitIp)} دستگاه
+                          </span>
+                        )}
+                        {c.resetCount > 0 && (
+                          <span className="text-[10px] px-1.5 py-0.5 rounded"
+                            style={{ background: "rgba(167,139,250,.14)", color: "#A78BFA" }}>
+                            {faNum(c.resetCount)} ریست
+                          </span>
+                        )}
+                        {c.tgId > 0 && (
+                          <span className="text-[10px] px-1.5 py-0.5 rounded flex items-center gap-1"
+                            style={{ background: "rgba(34,158,217,.14)", color: "#229ED9" }}>
+                            <Send size={9} /> تلگرام
+                          </span>
+                        )}
+                      </div>
                       {c.comment && (
-                        <span className="block text-[9.5px] mt-0.5" dir="rtl"
-                          style={{ color: "var(--muted)" }}>{c.comment}</span>
+                        <div className="text-[10.5px] mt-1.5 truncate" style={{ color: "var(--muted)", maxWidth: 240 }}>
+                          {c.comment}
+                        </div>
                       )}
                     </td>
-                    <td className="px-2 py-2.5" style={{ color: "var(--dim)" }}>
-                      {c.groupLabel}
+
+                    {/* گروه */}
+                    <td className="px-3 py-3">
+                      <div className="text-[12.5px]" style={{ color: "var(--dim)" }}>
+                        {c.groupLabel}
+                      </div>
                       {c.billable && (
-                        <span className="text-[9px] mr-1.5 px-1.5 py-0.5 rounded"
+                        <span className="text-[9.5px] px-1.5 py-0.5 rounded mt-1 inline-block"
                           style={{ background: "var(--accent-soft)", color: "var(--accent-2)" }}>
                           واسطه
                         </span>
                       )}
                     </td>
-                    <td className="px-2 py-2.5">
-                      <span className="inline-flex items-center gap-1.5 text-[10.5px]" style={{ color: col }}>
+
+                    {/* وضعیت */}
+                    <td className="px-3 py-3">
+                      <span className="inline-flex items-center gap-1.5 px-2 py-1 rounded-lg text-[11.5px]"
+                        style={{ background: `color-mix(in srgb, ${col} 12%, transparent)`, color: col }}>
                         <Circle size={6} fill={col} strokeWidth={0} /> {c.status}
                       </span>
                     </td>
-                    <td className="px-2 py-2.5 text-center" style={{
-                      color: c.remainingDays === null ? "var(--muted)"
-                             : c.remainingDays < 0 ? "var(--danger)"
-                             : c.remainingDays <= 3 ? "var(--warn)" : "var(--dim)",
-                      fontFamily: "'JetBrains Mono',monospace",
-                    }}>
-                      {c.remainingDays === null ? "—" : faNum(Math.round(c.remainingDays))}
-                    </td>
-                    <td className="px-2 py-2.5 text-center font-bold" style={{ color: "var(--text)" }}>
-                      {faNum(c.months)}
-                    </td>
-                    <td className="px-2 py-2.5 text-center">
-                      {c.renewals ? (
-                        <span className="px-2 py-0.5 rounded-md text-[10.5px] font-bold"
-                          style={{ background: "rgba(43,127,214,.16)", color: "var(--accent-2)" }}>
-                          {faNum(c.renewals)}
-                        </span>
-                      ) : <span style={{ color: "var(--muted)" }}>—</span>}
-                    </td>
-                    <td className="px-2 py-2.5 text-center" style={{ color: "var(--dim)",
-                        fontFamily: "'JetBrains Mono',monospace" }}>
-                      {faNum(c.usedGB)} / {c.gb === 0 ? "∞" : faNum(c.gb)}
-                    </td>
-                    <td className="px-2 py-2.5 text-center">
-                      {c.usagePct === null ? (
-                        <span style={{ color: "var(--muted)" }}>—</span>
-                      ) : (
-                        <div className="flex items-center gap-1.5 justify-center">
-                          <div style={{ width: 30, height: 4, borderRadius: 99,
-                                        background: "rgba(255,255,255,.07)", overflow: "hidden" }}>
-                            <div style={{
-                              width: `${Math.min(100, c.usagePct)}%`, height: "100%",
-                              background: c.usagePct >= 90 ? "var(--danger)"
-                                        : c.usagePct >= 70 ? "var(--warn)" : "var(--accent)",
-                            }} />
-                          </div>
-                          <span className="text-[10px]" style={{ color: "var(--muted)" }}>
-                            {faNum(c.usagePct)}٪
-                          </span>
+
+                    {/* ایجاد */}
+                    <td className="px-3 py-3 text-center text-[12px]" dir="ltr"
+                      style={{ color: "var(--dim)", fontFamily: "'JetBrains Mono',monospace" }}>
+                      {c.createdJalali || "—"}
+                      {c.days && (
+                        <div className="text-[10px] mt-0.5" style={{ color: "var(--muted)" }}>
+                          {faNum(Math.round(c.days))} روز
                         </div>
                       )}
                     </td>
-                    <td className="px-2 py-2.5 text-center font-bold"
-                      style={{ color: c.amount ? "var(--text)" : "var(--muted)",
+
+                    {/* انقضا */}
+                    <td className="px-3 py-3 text-center text-[12px]" dir="ltr"
+                      style={{ color: "var(--dim)", fontFamily: "'JetBrains Mono',monospace" }}>
+                      {c.expiryJalali || "—"}
+                    </td>
+
+                    {/* مانده */}
+                    <td className="px-3 py-3 text-center">
+                      {c.remainingDays === null ? (
+                        <span style={{ color: "var(--muted)" }}>—</span>
+                      ) : (
+                        <div>
+                          <div className="text-[15px] font-bold"
+                            style={{
+                              color: c.remainingDays < 0 ? "var(--danger)"
+                                   : c.remainingDays <= 3 ? "var(--warn)" : "var(--text)",
+                              fontFamily: "'JetBrains Mono',monospace",
+                            }}>
+                            {faNum(Math.abs(Math.round(c.remainingDays)))}
+                          </div>
+                          <div className="text-[9.5px]" style={{ color: "var(--muted)" }}>
+                            {c.remainingDays < 0 ? "روز گذشته" : "روز"}
+                          </div>
+                        </div>
+                      )}
+                    </td>
+
+                    {/* ماه */}
+                    <td className="px-3 py-3 text-center">
+                      <div className="text-[15px] font-bold" style={{ color: "var(--text)",
+                           fontFamily: "'JetBrains Mono',monospace" }}>
+                        {faNum(c.months)}
+                      </div>
+                    </td>
+
+                    {/* تمدید */}
+                    <td className="px-3 py-3 text-center">
+                      {c.renewals ? (
+                        <div>
+                          <span className="px-2.5 py-1 rounded-lg text-[13px] font-bold inline-block"
+                            style={{ background: "rgba(43,127,214,.18)", color: "var(--accent-2)",
+                                     fontFamily: "'JetBrains Mono',monospace" }}>
+                            {faNum(c.renewals)}
+                          </span>
+                          {c.renewalKind === "تخمینی" && (
+                            <div className="text-[9px] mt-1" style={{ color: "var(--warn)" }}>
+                              تخمینی
+                            </div>
+                          )}
+                        </div>
+                      ) : (
+                        <span className="text-[11.5px]" style={{ color: "var(--muted)" }}>بدون</span>
+                      )}
+                    </td>
+
+                    {/* مصرف */}
+                    <td className="px-3 py-3">
+                      <div className="flex items-baseline gap-1.5 justify-center mb-1.5">
+                        <span className="text-[13px] font-semibold"
+                          style={{ color: "var(--text)", fontFamily: "'JetBrains Mono',monospace" }}>
+                          {faNum(c.usedGB)}
+                        </span>
+                        <span className="text-[10.5px]" style={{ color: "var(--muted)" }}>
+                          / {c.gb === 0 ? "∞" : faNum(c.gb)} GB
+                        </span>
+                      </div>
+                      <div style={{ height: 5, borderRadius: 99,
+                                    background: "rgba(255,255,255,.06)", overflow: "hidden" }}>
+                        <div style={{
+                          width: c.usagePct === null ? "100%" : `${Math.min(100, c.usagePct)}%`,
+                          height: "100%",
+                          background: c.usagePct === null
+                            ? "linear-gradient(90deg,#A78BFA33,#A78BFA66)" : pctColor,
+                          transition: "width .4s ease",
+                        }} />
+                      </div>
+                      <div className="text-[10px] mt-1 text-center" style={{ color: pctColor }}>
+                        {c.usagePct === null ? "نامحدود" : `${faNum(c.usagePct)}٪`}
+                      </div>
+                    </td>
+
+                    {/* مبلغ */}
+                    <td className="px-3 py-3 text-center">
+                      {c.amount ? (
+                        <div>
+                          <div className="text-[13px] font-bold" style={{ color: "var(--text)",
                                fontFamily: "'JetBrains Mono',monospace" }}>
-                      {c.amount ? faNum(c.amount) : "—"}
+                            {faNum(c.amount)}
+                          </div>
+                          {c.months > 1 && c.price && (
+                            <div className="text-[9.5px] mt-0.5" style={{ color: "var(--muted)" }}>
+                              {faNum(c.months)}×{faNum(Math.round(c.price / 1000))}k
+                            </div>
+                          )}
+                        </div>
+                      ) : (
+                        <span className="text-[11.5px]" style={{ color: "var(--muted)" }}>—</span>
+                      )}
                     </td>
                   </tr>
                 );
@@ -4619,8 +4728,11 @@ function BillingClients({ password }) {
         </div>
 
         {data.clients.length === 0 && (
-          <div className="py-12 text-center text-[12px]" style={{ color: "var(--muted)" }}>
-            کاربری با این فیلترها پیدا نشد
+          <div className="py-16 text-center">
+            <Users size={26} style={{ color: "var(--muted)" }} className="mx-auto mb-3" />
+            <div className="text-[12.5px]" style={{ color: "var(--muted)" }}>
+              کاربری با این فیلترها پیدا نشد
+            </div>
           </div>
         )}
       </div>
@@ -4629,18 +4741,19 @@ function BillingClients({ password }) {
       {pages > 1 && (
         <div className="flex items-center justify-between mt-4 flex-wrap gap-3">
           <span className="text-[11.5px]" style={{ color: "var(--muted)" }}>
-            نمایش {faNum(page * PER + 1)} تا {faNum(Math.min((page + 1) * PER, data.total))} از {faNum(data.total)}
+            {faNum(page * PER + 1)} تا {faNum(Math.min((page + 1) * PER, data.total))} از {faNum(data.total)}
           </span>
-          <div className="flex gap-2">
+          <div className="flex gap-2 items-center">
             <button onClick={() => setPage(Math.max(0, page - 1))} disabled={page === 0}
               className="fx-btn-g px-3 py-2 text-[12px]"
-              style={page === 0 ? { opacity: .4, cursor: "not-allowed" } : {}}>قبلی</button>
-            <span className="px-3 py-2 text-[12px]" style={{ color: "var(--dim)" }}>
+              style={page === 0 ? { opacity: .35, cursor: "not-allowed" } : {}}>قبلی</button>
+            <span className="px-3 text-[12px]" style={{ color: "var(--dim)",
+              fontFamily: "'JetBrains Mono',monospace" }}>
               {faNum(page + 1)} / {faNum(pages)}
             </span>
             <button onClick={() => setPage(Math.min(pages - 1, page + 1))} disabled={page >= pages - 1}
               className="fx-btn-g px-3 py-2 text-[12px]"
-              style={page >= pages - 1 ? { opacity: .4, cursor: "not-allowed" } : {}}>بعدی</button>
+              style={page >= pages - 1 ? { opacity: .35, cursor: "not-allowed" } : {}}>بعدی</button>
           </div>
         </div>
       )}

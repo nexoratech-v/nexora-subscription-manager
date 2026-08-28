@@ -7,7 +7,7 @@
 
 set -o pipefail
 
-VERSION="1.0.9"
+VERSION="1.1.0"
 INSTALL_DIR="/opt/nexora-panel"
 SSL_DIR="/etc/nginx/ssl"
 
@@ -388,6 +388,17 @@ server {
         expires 1y;
         add_header Cache-Control "public, immutable";
     }
+    # فونت‌ها نام ثابت دارند، پس کش کوتاه‌مدت با اعتبارسنجی —
+    # وگرنه بعد از تعویض فونت، مرورگر ماه‌ها نسخه‌ی قدیمی را نگه می‌دارد
+    location /fonts/ {
+        expires 7d;
+        add_header Cache-Control "public, must-revalidate";
+        types { }
+        default_type application/octet-stream;
+        location ~ \\.woff2$ { default_type font/woff2; expires 7d; }
+        location ~ \\.woff$  { default_type font/woff;  expires 7d; }
+        location ~ \\.ttf$   { default_type font/ttf;   expires 7d; }
+    }
     location / { try_files \$uri /index.html; }
     location /api/ {
         proxy_pass http://127.0.0.1:8100;
@@ -459,6 +470,17 @@ server {
         expires 1y;
         add_header Cache-Control "public, immutable";
     }
+    # فونت‌ها نام ثابت دارند، پس کش کوتاه‌مدت با اعتبارسنجی —
+    # وگرنه بعد از تعویض فونت، مرورگر ماه‌ها نسخه‌ی قدیمی را نگه می‌دارد
+    location /fonts/ {
+        expires 7d;
+        add_header Cache-Control "public, must-revalidate";
+        types { }
+        default_type application/octet-stream;
+        location ~ \\.woff2$ { default_type font/woff2; expires 7d; }
+        location ~ \\.woff$  { default_type font/woff;  expires 7d; }
+        location ~ \\.ttf$   { default_type font/ttf;   expires 7d; }
+    }
     location / {
 $IP_RULE
         try_files \$uri /index.html;
@@ -486,6 +508,17 @@ server {
     location /assets/ {
         expires 1y;
         add_header Cache-Control "public, immutable";
+    }
+    # فونت‌ها نام ثابت دارند، پس کش کوتاه‌مدت با اعتبارسنجی —
+    # وگرنه بعد از تعویض فونت، مرورگر ماه‌ها نسخه‌ی قدیمی را نگه می‌دارد
+    location /fonts/ {
+        expires 7d;
+        add_header Cache-Control "public, must-revalidate";
+        types { }
+        default_type application/octet-stream;
+        location ~ \\.woff2$ { default_type font/woff2; expires 7d; }
+        location ~ \\.woff$  { default_type font/woff;  expires 7d; }
+        location ~ \\.ttf$   { default_type font/ttf;   expires 7d; }
     }
     location / {
 $IP_RULE

@@ -1,5 +1,23 @@
 # Changelog
 
+## [1.1.0]
+
+### Fixed — The font never applied
+Three `@font-face` rules loaded IRANSansX correctly, but nothing ever set it as the
+page font: the rule that put the stack on `html`/`body` had been lost. The browser fell
+back silently, which is why clearing the cache changed nothing. The stack now sits on
+`html`, `body` and `#root`, and form elements inherit it explicitly.
+
+Nginx also gained a `/fonts/` block with correct MIME types and a revalidating cache,
+so replacing a font file no longer leaves browsers holding the old one for months.
+
+### Changed — Client list is far more readable
+Rows are taller and carry more at a glance: plan volume, device limit, reset count and
+Telegram link sit under the email; creation date shows the subscription length beneath
+it; days remaining is a large figure that turns amber near expiry and red past it;
+renewals are badged and marked when the count is estimated; usage shows the figure, a
+coloured bar and the percentage together.
+
 ## [1.0.9]
 
 ### Added — Every client in one view

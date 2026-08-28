@@ -1,16 +1,15 @@
 /* ═══════════════════════════════════════════════════════════
-   ایران‌سنس ایکس — فونت اصلی پنل
+   ایران‌سنس ایکس
 
-   نسخه‌ی متغیر (woff2) همه‌ی وزن‌ها را در یک فایل دارد، پس
-   یک درخواست به‌جای چهارتا. نسخه‌های ثابت برای مرورگرهای
-   قدیمی‌تر که فونت متغیر را نمی‌شناسند.
+   فونت‌ها از src/ وارد می‌شوند نه public/ — تا Vite خودشان را
+   در بسته بگذارد و مسیرشان را کنار CSS بنویسد. با مسیر مطلق
+   (/fonts/...) هر تنظیم nginx یا MIME اشتباه فونت را می‌شکست،
+   و چون مرورگر بی‌صدا به فونت بعدی می‌رفت، تشخیصش سخت بود.
    ═══════════════════════════════════════════════════════════ */
 
-/* وزن‌های ثابت اول می‌آیند تا اگر فونت متغیر پشتیبانی نشد،
-   مرورگر بی‌درنگ سراغ این‌ها برود. */
 @font-face {
   font-family: "IRANSansX";
-  src: url("/fonts/IRANSansX-Regular.woff") format("woff");
+  src: url("./fonts/IRANSansX-Regular.woff") format("woff");
   font-weight: 400;
   font-style: normal;
   font-display: swap;
@@ -18,253 +17,46 @@
 
 @font-face {
   font-family: "IRANSansX";
-  src: url("/fonts/IRANSansX-Bold.woff") format("woff");
+  src: url("./fonts/IRANSansX-Bold.woff") format("woff");
   font-weight: 700;
   font-style: normal;
   font-display: swap;
 }
 
-/* فونت متغیر — وزن‌های میانی را پوشش می‌دهد */
 @font-face {
-  font-family: "IRANSansX Variable";
-  src: url("/fonts/IRANSansXV.woff2") format("woff2");
+  font-family: "IRANSansX";
+  src: url("./fonts/IRANSansXV.woff2") format("woff2");
   font-weight: 100 900;
   font-style: normal;
   font-display: swap;
 }
 
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
+/* ═══════════════════════════════════════════════════════════
+   فونت پایه
 
-:root {
-  --bg: #070A12;
-  --surface: #0E1523;
-  --surface-2: #131C2E;
-  --surface-3: #0A0F1A;
-  --border: rgba(255, 255, 255, 0.05);
-  --border-2: rgba(255, 255, 255, 0.09);
-  --accent: #2B7FD6;
-  --accent-2: #5AA9E6;
-  --accent-soft: rgba(43, 127, 214, 0.12);
-  --text: #EDF2F9;
-  --dim: #8A98AC;
-  --muted: #5A6880;
-  --ok: #34D399;
-  --warn: #FBBF24;
-  --danger: #F87171;
-  --purple: #A78BFA;
-  --side-w: 236px;
-}
+   روی html و body هر دو، چون بعضی کتابخانه‌ها مستقیم روی body
+   می‌نویسند و اگر فقط :root باشد بازنویسی می‌شود.
+   ═══════════════════════════════════════════════════════════ */
 
-* { -webkit-tap-highlight-color: transparent; }
-
-body {
-  /* پشته‌ی فونت: اول Vazirmatn، بعد فونت‌های سیستمی که فارسی
-     خوب رندر می‌کنند. اگر Vazirmatn لود نشد، صفحه باز هم خوانا بماند. */
-  font-family: "IRANSansX Variable", "IRANSansX", "Vazirmatn",
-               "Segoe UI", "Noto Sans Arabic", Tahoma,
-               -apple-system, BlinkMacSystemFont, system-ui, sans-serif;
+html,
+body,
+#root {
+  font-family: "IRANSansX", "Vazirmatn", "Segoe UI", "Noto Sans Arabic",
+               Tahoma, -apple-system, BlinkMacSystemFont, system-ui, sans-serif;
   font-feature-settings: "ss01", "kern";
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   text-rendering: optimizeLegibility;
-  background: var(--bg);
-  color: var(--text);
-  overscroll-behavior-y: none;
 }
 
-::-webkit-scrollbar { width: 7px; height: 7px; }
-::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.07); border-radius: 8px; }
-::-webkit-scrollbar-thumb:hover { background: rgba(90,169,230,0.3); }
-::-webkit-scrollbar-track { background: transparent; }
-
-/* ===== انیمیشن ===== */
-@keyframes fx-up { from { opacity:0; transform:translateY(10px); } to { opacity:1; transform:translateY(0); } }
-@keyframes fx-in { from { opacity:0; } to { opacity:1; } }
-@keyframes fx-scale { from { opacity:0; transform:scale(.96); } to { opacity:1; transform:scale(1); } }
-@keyframes fx-toast { from { opacity:0; transform:translate(-50%,16px); } to { opacity:1; transform:translate(-50%,0); } }
-@keyframes fx-pulse { 0%,100% { opacity:1; } 50% { opacity:.4; } }
-
-.fx-anim { animation: fx-up .3s cubic-bezier(.22,1,.36,1) both; }
-.fx-fade { animation: fx-in .2s ease both; }
-.fx-scale { animation: fx-scale .22s cubic-bezier(.22,1,.36,1) both; }
-.fx-toast { animation: fx-toast .26s cubic-bezier(.22,1,.36,1) both; }
-.fx-pulse { animation: fx-pulse 1.6s ease-in-out infinite; }
-
-@media (prefers-reduced-motion: reduce) {
-  *, *::before, *::after { animation-duration: .01ms !important; transition-duration: .01ms !important; }
+/* عناصر فرم فونت سیستم را می‌گیرند مگر صریح بگوییم */
+input,
+select,
+textarea,
+button,
+optgroup {
+  font-family: inherit;
 }
-
-/* ===== سایدبار ===== */
-.fx-side {
-  width: var(--side-w);
-  flex-shrink: 0;
-  background: var(--surface-3);
-  border-left: 1px solid var(--border);
-  display: flex;
-  flex-direction: column;
-  padding: 22px 14px;
-  transition: transform .26s cubic-bezier(.22,1,.36,1);
-  /* در دسکتاپ هم اگر ارتفاع صفحه کم باشد (لپ‌تاپ کوچک) باید اسکرول شود */
-  height: 100vh;
-  position: sticky;
-  top: 0;
-  overflow-y: auto;
-  overscroll-behavior: contain;
-}
-.fx-side::-webkit-scrollbar { width: 4px; }
-.fx-side::-webkit-scrollbar-thumb { background: rgba(255,255,255,.1); border-radius: 4px; }
-.fx-side::-webkit-scrollbar-track { background: transparent; }
-.fx-side-label {
-  font-size: 10px;
-  color: var(--muted);
-  padding: 0 10px;
-  margin: 18px 0 8px;
-  letter-spacing: .5px;
-}
-.fx-nav-item {
-  display: flex; align-items: center; gap: 11px;
-  padding: 10px 11px; border-radius: 11px;
-  font-size: 13px; font-weight: 500; color: var(--dim);
-  transition: all .16s ease; width: 100%; text-align: right; position: relative;
-}
-.fx-nav-item:hover { background: rgba(255,255,255,.03); color: var(--text); }
-.fx-nav-item.on { background: var(--accent-soft); color: var(--accent-2); }
-.fx-nav-item.on::before {
-  content: ""; position: absolute; right: -14px; top: 50%; transform: translateY(-50%);
-  width: 3px; height: 20px; border-radius: 0 3px 3px 0; background: var(--accent-2);
-}
-
-/* ===== هدر ===== */
-.fx-topbar {
-  display: flex; align-items: center; justify-content: space-between; gap: 16px;
-  padding: 16px 26px; border-bottom: 1px solid var(--border);
-  background: rgba(7,10,18,.7); backdrop-filter: blur(14px);
-  position: sticky; top: 0; z-index: 30;
-}
-.fx-search {
-  display: flex; align-items: center; gap: 9px;
-  background: var(--surface); border: 1px solid var(--border-2);
-  border-radius: 11px; padding: 9px 13px; width: 260px; transition: all .18s;
-}
-.fx-search:focus-within { border-color: var(--accent); box-shadow: 0 0 0 3px rgba(43,127,214,.13); }
-.fx-search input { background: transparent; border: none; outline: none; color: var(--text); font-size: 12.5px; width: 100%; font-family: inherit; }
-.fx-search input::placeholder { color: var(--muted); }
-
-/* ===== کارت ===== */
-.fx-card { background: var(--surface); border: 1px solid var(--border); border-radius: 16px; transition: all .22s ease; }
-.fx-card-i:hover { border-color: rgba(90,169,230,.28); transform: translateY(-3px); box-shadow: 0 12px 32px rgba(0,0,0,.3); }
-.fx-card-hl { border-color: rgba(90,169,230,.4); box-shadow: 0 0 26px rgba(43,127,214,.1); }
-
-/* ===== آمار ===== */
-.fx-stat-num { font-family: 'JetBrains Mono', monospace; font-size: 30px; font-weight: 700; line-height: 1; letter-spacing: -1px; }
-.fx-badge { display: inline-flex; align-items: center; gap: 3px; font-size: 10.5px; font-weight: 600; padding: 3px 7px; border-radius: 6px; }
-.fx-badge.up { background: rgba(52,211,153,.12); color: var(--ok); }
-.fx-badge.down { background: rgba(248,113,113,.12); color: var(--danger); }
-
-/* ===== جدول ===== */
-.fx-table { width: 100%; border-collapse: collapse; }
-.fx-table th { font-size: 10.5px; color: var(--muted); font-weight: 500; text-align: right; padding: 11px 14px; border-bottom: 1px solid var(--border); white-space: nowrap; }
-.fx-table td { padding: 13px 14px; border-bottom: 1px solid var(--border); font-size: 12.5px; }
-.fx-table tbody tr { transition: background .15s; }
-.fx-table tbody tr:hover { background: rgba(255,255,255,.015); }
-.fx-table tbody tr:last-child td { border-bottom: none; }
-
-.fx-pill { display: inline-flex; align-items: center; gap: 5px; font-size: 10.5px; font-weight: 600; padding: 4px 9px; border-radius: 999px; white-space: nowrap; }
-
-/* ===== دکمه ===== */
-.fx-btn {
-  background: linear-gradient(135deg, var(--accent), var(--accent-2));
-  color: #06090F; border-radius: 11px; font-weight: 700;
-  transition: all .18s; box-shadow: 0 4px 18px rgba(43,127,214,.25);
-}
-.fx-btn:hover:not(:disabled) { filter: brightness(1.08); box-shadow: 0 6px 24px rgba(43,127,214,.35); }
-.fx-btn:active:not(:disabled) { transform: scale(.98); }
-.fx-btn:disabled { opacity: .35; cursor: not-allowed; box-shadow: none; }
-
-.fx-btn-g { border: 1px solid var(--border-2); border-radius: 11px; color: var(--dim); transition: all .18s; }
-.fx-btn-g:hover { color: var(--text); border-color: rgba(90,169,230,.4); background: rgba(255,255,255,.02); }
-
-.fx-btn-dash { border: 1px dashed var(--border-2); border-radius: 14px; color: var(--muted); transition: all .2s; }
-.fx-btn-dash:hover { color: var(--accent-2); border-color: rgba(90,169,230,.45); background: rgba(43,127,214,.04); }
-
-.fx-ico { width: 36px; height: 36px; border-radius: 11px; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
-.fx-ico-btn {
-  display: inline-flex; align-items: center; justify-content: center;
-  width: 34px; height: 34px; border-radius: 10px; color: var(--muted); transition: all .18s;
-}
-.fx-ico-btn:hover { color: var(--danger); background: rgba(248,113,113,.1); }
-
-/* ===== فرم ===== */
-.fx-input {
-  width: 100%; background: var(--surface-3); border: 1px solid var(--border-2);
-  border-radius: 11px; padding: 10px 13px; font-size: 12.5px; color: var(--text);
-  outline: none; transition: border-color .18s, box-shadow .18s;
-}
-.fx-input::placeholder { color: var(--muted); }
-.fx-input:hover:not(:disabled) { border-color: rgba(255,255,255,.15); }
-.fx-input:focus { border-color: var(--accent); box-shadow: 0 0 0 3px rgba(43,127,214,.13); }
-.fx-input:disabled { opacity: .5; cursor: not-allowed; }
-textarea.fx-input { resize: vertical; min-height: 62px; line-height: 1.8; }
-select.fx-input {
-  appearance: none;
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%235A6880' stroke-width='2.5'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E");
-  background-repeat: no-repeat; background-position: left 13px center; padding-left: 34px;
-}
-
-/* ===== استپر عددی ===== */
-.fx-stepper {
-  display: flex; align-items: center; background: var(--surface-3);
-  border: 1px solid var(--border-2); border-radius: 12px; overflow: hidden;
-  transition: border-color .18s, box-shadow .18s;
-  width: 100%; min-width: 0;
-}
-.fx-stepper:focus-within { border-color: var(--accent); box-shadow: 0 0 0 3px rgba(43,127,214,.13); }
-.fx-stepper-btn {
-  width: 42px; min-width: 38px; height: 44px;
-  display: flex; align-items: center; justify-content: center;
-  color: var(--muted); background: rgba(255,255,255,.02);
-  transition: all .15s; flex-shrink: 0;
-}
-.fx-stepper-btn:hover:not(:disabled) { background: var(--accent-soft); color: var(--accent-2); }
-.fx-stepper-btn:active:not(:disabled) { transform: scale(.92); }
-.fx-stepper-btn:disabled { opacity: .3; cursor: not-allowed; }
-.fx-stepper-val {
-  flex: 1; text-align: center; border: none; background: transparent; color: var(--text);
-  font-size: 17px; font-weight: 700; font-family: 'JetBrains Mono', monospace;
-  outline: none; padding: 0 4px; min-width: 0; -moz-appearance: textfield;
-}
-.fx-stepper-val::-webkit-outer-spin-button, .fx-stepper-val::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
-.fx-stepper-unit {
-  font-size: 11px; color: var(--muted);
-  padding-left: 10px; flex-shrink: 0; white-space: nowrap;
-}
-
-/* استپر در صفحه‌های باریک: دکمه‌ها و فونت کوچک‌تر تا از کارت بیرون نزند */
-@media (max-width: 480px) {
-  .fx-stepper-btn { width: 36px; min-width: 34px; height: 42px; }
-  .fx-stepper-val { font-size: 15px; }
-  .fx-stepper-unit { font-size: 10px; padding-left: 7px; }
-}
-
-.fx-range { width: 100%; height: 4px; border-radius: 999px; background: rgba(255,255,255,.08); appearance: none; outline: none; margin-top: 14px; }
-.fx-range::-webkit-slider-thumb {
-  appearance: none; width: 16px; height: 16px; border-radius: 50%;
-  background: var(--accent-2); cursor: pointer; border: 3px solid var(--bg);
-  box-shadow: 0 0 0 1px var(--accent-2); transition: transform .15s;
-}
-.fx-range::-webkit-slider-thumb:hover { transform: scale(1.2); }
-.fx-range::-moz-range-thumb {
-  width: 16px; height: 16px; border-radius: 50%; background: var(--accent-2);
-  cursor: pointer; border: 3px solid var(--bg); box-shadow: 0 0 0 1px var(--accent-2);
-}
-
-/* ===== وضعیت ===== */
-.fx-status { display: inline-flex; align-items: center; gap: 6px; padding: 5px 11px; border-radius: 999px; font-size: 11px; font-weight: 500; white-space: nowrap; transition: all .2s; }
-.fx-status-dirty { background: rgba(251,191,36,.1); border: 1px solid rgba(251,191,36,.3); color: var(--warn); }
-.fx-status-saved { background: rgba(52,211,153,.08); border: 1px solid rgba(52,211,153,.25); color: var(--ok); }
-
 
 /* ═══════════════════════════════════════════════════
    مودال — با Portal روی body رندر می‌شود.
@@ -597,4 +389,32 @@ code, .ltr {
 /* تضمین اعمال فونت روی عناصری که پیش‌فرض مرورگر را می‌گیرند */
 button, input, select, textarea, optgroup {
   font-family: inherit;
+}
+
+
+/* ═══════════════════════════════════════════════════════════
+   جدول کاربران
+   ═══════════════════════════════════════════════════════════ */
+
+.fx-row {
+  transition: background .16s ease;
+}
+.fx-row:hover {
+  background: rgba(255, 255, 255, .028);
+}
+.fx-row:hover td:first-child {
+  box-shadow: inset 3px 0 0 var(--accent);
+}
+
+/* اعداد فارسی هم‌عرض بمانند */
+table {
+  font-variant-numeric: tabular-nums;
+}
+
+/* ردیف جدول کاربران — بازخورد لمسی هنگام حرکت موس */
+.nx-row {
+  transition: background .16s ease;
+}
+.nx-row:hover {
+  background: rgba(43, 127, 214, .06) !important;
 }
