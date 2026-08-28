@@ -2502,8 +2502,9 @@ def _read_xui_clients():
         if "clients" in tables:
             cols = {r[1] for r in con.execute("PRAGMA table_info(clients)")}
             sel = ["email", "total_gb", "expiry_time", "enable", "created_at"]
-            if "limit_ip" in cols:
-                sel.append("limit_ip")
+            for extra in ("limit_ip", "sub_id", "tg_id", "updated_at", "reset"):
+                if extra in cols:
+                    sel.append(extra)
             if "group_name" in cols:
                 sel.append("group_name")
             if "comment" in cols:
@@ -2519,6 +2520,10 @@ def _read_xui_clients():
                         "enable": bool(d.get("enable")),
                         "createdAt": d.get("created_at"),
                         "limitIp": int(d.get("limit_ip") or 0),
+                        "subId": d.get("sub_id") or "",
+                        "tgId": d.get("tg_id") or 0,
+                        "updatedAt": d.get("updated_at"),
+                        "resetCount": int(d.get("reset") or 0),
                         "comment": d.get("comment") or "",
                     })
             except Exception as e:
@@ -3466,12 +3471,33 @@ def billing_invoice_pdf(group_key: str, x_admin_password: str = Header(...)):
     y -= 6.5 * mm
     y = draw_thead(y)
 
-    rows_per_page = int((y - 22 * mm) / ROW)
-    pages_total[0] = max(1, -(-len(lines) // max(1, rows_per_page))) + 1
+    # ظرفیت هر صفحه.
+    #
+    # صفحه‌ی اول کمتر جا دارد چون کادرهای خلاصه بالایش هستند. و
+    # صفحه‌ای که جمع‌ها رویش می‌آیند، به اندازه‌ی سه ردیف فضای
+    # اضافه لازم دارد. بدون این حساب، یا ته صفحه خالی می‌ماند یا
+    # جمع‌ها به صفحه‌ی بعد می‌افتند.
+    BOTTOM = 15 * mm
+    TOTALS_H = 20 * mm          # جمع گروه + جمع کل
+
+    first_cap = max(1, int((y - BOTTOM) / ROW))
+    rest_cap = max(1, int((H - 34 * mm - 6.5 * mm - BOTTOM) / ROW))
+
+    n = len(lines)
+    if n <= first_cap - int(TOTALS_H / ROW):
+        pages_total[0] = 2          # جدول و جمع‌ها یک صفحه + توضیحات
+    else:
+        remaining = n - first_cap
+        extra = -(-remaining // rest_cap) if remaining > 0 else 0
+        # اگر ردیف‌های آخر جا برای جمع‌ها نگذارند، یک صفحه بیشتر
+        last_used = remaining - (extra - 1) * rest_cap if extra else n
+        if (rest_cap - last_used) * ROW < TOTALS_H:
+            extra += 1
+        pages_total[0] = 1 + extra + 1
 
     idx = 0
     for ln in lines:
-        if y < 22 * mm:
+        if y < BOTTOM:
             c.showPage()
             y = header()
             y = draw_thead(y)
@@ -3527,7 +3553,12 @@ def billing_invoice_pdf(group_key: str, x_admin_password: str = Header(...)):
         c.line(x0, y - 1.2 * mm, x0 + tw, y - 1.2 * mm)
         y -= ROW
 
-    # جمع گروه
+    # جمع گروه — اگر جا نیست، صفحه‌ی جدید
+    if y < BOTTOM + TOTALS_H:
+        c.showPage()
+        y = header()
+        y = draw_thead(y)
+
     y -= 1 * mm
     c.setFillColor(colors.HexColor("#EEF1F7"))
     c.rect(x0, y - 1.2 * mm, tw, 6.5 * mm, fill=1, stroke=0)
@@ -3569,9 +3600,18 @@ def billing_invoice_pdf(group_key: str, x_admin_password: str = Header(...)):
                                 money(t["due"]) )
     y -= 12 * mm
 
-    # ─────────── صفحه‌ی توضیحات ───────────
-    c.showPage()
-    y = header()
+    # ─────────── توضیحات ───────────
+    #
+    # اگر در همین صفحه جا هست، ادامه می‌دهیم. صفحه‌ی خالی فقط
+    # برای چند خط توضیح، فاکتور را بی‌دقت نشان می‌دهد.
+    review = inv.get("review") or []
+    need = 42 * mm + (min(len(review), 18) * 4.5 * mm + 14 * mm if review else 0)
+
+    if y - need < 18 * mm:
+        c.showPage()
+        y = header()
+    else:
+        y -= 6 * mm
 
     c.setStrokeColor(NAVY)
     c.setLineWidth(2)
@@ -3606,7 +3646,6 @@ def billing_invoice_pdf(group_key: str, x_admin_password: str = Header(...)):
         y -= 5 * mm
 
     # موارد بررسی
-    review = inv.get("review") or []
     if review:
         y -= 6 * mm
         box_h2 = min(len(review), 18) * 4.5 * mm + 12 * mm
@@ -3652,6 +3691,222 @@ def billing_invoice_pdf(group_key: str, x_admin_password: str = Header(...)):
         media_type="application/pdf",
         headers={"Content-Disposition":
                  f'attachment; filename="nexora-{safe}-{stamp:%Y%m%d}.pdf"'})
+
+
+@app.get("/api/admin/billing/clients")
+def billing_clients(
+    q: str = "",
+    group: str = "",
+    status: str = "",
+    renewed: str = "",
+    sort: str = "created",
+    order: str = "desc",
+    limit: int = 500,
+    offset: int = 0,
+    x_admin_password: str = Header(...),
+):
+    """
+    فهرست کامل همه‌ی کاربران — از هر گروه، و آن‌هایی که گروه ندارند.
+
+    این نمای مرجع است: هر سوالی درباره‌ی یک کاربر پیش بیاید،
+    جوابش اینجاست. چه کسی تمدید کرده، چه کسی نکرده، چند روز مانده،
+    چقدر مصرف کرده و چقدر بدهکار است.
+    """
+    check_auth(x_admin_password)
+
+    clients, known_groups, err = _read_xui_clients()
+    if clients is None:
+        return {"ready": False, "error": err, "clients": [], "groups": []}
+
+    bcon = _billing_conn()
+    try:
+        cfg = {r["group_key"]: dict(r) for r in bcon.execute("SELECT * FROM group_config")}
+        logged = {r["email"]: r["m"] for r in bcon.execute(
+            "SELECT email, COALESCE(SUM(months),0) m FROM renewals GROUP BY email")}
+    finally:
+        bcon.close()
+
+    now_ms = int(datetime.now().timestamp() * 1000)
+    out = []
+
+    for cl in clients:
+        g = cl["group"]
+        conf = cfg.get(g, {})
+        try:
+            rates = json.loads(conf.get("rates") or "[]")
+        except (json.JSONDecodeError, TypeError):
+            rates = []
+        if not isinstance(rates, list):
+            rates = []
+
+        months, kind, drift = _months_for(cl, logged)
+        gb = cl["totalGB"] // (1024 ** 3) if cl["totalGB"] > 1024 else cl["totalGB"]
+        price = _price_for(gb, rates) if conf.get("billable") else None
+
+        created_j, created_g = _to_jalali(cl.get("createdAt"))
+        expiry_j, expiry_g = _to_jalali(cl.get("expiry"))
+        updated_j, _ = _to_jalali(cl.get("updatedAt"))
+        days = _duration_days(cl.get("createdAt"), cl.get("expiry"))
+
+        # روزهای باقی‌مانده — عدد منفی یعنی چند روز از انقضا گذشته
+        remaining = None
+        exp = cl.get("expiry") or 0
+        if exp > 0:
+            remaining = round((exp - now_ms) / 86400000.0, 1)
+
+        used = cl["used"]
+        pct = _usage_percent(used, cl["totalGB"])
+
+        if not exp:
+            st = "بدون انقضا"
+        elif exp < 0:
+            st = "شروع‌نشده"
+        elif not cl["enable"]:
+            st = "غیرفعال"
+        elif remaining is not None and remaining < 0:
+            st = "منقضی"
+        elif remaining is not None and remaining <= 3:
+            st = "رو به انقضا"
+        else:
+            st = "فعال"
+
+        renewals = months - 1
+
+        out.append({
+            "email": cl["email"],
+            "group": g,
+            "groupLabel": conf.get("label") or g,
+            "billable": bool(conf.get("billable", 0)),
+            "gb": gb,
+            "gbLabel": "نامحدود" if gb == 0 else f"{gb} GB",
+            "usedBytes": used,
+            "usedGB": round(used / (1024 ** 3), 2),
+            "usagePct": pct,
+            "limitIp": cl.get("limitIp") or 0,
+            "subId": cl.get("subId") or "",
+            "tgId": cl.get("tgId") or 0,
+            "comment": cl.get("comment") or "",
+            "resetCount": cl.get("resetCount") or 0,
+            "createdJalali": created_j,
+            "createdGregorian": created_g,
+            "expiryJalali": expiry_j,
+            "expiryGregorian": expiry_g,
+            "updatedJalali": updated_j,
+            "days": days,
+            "remainingDays": remaining,
+            "months": months,
+            "renewals": renewals,
+            "renewalKind": kind,
+            "drift": drift,
+            "loggedRenewals": logged.get(cl["email"], 0),
+            "price": price,
+            "amount": (months * price) if price is not None else 0,
+            "enable": cl["enable"],
+            "status": st,
+        })
+
+    # ── فیلترها ──
+    if q:
+        needle = q.strip().lower()
+        out = [x for x in out
+               if needle in x["email"].lower()
+               or needle in x["group"].lower()
+               or needle in (x["comment"] or "").lower()]
+
+    if group:
+        out = [x for x in out if x["group"] == group]
+
+    if status:
+        out = [x for x in out if x["status"] == status]
+
+    if renewed == "yes":
+        out = [x for x in out if x["renewals"] > 0]
+    elif renewed == "no":
+        out = [x for x in out if x["renewals"] == 0]
+
+    # ── مرتب‌سازی ──
+    keys = {
+        "email": lambda x: x["email"].lower(),
+        "group": lambda x: (x["group"].lower(), x["email"].lower()),
+        "created": lambda x: x.get("createdGregorian") or "",
+        "expiry": lambda x: x.get("expiryGregorian") or "",
+        "remaining": lambda x: (x["remainingDays"] is None, x["remainingDays"] or 0),
+        "used": lambda x: x["usedBytes"],
+        "usage": lambda x: (x["usagePct"] is None, x["usagePct"] or 0),
+        "renewals": lambda x: x["renewals"],
+        "months": lambda x: x["months"],
+        "amount": lambda x: x["amount"],
+    }
+    out.sort(key=keys.get(sort, keys["created"]), reverse=(order != "asc"))
+
+    total = len(out)
+
+    # ── آمار کلی، قبل از صفحه‌بندی ──
+    stats = {
+        "total": total,
+        "renewed": sum(1 for x in out if x["renewals"] > 0),
+        "notRenewed": sum(1 for x in out if x["renewals"] == 0),
+        "totalRenewals": sum(x["renewals"] for x in out),
+        "active": sum(1 for x in out if x["status"] == "فعال"),
+        "expiringSoon": sum(1 for x in out if x["status"] == "رو به انقضا"),
+        "expired": sum(1 for x in out if x["status"] == "منقضی"),
+        "disabled": sum(1 for x in out if x["status"] == "غیرفعال"),
+        "noGroup": sum(1 for x in out if x["group"] == "بدون گروه"),
+        "usedGB": round(sum(x["usedBytes"] for x in out) / (1024 ** 3), 1),
+        "amount": sum(x["amount"] for x in out),
+    }
+    stats["renewalRate"] = (round(stats["renewed"] * 100.0 / total, 1)
+                            if total else 0)
+
+    # همه‌ی گروه‌ها برای فیلتر، حتی خالی‌ها
+    all_groups = sorted({c["group"] for c in clients} | set(known_groups or []))
+
+    return {
+        "ready": True,
+        "clients": out[offset:offset + max(1, min(limit, 2000))],
+        "total": total,
+        "offset": offset,
+        "limit": limit,
+        "stats": stats,
+        "groups": all_groups,
+        "statuses": ["فعال", "رو به انقضا", "منقضی", "غیرفعال",
+                     "بدون انقضا", "شروع‌نشده"],
+    }
+
+
+@app.get("/api/admin/billing/clients/export")
+def billing_clients_export(x_admin_password: str = Header(...)):
+    """خروجی CSV همه‌ی کاربران — برای اکسل."""
+    check_auth(x_admin_password)
+
+    data = billing_clients(limit=100000, x_admin_password=x_admin_password)
+    if not data.get("ready"):
+        raise HTTPException(status_code=400, detail=data.get("error") or "خواندن ناموفق")
+
+    import io, csv
+    buf = io.StringIO()
+    buf.write("\ufeff")   # BOM تا اکسل فارسی را درست بخواند
+
+    w = csv.writer(buf)
+    w.writerow(["ایمیل", "گروه", "وضعیت", "حجم", "مصرف (GB)", "درصد مصرف",
+                "تاریخ ایجاد", "تاریخ انقضا", "روز مانده", "مدت (روز)",
+                "ماه", "تمدید", "نوع تشخیص", "دستگاه", "نرخ", "مبلغ", "توضیح"])
+    for x in data["clients"]:
+        w.writerow([
+            x["email"], x["group"], x["status"], x["gbLabel"],
+            x["usedGB"], "" if x["usagePct"] is None else x["usagePct"],
+            x["createdJalali"] or "", x["expiryJalali"] or "",
+            "" if x["remainingDays"] is None else x["remainingDays"],
+            x["days"] or "", x["months"], x["renewals"], x["renewalKind"],
+            x["limitIp"] or "نامحدود",
+            x["price"] or "", x["amount"] or "", x["comment"],
+        ])
+
+    return Response(
+        content=buf.getvalue().encode("utf-8"),
+        media_type="text/csv; charset=utf-8",
+        headers={"Content-Disposition":
+                 f'attachment; filename="nexora-clients-{datetime.now():%Y%m%d}.csv"'})
 
 
 @app.get("/api/admin/billing/diagnose")

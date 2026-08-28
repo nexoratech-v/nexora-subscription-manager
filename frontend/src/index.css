@@ -6,25 +6,30 @@
    قدیمی‌تر که فونت متغیر را نمی‌شناسند.
    ═══════════════════════════════════════════════════════════ */
 
+/* وزن‌های ثابت اول می‌آیند تا اگر فونت متغیر پشتیبانی نشد،
+   مرورگر بی‌درنگ سراغ این‌ها برود. */
 @font-face {
   font-family: "IRANSansX";
-  src: url("/fonts/IRANSansXV.woff2") format("woff2-variations"),
-       url("/fonts/IRANSansXV.woff2") format("woff2");
-  font-weight: 100 900;
-  font-display: swap;
-}
-
-@font-face {
-  font-family: "IRANSansX Static";
   src: url("/fonts/IRANSansX-Regular.woff") format("woff");
   font-weight: 400;
+  font-style: normal;
   font-display: swap;
 }
 
 @font-face {
-  font-family: "IRANSansX Static";
+  font-family: "IRANSansX";
   src: url("/fonts/IRANSansX-Bold.woff") format("woff");
   font-weight: 700;
+  font-style: normal;
+  font-display: swap;
+}
+
+/* فونت متغیر — وزن‌های میانی را پوشش می‌دهد */
+@font-face {
+  font-family: "IRANSansX Variable";
+  src: url("/fonts/IRANSansXV.woff2") format("woff2");
+  font-weight: 100 900;
+  font-style: normal;
   font-display: swap;
 }
 
@@ -57,7 +62,7 @@
 body {
   /* پشته‌ی فونت: اول Vazirmatn، بعد فونت‌های سیستمی که فارسی
      خوب رندر می‌کنند. اگر Vazirmatn لود نشد، صفحه باز هم خوانا بماند. */
-  font-family: "IRANSansX", "IRANSansX Static", "Vazirmatn",
+  font-family: "IRANSansX Variable", "IRANSansX", "Vazirmatn",
                "Segoe UI", "Noto Sans Arabic", Tahoma,
                -apple-system, BlinkMacSystemFont, system-ui, sans-serif;
   font-feature-settings: "ss01", "kern";
@@ -586,4 +591,10 @@ code, .ltr {
   direction: ltr;
   unicode-bidi: isolate;
   display: inline-block;
+}
+
+
+/* تضمین اعمال فونت روی عناصری که پیش‌فرض مرورگر را می‌گیرند */
+button, input, select, textarea, optgroup {
+  font-family: inherit;
 }

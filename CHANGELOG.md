@@ -1,5 +1,36 @@
 # Changelog
 
+## [1.0.9]
+
+### Added — Every client in one view
+A new page under Accounting listing every config on the server, including those in no
+group at all. Built to answer questions about a single customer without opening 3x-ui:
+
+- Who renewed and who did not, how many times, and whether that count is certain or
+  estimated from the create-to-expiry gap
+- Days remaining, with expiring and expired rows coloured
+- Traffic used against quota, with a usage bar
+- Created and expiry dates in Jalali, subscription length, device limit, reset count,
+  Telegram ID, subscription ID and any note left on the config
+- Amount owed per client where the group has rates
+
+Filter by group, status or renewal state; search across email, group and notes; sort by
+any column. Status counts double as filter buttons. Row click opens full detail.
+
+Also exports to CSV with a BOM so Excel reads Persian correctly.
+
+## [1.0.9]
+
+### Fixed
+- **The font declarations were ordered so browsers could skip IRANSansX entirely.**
+  The variable font was declared first under the same family name; if a browser
+  didn'''t support `woff2-variations` it had nothing to fall back to. Static weights
+  now come first under the primary name, with the variable font as a separate family
+- **The invoice table left a large gap at the bottom of each page.** Row capacity was
+  computed from the first page, which is shorter because of the summary cards, so later
+  pages stopped early. Each page now uses its own height, and the space the totals need
+  is reserved so they never spill onto a page of their own
+
 ## [1.0.8]
 
 ### Changed

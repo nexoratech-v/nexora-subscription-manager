@@ -87,6 +87,7 @@ const WORKSPACES = {
           { key: "bill-groups", label: "واسطه‌ها و نرخ", icon: Users },
           { key: "bill-invoice", label: "صورتحساب", icon: FileText },
           { key: "bill-pay", label: "پرداخت‌ها", icon: Wallet },
+          { key: "bill-clients", label: "همه کاربران", icon: Users },
           { key: "bill-settings", label: "تنظیمات و بک‌آپ", icon: Sliders },
         ],
       },
@@ -196,7 +197,7 @@ function SectionHead({ title, desc, action }) {
   return (
     <div className="flex items-start justify-between gap-3 mb-5 flex-wrap">
       <div className="min-w-0">
-        <h2 className="text-[15px] font-bold text-white" style={{ fontFamily: "'Chakra Petch', sans-serif" }}>{title}</h2>
+        <h2 className="text-[15px] font-bold text-white">{title}</h2>
         {desc && <p className="text-[11.5px] mt-1.5 leading-relaxed" style={{ color: "var(--muted)" }}>{desc}</p>}
       </div>
       {action}
@@ -322,8 +323,8 @@ function LoginScreen({ onLogin }) {
       <div className="w-full max-w-sm rounded-2xl p-7 fx-anim" style={{ background: "var(--surface)", border: "1px solid rgba(90,169,230,.25)", boxShadow: "0 0 80px rgba(43,127,214,.18)" }}>
         <div className="flex flex-col items-center text-center mb-7">
           <div className="w-14 h-14 rounded-2xl flex items-center justify-center font-bold text-[26px] mb-4"
-            style={{ background: "linear-gradient(135deg,#2B7FD6,#8FC1EE)", color: "#06090F", fontFamily: "'Chakra Petch',sans-serif" }}>N</div>
-          <span className="text-white font-bold text-[17px]" style={{ fontFamily: "'Chakra Petch',sans-serif" }}>NEXORA</span>
+            style={{ background: "linear-gradient(135deg,#2B7FD6,#8FC1EE)", color: "#06090F" }}>N</div>
+          <span className="text-white font-bold text-[17px]">NEXORA</span>
           <span className="text-[12px] mt-1" style={{ color: "var(--muted)" }}>پنل مدیریت صفحه اشتراک</span>
         </div>
         <Field label="رمز عبور مدیریت">
@@ -395,7 +396,7 @@ function OverviewSection({ config, stats, navigate, dirty }) {
         <div className="fx-card overflow-hidden">
           <div className="flex items-center justify-between p-5 pb-4 gap-3 flex-wrap">
             <div>
-              <h2 className="text-[14px] font-bold text-white" style={{ fontFamily: "'Chakra Petch',sans-serif" }}>اپلیکیشن‌های پیکربندی‌شده</h2>
+              <h2 className="text-[14px] font-bold text-white">اپلیکیشن‌های پیکربندی‌شده</h2>
               <p className="text-[11px] mt-1" style={{ color: "var(--muted)" }}>لیست اپ‌های موجود در صفحه اشتراک</p>
             </div>
             <button onClick={() => navigate("apps")} className="fx-btn-g px-3 py-2 text-[11.5px] flex items-center gap-1.5">
@@ -1144,7 +1145,7 @@ function ResellersSection({ config, setConfig, requestDelete, password }) {
               <div className="flex items-center justify-between gap-2 p-4">
                 <button onClick={() => setExpanded(isOpen ? null : i)} className="flex items-center gap-3 min-w-0 flex-1 text-right">
                   <div className="fx-ico" style={{ background: `linear-gradient(135deg, ${advOv.accentColor || "#2B7FD6"}, ${advOv.accentColor2 || "#5AA9E6"})` }}>
-                    <span className="font-bold text-[15px]" style={{ color: "#06090F", fontFamily: "'Chakra Petch',sans-serif" }}>
+                    <span className="font-bold text-[15px]" style={{ color: "#06090F" }}>
                       {(advOv.brandName || r.name || "?").trim().charAt(0).toUpperCase()}
                     </span>
                   </div>
@@ -4320,6 +4321,409 @@ function Modal({ title, onClose, children, width = "440px" }) {
   );
 }
 
+/* ── همه‌ی کاربران ── */
+
+const CLIENT_STATUS_COLOR = {
+  "فعال": "var(--ok)",
+  "رو به انقضا": "var(--warn)",
+  "منقضی": "var(--danger)",
+  "غیرفعال": "var(--muted)",
+  "بدون انقضا": "#A78BFA",
+  "شروع‌نشده": "#5AA9E6",
+};
+
+function BillingClients({ password }) {
+  const [data, setData] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [q, setQ] = useState("");
+  const [group, setGroup] = useState("");
+  const [status, setStatus] = useState("");
+  const [renewed, setRenewed] = useState("");
+  const [sort, setSort] = useState("created");
+  const [order, setOrder] = useState("desc");
+  const [page, setPage] = useState(0);
+  const [detail, setDetail] = useState(null);
+  const PER = 60;
+
+  const load = async () => {
+    setLoading(true);
+    try {
+      const p = new URLSearchParams({
+        q, group, status, renewed, sort, order,
+        limit: String(PER), offset: String(page * PER),
+      });
+      const d = await fetch(`${API_URL}/api/admin/billing/clients?${p}`, {
+        headers: { "X-Admin-Password": password },
+      }).then((r) => r.json());
+      setData(d);
+    } catch {
+      setData({ ready: false, error: "اتصال به سرور برقرار نشد", clients: [] });
+    } finally { setLoading(false); }
+  };
+
+  useEffect(() => { load(); }, [password, group, status, renewed, sort, order, page]);
+
+  // جستجو با تاخیر — تا با هر حرف یک درخواست نرود
+  useEffect(() => {
+    const t = setTimeout(() => { setPage(0); load(); }, 400);
+    return () => clearTimeout(t);
+  }, [q]);
+
+  const exportCsv = async () => {
+    try {
+      const res = await fetch(`${API_URL}/api/admin/billing/clients/export`, {
+        headers: { "X-Admin-Password": password } });
+      const blob = await res.blob();
+      const a = document.createElement("a");
+      a.href = URL.createObjectURL(blob);
+      a.download = `nexora-clients-${new Date().toISOString().slice(0, 10)}.csv`;
+      a.click();
+      URL.revokeObjectURL(a.href);
+    } catch { /* بی‌صدا */ }
+  };
+
+  const th = (key, label, w) => {
+    const on = sort === key;
+    return (
+      <th key={key} onClick={() => {
+        if (on) setOrder(order === "asc" ? "desc" : "asc");
+        else { setSort(key); setOrder("desc"); }
+        setPage(0);
+      }}
+        className="px-2 py-2 cursor-pointer select-none whitespace-nowrap"
+        style={{ width: w, color: on ? "var(--accent-2)" : "var(--muted)",
+                 fontWeight: on ? 700 : 500 }}>
+        {label}{on && (order === "asc" ? " ↑" : " ↓")}
+      </th>
+    );
+  };
+
+  if (loading && !data) {
+    return <div className="flex justify-center py-16">
+      <Loader2 className="animate-spin" style={{ color: "var(--muted)" }} /></div>;
+  }
+
+  if (!data?.ready) {
+    return (
+      <div className="fx-anim">
+        <SectionHead title="همه کاربران" desc="" />
+        <BillingUnavailable info={data} password={password} />
+      </div>
+    );
+  }
+
+  const s = data.stats;
+  const pages = Math.ceil(data.total / PER);
+
+  return (
+    <div className="fx-anim">
+      <SectionHead title="همه کاربران"
+        desc="هر کانفیگ روی سرور — از هر گروه، و آن‌هایی که گروه ندارند."
+        action={
+          <div className="flex gap-2">
+            <button onClick={exportCsv} className="fx-btn-g px-3 py-2.5 text-[12px] flex items-center gap-1.5">
+              <Download size={13} /> خروجی اکسل
+            </button>
+            <button onClick={load} className="fx-btn-g px-3 py-2.5 text-[12px] flex items-center gap-1.5">
+              <RefreshCw size={13} /> تازه‌سازی
+            </button>
+          </div>
+        } />
+
+      {/* آمار */}
+      <div className="fx-g4 grid grid-cols-4 gap-3 mb-4">
+        {[["کل کانفیگ", s.total, "var(--accent-2)", Users],
+          ["تمدید شده", s.renewed, "var(--ok)", RefreshCw, `${s.renewalRate}٪ نرخ تمدید`],
+          ["بدون تمدید", s.notRenewed, "var(--warn)", Clock, "فقط دوره اول"],
+          ["مصرف کل", `${faNum(s.usedGB)}`, "#A78BFA", TrendingUp, "گیگابایت"]
+        ].map(([l, v, col, I, sub], i) => (
+          <div key={i} className="fx-card fx-card-i p-4">
+            <div className="fx-ico mb-3" style={{ background: `color-mix(in srgb, ${col} 12%, transparent)` }}>
+              <I size={15} style={{ color: col }} />
+            </div>
+            <div className="fx-stat-num text-[19px] font-extrabold text-white leading-none"
+              style={{ fontFamily: "'JetBrains Mono',monospace" }}>{faNum(v)}</div>
+            <div className="text-[10.5px] mt-1.5" style={{ color: "var(--dim)" }}>{l}</div>
+            {sub && <div className="text-[9.5px] mt-1" style={{ color: "var(--muted)" }}>{sub}</div>}
+          </div>
+        ))}
+      </div>
+
+      {/* وضعیت‌ها — کلیک برای فیلتر */}
+      <div className="flex gap-2 mb-4 flex-wrap">
+        {[["فعال", s.active], ["رو به انقضا", s.expiringSoon],
+          ["منقضی", s.expired], ["غیرفعال", s.disabled]].map(([label, n]) => {
+          const on = status === label;
+          const col = CLIENT_STATUS_COLOR[label];
+          return (
+            <button key={label}
+              onClick={() => { setStatus(on ? "" : label); setPage(0); }}
+              className="px-3 py-2 rounded-xl text-[11.5px] transition-all flex items-center gap-2"
+              style={{
+                background: on ? `color-mix(in srgb, ${col} 16%, transparent)` : "var(--surface-3)",
+                border: `1px solid ${on ? col : "var(--border)"}`,
+                color: on ? col : "var(--dim)",
+              }}>
+              <Circle size={7} fill={col} strokeWidth={0} />
+              {label}
+              <span style={{ fontFamily: "'JetBrains Mono',monospace", opacity: .8 }}>
+                {faNum(n)}
+              </span>
+            </button>
+          );
+        })}
+        {s.noGroup > 0 && (
+          <button onClick={() => { setGroup(group === "بدون گروه" ? "" : "بدون گروه"); setPage(0); }}
+            className="px-3 py-2 rounded-xl text-[11.5px] flex items-center gap-2"
+            style={{
+              background: group === "بدون گروه" ? "rgba(255,255,255,.06)" : "var(--surface-3)",
+              border: `1px solid ${group === "بدون گروه" ? "var(--border-2)" : "var(--border)"}`,
+              color: "var(--muted)",
+            }}>
+            بدون گروه <span style={{ fontFamily: "'JetBrains Mono',monospace" }}>{faNum(s.noGroup)}</span>
+          </button>
+        )}
+      </div>
+
+      {/* فیلترها */}
+      <div className="fx-card p-4 mb-4">
+        <div className="fx-g3 grid grid-cols-3 gap-3">
+          <div className="fx-search">
+            <Search size={14} style={{ color: "var(--muted)" }} />
+            <input value={q} onChange={(e) => setQ(e.target.value)}
+              placeholder="جستجو در ایمیل، گروه یا یادداشت..." />
+          </div>
+          <select className="fx-input" value={group}
+            onChange={(e) => { setGroup(e.target.value); setPage(0); }}>
+            <option value="">همه گروه‌ها</option>
+            {data.groups.map((g) => <option key={g} value={g}>{g}</option>)}
+          </select>
+          <select className="fx-input" value={renewed}
+            onChange={(e) => { setRenewed(e.target.value); setPage(0); }}>
+            <option value="">تمدید: همه</option>
+            <option value="yes">فقط تمدیدشده‌ها</option>
+            <option value="no">فقط بدون تمدید</option>
+          </select>
+        </div>
+        {(q || group || status || renewed) && (
+          <button onClick={() => { setQ(""); setGroup(""); setStatus(""); setRenewed(""); setPage(0); }}
+            className="text-[11px] mt-3 flex items-center gap-1.5"
+            style={{ color: "var(--accent-2)" }}>
+            <X size={12} /> پاک کردن فیلترها ({faNum(data.total)} نتیجه)
+          </button>
+        )}
+      </div>
+
+      {/* جدول */}
+      <div className="fx-card overflow-hidden" style={{ padding: 0 }}>
+        <div style={{ overflowX: "auto" }}>
+          <table className="w-full text-[11.5px]" style={{ borderCollapse: "collapse", minWidth: 900 }}>
+            <thead>
+              <tr style={{ background: "var(--surface-3)", borderBottom: "1px solid var(--border-2)" }}>
+                {th("email", "کاربر", "20%")}
+                {th("group", "گروه", "14%")}
+                <th className="px-2 py-2" style={{ color: "var(--muted)", width: "10%" }}>وضعیت</th>
+                {th("remaining", "روز مانده", "9%")}
+                {th("months", "ماه", "6%")}
+                {th("renewals", "تمدید", "7%")}
+                {th("used", "مصرف", "11%")}
+                {th("usage", "درصد", "7%")}
+                {th("amount", "مبلغ", "12%")}
+              </tr>
+            </thead>
+            <tbody>
+              {data.clients.map((c, i) => {
+                const col = CLIENT_STATUS_COLOR[c.status] || "var(--muted)";
+                return (
+                  <tr key={c.email} onClick={() => setDetail(c)}
+                    className="cursor-pointer transition-colors"
+                    style={{
+                      borderBottom: i < data.clients.length - 1 ? "1px solid var(--border)" : "none",
+                      background: i % 2 ? "rgba(255,255,255,.012)" : "transparent",
+                    }}>
+                    <td className="px-2 py-2.5" dir="ltr"
+                      style={{ color: c.enable ? "var(--text)" : "var(--muted)",
+                               fontFamily: "'JetBrains Mono',monospace", textAlign: "right" }}>
+                      {c.email}
+                      {c.comment && (
+                        <span className="block text-[9.5px] mt-0.5" dir="rtl"
+                          style={{ color: "var(--muted)" }}>{c.comment}</span>
+                      )}
+                    </td>
+                    <td className="px-2 py-2.5" style={{ color: "var(--dim)" }}>
+                      {c.groupLabel}
+                      {c.billable && (
+                        <span className="text-[9px] mr-1.5 px-1.5 py-0.5 rounded"
+                          style={{ background: "var(--accent-soft)", color: "var(--accent-2)" }}>
+                          واسطه
+                        </span>
+                      )}
+                    </td>
+                    <td className="px-2 py-2.5">
+                      <span className="inline-flex items-center gap-1.5 text-[10.5px]" style={{ color: col }}>
+                        <Circle size={6} fill={col} strokeWidth={0} /> {c.status}
+                      </span>
+                    </td>
+                    <td className="px-2 py-2.5 text-center" style={{
+                      color: c.remainingDays === null ? "var(--muted)"
+                             : c.remainingDays < 0 ? "var(--danger)"
+                             : c.remainingDays <= 3 ? "var(--warn)" : "var(--dim)",
+                      fontFamily: "'JetBrains Mono',monospace",
+                    }}>
+                      {c.remainingDays === null ? "—" : faNum(Math.round(c.remainingDays))}
+                    </td>
+                    <td className="px-2 py-2.5 text-center font-bold" style={{ color: "var(--text)" }}>
+                      {faNum(c.months)}
+                    </td>
+                    <td className="px-2 py-2.5 text-center">
+                      {c.renewals ? (
+                        <span className="px-2 py-0.5 rounded-md text-[10.5px] font-bold"
+                          style={{ background: "rgba(43,127,214,.16)", color: "var(--accent-2)" }}>
+                          {faNum(c.renewals)}
+                        </span>
+                      ) : <span style={{ color: "var(--muted)" }}>—</span>}
+                    </td>
+                    <td className="px-2 py-2.5 text-center" style={{ color: "var(--dim)",
+                        fontFamily: "'JetBrains Mono',monospace" }}>
+                      {faNum(c.usedGB)} / {c.gb === 0 ? "∞" : faNum(c.gb)}
+                    </td>
+                    <td className="px-2 py-2.5 text-center">
+                      {c.usagePct === null ? (
+                        <span style={{ color: "var(--muted)" }}>—</span>
+                      ) : (
+                        <div className="flex items-center gap-1.5 justify-center">
+                          <div style={{ width: 30, height: 4, borderRadius: 99,
+                                        background: "rgba(255,255,255,.07)", overflow: "hidden" }}>
+                            <div style={{
+                              width: `${Math.min(100, c.usagePct)}%`, height: "100%",
+                              background: c.usagePct >= 90 ? "var(--danger)"
+                                        : c.usagePct >= 70 ? "var(--warn)" : "var(--accent)",
+                            }} />
+                          </div>
+                          <span className="text-[10px]" style={{ color: "var(--muted)" }}>
+                            {faNum(c.usagePct)}٪
+                          </span>
+                        </div>
+                      )}
+                    </td>
+                    <td className="px-2 py-2.5 text-center font-bold"
+                      style={{ color: c.amount ? "var(--text)" : "var(--muted)",
+                               fontFamily: "'JetBrains Mono',monospace" }}>
+                      {c.amount ? faNum(c.amount) : "—"}
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+
+        {data.clients.length === 0 && (
+          <div className="py-12 text-center text-[12px]" style={{ color: "var(--muted)" }}>
+            کاربری با این فیلترها پیدا نشد
+          </div>
+        )}
+      </div>
+
+      {/* صفحه‌بندی */}
+      {pages > 1 && (
+        <div className="flex items-center justify-between mt-4 flex-wrap gap-3">
+          <span className="text-[11.5px]" style={{ color: "var(--muted)" }}>
+            نمایش {faNum(page * PER + 1)} تا {faNum(Math.min((page + 1) * PER, data.total))} از {faNum(data.total)}
+          </span>
+          <div className="flex gap-2">
+            <button onClick={() => setPage(Math.max(0, page - 1))} disabled={page === 0}
+              className="fx-btn-g px-3 py-2 text-[12px]"
+              style={page === 0 ? { opacity: .4, cursor: "not-allowed" } : {}}>قبلی</button>
+            <span className="px-3 py-2 text-[12px]" style={{ color: "var(--dim)" }}>
+              {faNum(page + 1)} / {faNum(pages)}
+            </span>
+            <button onClick={() => setPage(Math.min(pages - 1, page + 1))} disabled={page >= pages - 1}
+              className="fx-btn-g px-3 py-2 text-[12px]"
+              style={page >= pages - 1 ? { opacity: .4, cursor: "not-allowed" } : {}}>بعدی</button>
+          </div>
+        </div>
+      )}
+
+      {detail && <ClientDetailModal client={detail} onClose={() => setDetail(null)} />}
+    </div>
+  );
+}
+
+/** جزئیات کامل یک کاربر */
+function ClientDetailModal({ client: c, onClose }) {
+  const col = CLIENT_STATUS_COLOR[c.status] || "var(--muted)";
+
+  const Row = ({ label, value, mono, color }) => (
+    <div className="flex justify-between items-start gap-3 py-2"
+      style={{ borderBottom: "1px solid var(--border)" }}>
+      <span className="text-[11.5px] shrink-0" style={{ color: "var(--muted)" }}>{label}</span>
+      <span className="text-[11.5px] text-left" dir={mono ? "ltr" : "rtl"}
+        style={{ color: color || "var(--dim)",
+                 fontFamily: mono ? "'JetBrains Mono',monospace" : "inherit" }}>
+        {value}
+      </span>
+    </div>
+  );
+
+  return (
+    <Modal title={c.email} onClose={onClose} width="480px">
+      <div className="flex items-center gap-2 mb-4">
+        <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[11px]"
+          style={{ background: `color-mix(in srgb, ${col} 14%, transparent)`, color: col }}>
+          <Circle size={6} fill={col} strokeWidth={0} /> {c.status}
+        </span>
+        <span className="text-[11px] px-2.5 py-1 rounded-lg"
+          style={{ background: "var(--surface-3)", color: "var(--dim)" }}>
+          {c.groupLabel}
+        </span>
+      </div>
+
+      <Row label="حجم پلن" value={c.gbLabel} />
+      <Row label="مصرف" value={`${faNum(c.usedGB)} GB${c.usagePct !== null ? ` (${faNum(c.usagePct)}٪)` : ""}`} mono />
+      <Row label="تاریخ ایجاد" value={c.createdJalali || "—"} mono />
+      <Row label="تاریخ انقضا" value={c.expiryJalali || "—"} mono />
+      <Row label="روز مانده"
+        value={c.remainingDays === null ? "—" : faNum(Math.round(c.remainingDays))} mono
+        color={c.remainingDays !== null && c.remainingDays < 0 ? "var(--danger)" : undefined} />
+      <Row label="مدت اشتراک" value={c.days ? `${faNum(c.days)} روز` : "—"} mono />
+      <Row label="تعداد ماه" value={faNum(c.months)} mono color="var(--text)" />
+      <Row label="تعداد تمدید" value={c.renewals ? faNum(c.renewals) : "بدون تمدید"} mono
+        color={c.renewals ? "var(--accent-2)" : undefined} />
+      <Row label="نوع تشخیص"
+        value={c.renewalKind + (c.drift ? ` (انحراف ${faNum(c.drift)} روز)` : "")}
+        color={c.renewalKind === "تخمینی" ? "var(--warn)" : "var(--ok)"} />
+      {c.loggedRenewals > 0 && (
+        <Row label="تمدید ثبت‌شده در نکسورا" value={faNum(c.loggedRenewals)} mono color="var(--ok)" />
+      )}
+      <Row label="دستگاه همزمان" value={c.limitIp ? faNum(c.limitIp) : "نامحدود"} mono />
+      {c.resetCount > 0 && <Row label="ریست ترافیک" value={faNum(c.resetCount)} mono />}
+      {c.tgId > 0 && <Row label="آیدی تلگرام" value={c.tgId} mono />}
+      {c.subId && <Row label="شناسه اشتراک" value={c.subId} mono />}
+      {c.comment && <Row label="یادداشت" value={c.comment} />}
+
+      {c.billable && (
+        <div className="mt-4 p-3.5 rounded-xl"
+          style={{ background: "var(--surface-3)", border: "1px solid var(--border)" }}>
+          <div className="flex justify-between text-[12px]">
+            <span style={{ color: "var(--muted)" }}>نرخ ماهانه</span>
+            <span style={{ color: "var(--dim)", fontFamily: "'JetBrains Mono',monospace" }}>
+              {c.price ? faNum(c.price) : "تعریف نشده"}
+            </span>
+          </div>
+          <div className="flex justify-between text-[13px] font-bold mt-2 pt-2"
+            style={{ borderTop: "1px solid var(--border)" }}>
+            <span className="text-white">مبلغ کل</span>
+            <span style={{ color: "var(--accent-2)", fontFamily: "'JetBrains Mono',monospace" }}>
+              {faNum(c.amount)} تومان
+            </span>
+          </div>
+        </div>
+      )}
+    </Modal>
+  );
+}
+
 /* ── تنظیمات و بک‌آپ حسابداری ── */
 
 function BillingSettings({ password }) {
@@ -6111,9 +6515,9 @@ export default function App() {
         <div className="flex items-center justify-between gap-2 px-2 mb-2">
           <div className="flex items-center gap-2.5 min-w-0">
             <div className="w-9 h-9 rounded-xl flex items-center justify-center font-bold text-[17px] shrink-0"
-              style={{ background: "linear-gradient(135deg,#2B7FD6,#8FC1EE)", color: "#06090F", fontFamily: "'Chakra Petch',sans-serif" }}>N</div>
+              style={{ background: "linear-gradient(135deg,#2B7FD6,#8FC1EE)", color: "#06090F" }}>N</div>
             <div className="min-w-0">
-              <div className="text-[14.5px] font-bold text-white leading-none" style={{ fontFamily: "'Chakra Petch',sans-serif" }}>NEXORA</div>
+              <div className="text-[14.5px] font-bold text-white leading-none">NEXORA</div>
               <div className="text-[10px] mt-1" style={{ color: "var(--muted)" }}>پنل مدیریت</div>
             </div>
           </div>
@@ -6167,7 +6571,7 @@ export default function App() {
           <div className="flex items-center gap-3 min-w-0">
             <button className="fx-burger" onClick={() => setOpen(true)} aria-label="منو"><Menu size={19} /></button>
             <div className="min-w-0">
-              <h1 className="text-[16.5px] font-bold text-white truncate" style={{ fontFamily: "'Chakra Petch',sans-serif" }}>{currentNav?.label}</h1>
+              <h1 className="text-[16.5px] font-bold text-white truncate">{currentNav?.label}</h1>
               <p className="text-[11px] mt-0.5 fx-hide-m" style={{ color: "var(--muted)" }}>مدیریت صفحه اشتراک مشتریان</p>
             </div>
           </div>
@@ -6207,6 +6611,7 @@ export default function App() {
           {active === "bill-groups" && <BillingGroups password={password} />}
           {active === "bill-invoice" && <BillingInvoice password={password} />}
           {active === "bill-pay" && <BillingPayments password={password} />}
+          {active === "bill-clients" && <BillingClients password={password} />}
           {active === "bill-settings" && <BillingSettings password={password} />}
           {active === "bot-texts" && <BotTextsSection password={password} />}
           {active === "bot-preview" && <BotPreviewSection />}
