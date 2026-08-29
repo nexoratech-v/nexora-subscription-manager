@@ -1,5 +1,17 @@
 # Changelog
 
+## [1.1.1]
+
+### Fixed — The panel lost all styling
+Adding the font block to the top of `index.css` overwrote the three `@tailwind`
+directives that pull in every utility class. The build still succeeded and the CSS file
+was still produced, just nearly empty — so the panel rendered as unstyled HTML with
+default browser buttons.
+
+`tools/check-api-contract.py` now verifies the Tailwind directives are present and that
+the font is not only declared but actually applied to `html`/`body`. Both failures are
+silent at build time, which is exactly why they need an explicit check.
+
 ## [1.1.0]
 
 ### Fixed — The font never applied

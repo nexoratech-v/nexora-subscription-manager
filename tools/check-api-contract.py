@@ -106,6 +106,40 @@ if absent:
 else:
     print(f"  {G}✓{X} همه‌ی نام‌های مترادف فرستاده می‌شوند")
 
+# ═══════════════════════════════════════════════
+#  ۴. سلامت CSS
+#
+#  اگر @tailwind حذف شود، کل ظاهر پنل از بین می‌رود
+#  ولی build بدون خطا تمام می‌شود — پس باید صریح بررسی شود.
+# ═══════════════════════════════════════════════
+
+print()
+
+css_path = ROOT / "frontend" / "src" / "index.css"
+if css_path.exists():
+    css = css_path.read_text(encoding="utf-8")
+
+    tw = [d for d in ("@tailwind base", "@tailwind components", "@tailwind utilities")
+          if d not in css]
+    if tw:
+        problems += 1
+        print(f"  {R}✗{X} دستورهای Tailwind حذف شده‌اند: {tw}")
+        print(f"      بدون این‌ها کل ظاهر پنل از بین می‌رود")
+    else:
+        print(f"  {G}✓{X} دستورهای Tailwind سر جایشان هستند")
+
+    # فونت باید هم تعریف و هم اعمال شود
+    has_face = "@font-face" in css
+    applied = any(sel in css for sel in ("html,", "body,", "#root"))
+    if has_face and not applied:
+        problems += 1
+        print(f"  {R}✗{X} فونت تعریف شده ولی روی body اعمال نشده")
+    elif has_face:
+        print(f"  {G}✓{X} فونت تعریف و اعمال شده")
+else:
+    problems += 1
+    print(f"  {R}✗{X} index.css پیدا نشد")
+
 print()
 if problems:
     print(f"{R}{problems} ناهماهنگی پیدا شد{X}\n")
