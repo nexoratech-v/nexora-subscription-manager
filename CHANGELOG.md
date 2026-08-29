@@ -2,6 +2,21 @@
 
 ## [1.1.0]
 
+### Changed
+- **IRANSansX replaces Vazirmatn** in the panel. Two `@font-face` declarations and one
+  changed line in `body` — nothing else in the stylesheet was touched
+
+### Fixed
+- Reverted the stylesheet to its original form. Earlier edits had rewritten sixteen
+  utility classes and dropped five others (`fx-search`, `fx-side`, `fx-topbar`,
+  `fx-badge`, `fx-card-hl`), which is what broke the layout
+- Removed an nginx block containing `types { }`, which clears MIME mappings and made
+  the server send stylesheets as `application/octet-stream`. Browsers refuse a
+  stylesheet sent under the wrong type. `fix-nginx.sh` repairs servers that already
+  have it
+
+## [1.1.0]
+
 ### Fixed — The panel served CSS the browser refused to use
 A `location /fonts/` block added to the nginx config contained `types { }`, which
 clears every MIME mapping for that location. Worse, nginx applied the emptied mapping

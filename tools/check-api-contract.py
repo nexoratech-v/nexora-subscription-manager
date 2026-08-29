@@ -130,7 +130,8 @@ if css_path.exists():
 
     # فونت باید هم تعریف و هم اعمال شود
     has_face = "@font-face" in css
-    applied = any(sel in css for sel in ("html,", "body,", "#root"))
+    # فونت باید روی body یا html اعمال شده باشد — هر شکلی که نوشته شده
+    applied = bool(re.search(r'(html|body|#root)[^{]*\{[^}]*font-family', css))
     if has_face and not applied:
         problems += 1
         print(f"  {R}✗{X} فونت تعریف شده ولی روی body اعمال نشده")

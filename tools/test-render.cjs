@@ -107,7 +107,7 @@ head("فونت");
 const bodyFont = w.getComputedStyle(d.body).fontFamily;
 chk("روی body اعمال شده", bodyFont.includes("IRANSansX"),
     bodyFont.slice(0, 52));
-chk("اعلان @font-face", (css.match(/@font-face/g) || []).length >= 3,
+chk("اعلان @font-face", (css.match(/@font-face/g) || []).length >= 2,
     `${(css.match(/@font-face/g) || []).length} اعلان`);
 chk("فایل فونت در خروجی",
     fs.readdirSync(assetsDir).some((f) => /woff2?$/.test(f)));
