@@ -1,5 +1,18 @@
 # Changelog
 
+## [1.1.1]
+
+### Added
+- **Chisel** as a fifth tunnel engine. It carries traffic inside ordinary HTTP, which
+  tends to keep working when other protocols get filtered — marked recommended
+  alongside Backhaul. It takes command-line arguments rather than a config file, and
+  ships a single gzipped binary rather than an archive, so the agent handles both cases
+
+### Changed
+- The port list in the tunnel form was a column of full-width fields for four-digit
+  numbers. Ports are now compact chips laid out inline, with one-tap shortcuts for 443,
+  8443, 2053, 2087 and 80
+
 ## [1.1.0]
 
 ### Changed

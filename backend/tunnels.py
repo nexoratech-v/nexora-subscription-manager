@@ -65,6 +65,17 @@ ENGINES = {
         "default_transport": "tcp",
         "recommended": False,
     },
+    "chisel": {
+        "name": "Chisel",
+        "desc": "روی HTTP سوار می‌شود — وقتی بقیه بسته می‌شوند جواب می‌دهد",
+        "repo": "jpillora/chisel",
+        "binary": "chisel",
+        # Chisel فایل پیکربندی ندارد و با آرگومان خط فرمان کار می‌کند
+        "config": "args",
+        "transports": ["http", "https"],
+        "default_transport": "http",
+        "recommended": True,
+    },
 }
 
 TUNNEL_DB = Path(os.getenv("TUNNEL_DB_PATH", "/opt/nexora-panel/data/tunnels.db"))
@@ -508,6 +519,7 @@ def build_config(tunnel, side):
         "rathole": _cfg_rathole,
         "gost": _cfg_gost,
         "frp": _cfg_frp,
+        "chisel": _cfg_chisel,
     }.get(engine)
 
     if not builder:
@@ -637,6 +649,45 @@ def _cfg_gost(t, side):
             dialer:
               type: {tr}"""
     return "services:\n" + "\n".join(svc) + "\n" + chain + "\n"
+
+
+def _cfg_chisel(t, side):
+    """
+    Chisel — با آرگومان خط فرمان، نه فایل پیکربندی.
+
+    خروجی این تابع رشته‌ی آرگومان‌هاست که agent مستقیم به باینری
+    می‌دهد. چون ترافیک داخل HTTP معمولی می‌رود، جایی که بقیه‌ی
+    پروتکل‌ها فیلتر می‌شوند این معمولاً باز می‌ماند.
+
+    جهت مثل بقیه: سرور ایران --server است و پورت باز می‌کند،
+    سرور خارج --client و سرویس واقعی را دارد.
+    """
+    opt = t.get("options") or {}
+    auth = f"nexora:{t['secret']}"
+
+    if side == "iran":
+        args = ["server",
+                f"--port {t['bridge_port']}",
+                f"--auth {auth}",
+                "--reverse"]
+        if opt.get("keepalive"):
+            args.append(f"--keepalive {int(opt['keepalive'])}s")
+        else:
+            args.append("--keepalive 25s")
+        if t["transport"] == "https" and opt.get("tls_domain"):
+            args.append(f"--tls-domain {opt['tls_domain']}")
+        return " ".join(args)
+
+    scheme = "https" if t["transport"] == "https" else "http"
+    args = ["client",
+            f"--auth {auth}",
+            "--keepalive 25s",
+            f"--max-retry-interval 30s",
+            f"{scheme}://{t['remote_host']}:{t['bridge_port']}"]
+    # R: یعنی تانل معکوس — پورت روی سمت server باز می‌شود
+    for p in t["ports"]:
+        args.append(f"R:0.0.0.0:{p['local']}:127.0.0.1:{p['remote']}")
+    return " ".join(args)
 
 
 def _cfg_frp(t, side):

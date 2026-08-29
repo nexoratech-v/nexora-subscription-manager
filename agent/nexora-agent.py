@@ -182,6 +182,12 @@ def latest_release(repo):
         return json.loads(r.read().decode())
 
 
+def wanted_first(engine):
+    """نام باینری اصلی هر موتور — برای وقتی آرشیو ساختار ندارد."""
+    return {"backhaul": "backhaul", "rathole": "rathole", "gost": "gost",
+            "frp": "frps", "chisel": "chisel"}.get(engine, engine)
+
+
 def install_engine(engine):
     """
     نصب باینری یک موتور از انتشار رسمی گیت‌هاب.
@@ -195,6 +201,7 @@ def install_engine(engine):
         "rathole": "rapiz1/rathole",
         "gost": "go-gost/gost",
         "frp": "fatedier/frp",
+        "chisel": "jpillora/chisel",
     }
     repo = repos.get(engine)
     if not repo:
@@ -216,7 +223,8 @@ def install_engine(engine):
             continue
         if arch not in n and not (arch == "amd64" and "x86_64" in n):
             continue
-        if n.endswith((".tar.gz", ".zip", ".tgz")):
+        # بعضی پروژه‌ها آرشیو می‌دهند و بعضی باینری فشرده‌ی تکی (مثل chisel)
+        if n.endswith((".tar.gz", ".zip", ".tgz", ".gz")):
             pick = a
             break
 
@@ -231,15 +239,25 @@ def install_engine(engine):
 
         out = tmp / "x"
         out.mkdir()
-        if archive.suffix == ".zip":
+        name_low = archive.name.lower()
+
+        if name_low.endswith(".zip"):
             with zipfile.ZipFile(archive) as z:
                 z.extractall(out)
-        else:
+        elif name_low.endswith((".tar.gz", ".tgz")):
             with tarfile.open(archive) as t:
                 t.extractall(out)
+        else:
+            # باینری تکی فشرده‌شده با gzip — بدون ساختار آرشیو
+            import gzip
+            target = out / wanted_first(engine)
+            with gzip.open(archive, "rb") as src, open(target, "wb") as dst:
+                shutil.copyfileobj(src, dst)
+            os.chmod(target, 0o755)
 
         wanted = {"backhaul": ["backhaul"], "rathole": ["rathole"],
-                  "gost": ["gost"], "frp": ["frps", "frpc"]}[engine]
+                  "gost": ["gost"], "frp": ["frps", "frpc"],
+                  "chisel": ["chisel"]}[engine]
 
         found = 0
         for name in wanted:
@@ -282,6 +300,17 @@ def write_service(tunnel_id, engine, config_text, side):
     tid = int(tunnel_id)
     CFG.mkdir(parents=True, exist_ok=True)
 
+    # Chisel فایل پیکربندی ندارد — آرگومان می‌گیرد
+    if engine == "chisel":
+        binary = BIN / "chisel"
+        if not binary.exists():
+            return False, "باینری chisel نصب نیست"
+        # آرگومان‌ها را هم ذخیره می‌کنیم تا بعداً قابل بازبینی باشند
+        cfg_path = CFG / f"tunnel-{tid}.args"
+        cfg_path.write_text(config_text, encoding="utf-8")
+        os.chmod(cfg_path, 0o600)
+        return _make_unit(tid, engine, f"{binary} {config_text}", cfg_path)
+
     ext = {"backhaul": "toml", "rathole": "toml",
            "gost": "yaml", "frp": "toml"}.get(engine, "conf")
     cfg_path = CFG / f"tunnel-{tid}.{ext}"
@@ -304,6 +333,11 @@ def write_service(tunnel_id, engine, config_text, side):
     if not binary.exists():
         return False, f"باینری {binary.name} نصب نیست"
 
+    return _make_unit(tid, engine, f"{binary} {args}", cfg_path)
+
+
+def _make_unit(tid, engine, exec_line, cfg_path):
+    """ساخت سرویس systemd و راه‌اندازی آن."""
     unit = f"""[Unit]
 Description=Nexora Tunnel {tid} ({engine})
 After=network-online.target
@@ -311,7 +345,7 @@ Wants=network-online.target
 
 [Service]
 Type=simple
-ExecStart={binary} {args}
+ExecStart={exec_line}
 Restart=always
 RestartSec=5
 LimitNOFILE=1048576

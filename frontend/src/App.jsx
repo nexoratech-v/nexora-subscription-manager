@@ -4944,25 +4944,70 @@ function TunnelForm({ password, nodes, engines, onClose, onDone }) {
       </div>
 
       <Field label="پورت‌ها" hint="پورت‌هایی که مشتری به آن‌ها وصل می‌شود">
-        {ports.map((p, i) => (
-          <div key={i} className="flex gap-2 mb-2">
-            <input className="fx-input" type="number" dir="ltr" value={p.local}
-              onChange={(e) => {
-                const l = [...ports];
-                l[i] = { local: +e.target.value, remote: +e.target.value };
-                setPorts(l);
-              }}
-              style={{ fontFamily: "'JetBrains Mono',monospace" }} />
-            <button onClick={() => setPorts(ports.filter((_, x) => x !== i))}
-              className="fx-ico-btn shrink-0" style={{ width: 38, height: 38 }}>
-              <Trash2 size={13} />
-            </button>
-          </div>
-        ))}
-        <button onClick={() => setPorts([...ports, { local: 8443, remote: 8443 }])}
-          className="fx-btn-dash w-full py-2.5 text-[11.5px]">
-          <PlusIcon size={12} /> افزودن پورت
-        </button>
+        {/* هر پورت یک قوطی باریک — عدد چهار رقمی به عرض بیشتری نیاز ندارد،
+            و کنار هم بودنشان دیدن کل فهرست را آسان می‌کند */}
+        <div className="flex gap-2 flex-wrap mb-2.5">
+          {ports.map((p, i) => (
+            <div key={i} className="flex items-center rounded-xl overflow-hidden"
+              style={{ background: "var(--surface-3)", border: "1px solid var(--border-2)" }}>
+              <input type="number" dir="ltr" value={p.local || ""}
+                onChange={(e) => {
+                  const v = +e.target.value;
+                  const l = [...ports];
+                  l[i] = { local: v, remote: v };
+                  setPorts(l);
+                }}
+                placeholder="443"
+                style={{
+                  width: 68, background: "transparent", border: "none", outline: "none",
+                  color: "var(--text)", fontSize: 12.5, padding: "8px 10px",
+                  textAlign: "center", fontFamily: "'JetBrains Mono',monospace",
+                }} />
+              <button onClick={() => setPorts(ports.filter((_, x) => x !== i))}
+                className="flex items-center justify-center transition-colors"
+                style={{
+                  width: 28, height: 34, border: "none", cursor: "pointer",
+                  background: "rgba(255,255,255,.03)", color: "var(--muted)",
+                }}
+                onMouseEnter={(e) => { e.currentTarget.style.color = "var(--danger)"; }}
+                onMouseLeave={(e) => { e.currentTarget.style.color = "var(--muted)"; }}>
+                <X size={12} />
+              </button>
+            </div>
+          ))}
+
+          <button onClick={() => setPorts([...ports, { local: 0, remote: 0 }])}
+            className="flex items-center gap-1.5 px-3 rounded-xl text-[11.5px] transition-all"
+            style={{
+              height: 34, background: "transparent",
+              border: "1px dashed var(--border-2)", color: "var(--muted)", cursor: "pointer",
+            }}>
+            <PlusIcon size={12} /> افزودن
+          </button>
+        </div>
+
+        {/* میان‌برهای پورت‌های رایج */}
+        <div className="flex gap-1.5 flex-wrap">
+          {[443, 8443, 2053, 2087, 80].map((q) => {
+            const has = ports.some((p) => p.local === q);
+            return (
+              <button key={q}
+                onClick={() => setPorts(has
+                  ? ports.filter((p) => p.local !== q)
+                  : [...ports, { local: q, remote: q }])}
+                className="px-2.5 py-1 rounded-lg text-[10.5px] transition-all"
+                style={{
+                  background: has ? "var(--accent-soft)" : "transparent",
+                  border: `1px solid ${has ? "rgba(43,127,214,.4)" : "var(--border)"}`,
+                  color: has ? "var(--accent-2)" : "var(--muted)",
+                  fontFamily: "'JetBrains Mono',monospace",
+                  cursor: "pointer",
+                }}>
+                {q}
+              </button>
+            );
+          })}
+        </div>
       </Field>
 
       {err && <div className="text-[11.5px] p-3 rounded-xl mt-3"
