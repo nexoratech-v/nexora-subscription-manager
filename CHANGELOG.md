@@ -2,6 +2,24 @@
 
 ## [1.1.0]
 
+### Fixed — The panel served CSS the browser refused to use
+A `location /fonts/` block added to the nginx config contained `types { }`, which
+clears every MIME mapping for that location. Worse, nginx applied the emptied mapping
+more broadly than intended, so stylesheets went out as
+`application/octet-stream` — and browsers will not apply a stylesheet sent under the
+wrong type. The file itself was perfect, which is why every check on the file passed.
+
+The block is removed, and `fix-nginx.sh` repairs servers that already received it: it
+backs up the config, strips the block, verifies `nginx -t` before reloading, rolls back
+if anything fails, and then fetches the CSS to confirm the type is right.
+
+### Added
+- `tools/test-serve.py` serves the built files over HTTP and makes the same requests a
+  browser would — checking status, MIME type and size for the stylesheet, every font it
+  references, and the bundle. File-level checks cannot catch a transport problem
+
+## [1.1.0]
+
 ### Added — Tunnel management
 A fourth workspace for connecting an Iranian server to your foreign one, so the panel
 itself never has to live inside Iran.
@@ -20,6 +38,53 @@ happened.
 
 The agent depends only on the Python standard library — no pip install on a server that
 may have restricted internet.
+
+## [1.1.2]
+
+### Fixed — The panel rendered without any styling
+Editing `index.css` to add the font block had removed two things the whole interface
+depends on: the `:root` block holding all sixteen colour variables, and sixteen utility
+classes including `.fx-input`, `.fx-stepper` and `.fx-table`. Every `var(--...)`
+resolved to nothing and inputs fell back to browser defaults.
+
+`npm run build` succeeded both times, which is the whole problem — a nearly empty
+stylesheet is still a valid stylesheet.
+
+### Added
+- `tools/test-render.cjs` runs the built CSS in a simulated browser and reads real
+  computed styles: utility classes resolve to the right values, all sixteen colour
+  variables have values, the font reaches `body`, and every `fx-`/`nx-` class used in
+  the panel exists. Run it after every build
+
+## [1.1.1]
+
+### Fixed — The panel lost all styling
+Adding the font block to the top of `index.css` overwrote the three `@tailwind`
+directives that pull in every utility class. The build still succeeded and the CSS file
+was still produced, just nearly empty — so the panel rendered as unstyled HTML with
+default browser buttons.
+
+`tools/check-api-contract.py` now verifies the Tailwind directives are present and that
+the font is not only declared but actually applied to `html`/`body`. Both failures are
+silent at build time, which is exactly why they need an explicit check.
+
+## [1.1.0]
+
+### Fixed — The font never applied
+Three `@font-face` rules loaded IRANSansX correctly, but nothing ever set it as the
+page font: the rule that put the stack on `html`/`body` had been lost. The browser fell
+back silently, which is why clearing the cache changed nothing. The stack now sits on
+`html`, `body` and `#root`, and form elements inherit it explicitly.
+
+Nginx also gained a `/fonts/` block with correct MIME types and a revalidating cache,
+so replacing a font file no longer leaves browsers holding the old one for months.
+
+### Changed — Client list is far more readable
+Rows are taller and carry more at a glance: plan volume, device limit, reset count and
+Telegram link sit under the email; creation date shows the subscription length beneath
+it; days remaining is a large figure that turns amber near expiry and red past it;
+renewals are badged and marked when the count is estimated; usage shows the figure, a
+coloured bar and the percentage together.
 
 ## [1.0.9]
 
