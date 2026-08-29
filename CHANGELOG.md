@@ -2,6 +2,15 @@
 
 ## [1.1.1]
 
+### Added
+- `rebuild.sh` rebuilds the panel from scratch when it comes up unstyled or shows
+  `undefined` where data should be — usually a stale `dist` left behind by a build that
+  did not finish. It clears the Vite cache, rebuilds, and refuses to install the result
+  unless the stylesheet is a sensible size and contains the colour variables and
+  component classes. The previous build is restored if anything fails
+
+## [1.1.1]
+
 ### Fixed
 - **Creating a config failed with HTTP 404 on 3x-ui 3.5.** The client called
   `/panel/api/inbounds/addClient`, which that version no longer serves. Rather than
