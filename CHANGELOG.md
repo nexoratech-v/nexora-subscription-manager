@@ -1,5 +1,43 @@
 # Changelog
 
+## [1.1.0]
+
+### Added — Tunnel management
+A fourth workspace for connecting an Iranian server to your foreign one, so the panel
+itself never has to live inside Iran.
+
+**Four engines:** Backhaul (recommended), Rathole, GOST and FRP. Each config is
+generated for both ends from a single form.
+
+**Agent, not SSH.** The Iranian server runs a small agent that connects out to the
+panel. It opens no ports and stores no password — just a token you can revoke per
+server. The agent only understands a fixed set of commands, so even a compromised panel
+cannot run arbitrary code on it. Installation is one curl command.
+
+**What you get:** live CPU, memory and disk from each server; deploy, restart, stop and
+log from the panel; the foreign-side config ready to copy; an event log of what
+happened.
+
+The agent depends only on the Python standard library — no pip install on a server that
+may have restricted internet.
+
+## [1.1.2]
+
+### Fixed — The panel rendered without any styling
+Editing `index.css` to add the font block had removed two things the whole interface
+depends on: the `:root` block holding all sixteen colour variables, and sixteen utility
+classes including `.fx-input`, `.fx-stepper` and `.fx-table`. Every `var(--...)`
+resolved to nothing and inputs fell back to browser defaults.
+
+`npm run build` succeeded both times, which is the whole problem — a nearly empty
+stylesheet is still a valid stylesheet.
+
+### Added
+- `tools/test-render.cjs` runs the built CSS in a simulated browser and reads real
+  computed styles: utility classes resolve to the right values, all sixteen colour
+  variables have values, the font reaches `body`, and every `fx-`/`nx-` class used in
+  the panel exists. Run it after every build
+
 ## [1.1.1]
 
 ### Fixed — The panel lost all styling

@@ -4016,6 +4016,290 @@ def billing_diagnose(x_admin_password: str = Header(...)):
     return {"ok": all(s["ok"] for s in steps), "steps": steps}
 
 
+# ═══════════════════════════════════════════════════════════
+#  تانل — نودها و اتصال بین سرورها
+#
+#  agent روی سرور ایران به این endpointها وصل می‌شود. احراز
+#  هویتش با توکن نود است، نه رمز پنل — تا اگر توکنی لو رفت فقط
+#  همان نود باطل شود.
+# ═══════════════════════════════════════════════════════════
+
+try:
+    import tunnels as TUN
+    TUNNELS_OK = True
+except Exception as _tun_err:
+    TUNNELS_OK = False
+    TUN = None
+
+
+def _need_tunnels():
+    if not TUNNELS_OK:
+        raise HTTPException(status_code=500,
+                            detail="ماژول تانل بارگذاری نشد — nexora update را اجرا کنید")
+
+
+def _agent_node(token: str):
+    """نود را از روی توکن پیدا می‌کند."""
+    _need_tunnels()
+    if not token:
+        raise HTTPException(status_code=401, detail="توکن ارسال نشده")
+    node = TUN.node_by_token(token.strip())
+    if not node:
+        raise HTTPException(status_code=401, detail="توکن نامعتبر یا نود غیرفعال")
+    return node
+
+
+@app.post("/api/agent/checkin")
+def agent_checkin(payload: dict = None, x_agent_token: str = Header(None)):
+    """
+    agent هر ۳۰ ثانیه اینجا خبر می‌دهد و کارهایش را می‌گیرد.
+
+    این تنها راه ارتباط است؛ پنل هرگز به سرور ایران وصل نمی‌شود.
+    """
+    node = _agent_node(x_agent_token)
+    TUN.touch_node(node["id"], (payload or {}).get("metrics"))
+    jobs = TUN.take_jobs(node["id"])
+    return {"ok": True, "node": node["name"], "jobs": jobs,
+            "interval": 30}
+
+
+@app.post("/api/agent/job-result")
+def agent_job_result(payload: dict, x_agent_token: str = Header(None)):
+    """نتیجه‌ی یک کار."""
+    node = _agent_node(x_agent_token)
+    p = payload or {}
+    try:
+        jid = int(p.get("job_id"))
+    except (TypeError, ValueError):
+        raise HTTPException(status_code=400, detail="شناسه کار نامعتبر")
+
+    ok = bool(p.get("ok"))
+    result = str(p.get("result") or "")[:2000]
+    TUN.finish_job(jid, ok, result)
+
+    if not ok:
+        TUN.log(node_id=node["id"], level="error",
+                message=f"کار {jid} ناموفق: {result[:150]}")
+    return {"ok": True}
+
+
+@app.get("/api/agent/install.sh")
+def agent_installer(token: str = "", panel: str = ""):
+    """
+    اسکریپت نصب agent — بدون احراز هویت، چون خودش توکن را در
+    خط فرمان دارد و کاری جز نصب انجام نمی‌دهد.
+    """
+    _need_tunnels()
+    safe_token = "".join(ch for ch in token if ch.isalnum() or ch in "_-")[:80]
+    safe_panel = "".join(ch for ch in panel
+                         if ch.isalnum() or ch in ".:/-_")[:120]
+
+    script = f"""#!/usr/bin/env bash
+set -e
+PANEL="{safe_panel}"
+TOKEN="{safe_token}"
+
+[ "$(id -u)" -eq 0 ] || {{ echo "با sudo اجرا کنید"; exit 1; }}
+command -v python3 >/dev/null || {{ apt-get update -qq && apt-get install -y python3; }}
+
+mkdir -p /opt/nexora-agent/bin /opt/nexora-agent/configs
+curl -fsSL "$PANEL/api/agent/agent.py" -o /opt/nexora-agent/nexora-agent.py
+chmod +x /opt/nexora-agent/nexora-agent.py
+
+cat > /etc/systemd/system/nexora-agent.service <<UNIT
+[Unit]
+Description=Nexora Agent
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+Environment="NEXORA_PANEL=$PANEL"
+Environment="NEXORA_TOKEN=$TOKEN"
+ExecStart=/usr/bin/python3 /opt/nexora-agent/nexora-agent.py
+Restart=always
+RestartSec=10
+
+[Install]
+WantedBy=multi-user.target
+UNIT
+
+systemctl daemon-reload
+systemctl enable --now nexora-agent
+sleep 2
+systemctl is-active --quiet nexora-agent \\
+  && echo "✓ agent نصب شد و در حال اجراست" \\
+  || {{ echo "✗ اجرا نشد:"; journalctl -u nexora-agent -n 20 --no-pager; exit 1; }}
+"""
+    return Response(content=script, media_type="text/x-shellscript")
+
+
+@app.get("/api/agent/agent.py")
+def agent_source():
+    """کد agent — از خود پنل سرو می‌شود تا نسخه‌ها همگام بمانند."""
+    p = _root_dir() / "agent" / "nexora-agent.py"
+    if not p.exists():
+        raise HTTPException(status_code=404, detail="فایل agent پیدا نشد")
+    return Response(content=p.read_text(encoding="utf-8"),
+                    media_type="text/x-python")
+
+
+# ── مدیریت از پنل ──
+
+@app.get("/api/admin/tunnel/overview")
+def tunnel_overview(x_admin_password: str = Header(...)):
+    """نمای کلی: نودها، تانل‌ها، رویدادها."""
+    check_auth(x_admin_password)
+    _need_tunnels()
+
+    nodes = TUN.list_nodes()
+    tuns = TUN.list_tunnels()
+
+    return {
+        "ready": True,
+        "nodes": nodes,
+        "tunnels": tuns,
+        "events": TUN.recent_events(40),
+        "engines": [{"key": k, **v} for k, v in TUN.ENGINES.items()],
+        "stats": {
+            "nodes": len(nodes),
+            "online": sum(1 for n in nodes if n["online"]),
+            "tunnels": len(tuns),
+            "running": sum(1 for t in tuns if t["status"] == "running"),
+        },
+    }
+
+
+@app.post("/api/admin/tunnel/node")
+def tunnel_node_add(payload: dict, x_admin_password: str = Header(...)):
+    check_auth(x_admin_password)
+    _need_tunnels()
+    name = (payload or {}).get("name", "").strip()
+    if not name:
+        raise HTTPException(status_code=400, detail="نام سرور لازم است")
+    res = TUN.create_node(name, (payload.get("role") or "iran"),
+                          payload.get("note") or "")
+    return {"ok": True, **res}
+
+
+@app.delete("/api/admin/tunnel/node/{node_id}")
+def tunnel_node_del(node_id: int, x_admin_password: str = Header(...)):
+    check_auth(x_admin_password)
+    _need_tunnels()
+    TUN.delete_node(node_id)
+    return {"ok": True}
+
+
+@app.post("/api/admin/tunnel/node/{node_id}/rotate")
+def tunnel_node_rotate(node_id: int, x_admin_password: str = Header(...)):
+    check_auth(x_admin_password)
+    _need_tunnels()
+    return {"ok": True, "token": TUN.rotate_token(node_id)}
+
+
+@app.post("/api/admin/tunnel")
+def tunnel_add(payload: dict, x_admin_password: str = Header(...)):
+    check_auth(x_admin_password)
+    _need_tunnels()
+    try:
+        tid = TUN.create_tunnel(payload or {})
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    return {"ok": True, "id": tid}
+
+
+@app.put("/api/admin/tunnel/{tid}")
+def tunnel_edit(tid: int, payload: dict, x_admin_password: str = Header(...)):
+    check_auth(x_admin_password)
+    _need_tunnels()
+    try:
+        TUN.update_tunnel(tid, payload or {})
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    return {"ok": True}
+
+
+@app.delete("/api/admin/tunnel/{tid}")
+def tunnel_del(tid: int, x_admin_password: str = Header(...)):
+    check_auth(x_admin_password)
+    _need_tunnels()
+    t = TUN.get_tunnel(tid)
+    if t:
+        TUN.queue_job(t["node_id"], "remove", {"tunnel_id": tid})
+    TUN.delete_tunnel(tid)
+    return {"ok": True}
+
+
+@app.post("/api/admin/tunnel/{tid}/deploy")
+def tunnel_deploy(tid: int, x_admin_password: str = Header(...)):
+    """
+    اعمال تانل روی سرور ایران.
+
+    دو کار در صف می‌رود: نصب باینری و نوشتن کانفیگ. اگر باینری
+    از قبل باشد، نصب سریع رد می‌شود.
+    """
+    check_auth(x_admin_password)
+    _need_tunnels()
+
+    t = TUN.get_tunnel(tid, with_secret=True)
+    if not t:
+        raise HTTPException(status_code=404, detail="تانل پیدا نشد")
+
+    try:
+        cfg = TUN.build_config(t, "iran")
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+    TUN.queue_job(t["node_id"], "install", {"engine": t["engine"]})
+    TUN.queue_job(t["node_id"], "apply",
+                  {"tunnel_id": tid, "engine": t["engine"],
+                   "config": cfg, "side": "iran"})
+    TUN.set_status(tid, "deploying")
+    TUN.log(node_id=t["node_id"], tunnel_id=tid,
+            message=f"اعمال تانل «{t['name']}» در صف قرار گرفت")
+    return {"ok": True}
+
+
+@app.post("/api/admin/tunnel/{tid}/action/{what}")
+def tunnel_action(tid: int, what: str, x_admin_password: str = Header(...)):
+    check_auth(x_admin_password)
+    _need_tunnels()
+    if what not in ("start", "stop", "restart", "status", "logs"):
+        raise HTTPException(status_code=400, detail="دستور نامعتبر")
+
+    t = TUN.get_tunnel(tid)
+    if not t:
+        raise HTTPException(status_code=404, detail="تانل پیدا نشد")
+
+    TUN.queue_job(t["node_id"], what, {"tunnel_id": tid})
+    return {"ok": True, "queued": what}
+
+
+@app.get("/api/admin/tunnel/{tid}/config")
+def tunnel_config(tid: int, side: str = "foreign",
+                  x_admin_password: str = Header(...)):
+    """
+    کانفیگ سمت خارج — که مدیر باید دستی روی سرور خارجش بگذارد،
+    چون آنجا agent نصب نیست.
+    """
+    check_auth(x_admin_password)
+    _need_tunnels()
+
+    t = TUN.get_tunnel(tid, with_secret=True)
+    if not t:
+        raise HTTPException(status_code=404, detail="تانل پیدا نشد")
+    if side not in ("iran", "foreign"):
+        raise HTTPException(status_code=400, detail="سمت نامعتبر")
+
+    try:
+        cfg = TUN.build_config(t, side)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+    return {"config": cfg, "engine": t["engine"], "side": side,
+            "filename": f"tunnel-{tid}.{'yaml' if t['engine'] == 'gost' else 'toml'}"}
+
+
 @app.get("/api/health")
 def health():
     return {"ok": True}

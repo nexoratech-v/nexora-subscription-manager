@@ -172,6 +172,7 @@ case "$1" in
     [ -f "$INSTALL_DIR/data/bot.db" ] && cp "$INSTALL_DIR/data/bot.db" "$SNAP/" 2>/dev/null
     # نرخ‌ها و پرداخت‌های واسطه — بدون این، rollback حسابداری را پاک می‌کند
     [ -f "$INSTALL_DIR/data/billing.db" ] && cp "$INSTALL_DIR/data/billing.db" "$SNAP/" 2>/dev/null
+    [ -f "$INSTALL_DIR/data/tunnels.db" ] && cp "$INSTALL_DIR/data/tunnels.db" "$SNAP/" 2>/dev/null
     mkdir -p "$SNAP/frontend"
     cp -r "$INSTALL_DIR/frontend/src" "$SNAP/frontend/src" 2>/dev/null
     cp "$INSTALL_DIR/frontend/package.json" "$SNAP/frontend/" 2>/dev/null

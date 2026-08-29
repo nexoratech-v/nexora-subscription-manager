@@ -3,7 +3,7 @@ import { createPortal } from "react-dom";
 import {
   Activity, AlertTriangle, Apple, ArrowUpRight, Bell, Bot, Check, CheckCircle2, ChevronLeft,
   ChevronDown, Circle, Clock, Coins, Copy, CreditCard, Database, DollarSign, Download, ExternalLink, Eye, Gift, Github, Globe,
-  HardDrive, HelpCircle, History, Info, Key, Layers, LayoutGrid, Link2, Loader2, LogOut, Menu,
+  HardDrive, HelpCircle, History, Info, Key, Layers, LayoutGrid, Link2, Loader2, LogOut, Menu, Network, UploadCloud,
   MessageCircle, MessageSquare, Minus, Monitor, Package, Palette, PlayCircle, Plus, Power,
   Radio, RefreshCw, Save, Search, Send, Server, Settings, ShieldCheck, Sliders, Smartphone,
   Star, Terminal, Trash2, TrendingUp, FileText, Wallet, Type, Upload, UserPlus, Users, Video, X, XCircle, Zap,
@@ -89,6 +89,23 @@ const WORKSPACES = {
           { key: "bill-pay", label: "پرداخت‌ها", icon: Wallet },
           { key: "bill-clients", label: "همه کاربران", icon: Users },
           { key: "bill-settings", label: "تنظیمات و بک‌آپ", icon: Sliders },
+        ],
+      },
+    ],
+  },
+  tunnel: {
+    key: "tunnel",
+    label: "تانل",
+    shortLabel: "تانل",
+    icon: Network,
+    groups: [
+      {
+        title: "زیرساخت",
+        items: [
+          { key: "tun-overview", label: "داشبورد", icon: LayoutGrid },
+          { key: "tun-nodes", label: "سرورها", icon: Server },
+          { key: "tun-list", label: "تانل‌ها", icon: Network },
+          { key: "tun-events", label: "رویدادها", icon: Clock },
         ],
       },
     ],
@@ -4120,6 +4137,7 @@ const WS_MODES = {
 const WS_COLOR = {
   sub: "var(--accent-2)",
   billing: "#D4AF37",
+  tunnel: "#34D399",
   bot: "#A78BFA",
 };
 
@@ -4318,6 +4336,735 @@ function Modal({ title, onClose, children, width = "440px" }) {
       </div>
     </div>,
     document.body
+  );
+}
+
+/* ═══════════════════ تانل ═══════════════════ */
+
+const ENGINE_COLOR = {
+  backhaul: "#34D399",
+  rathole: "#5AA9E6",
+  gost: "#A78BFA",
+  frp: "#FBBF24",
+};
+
+const TUN_STATUS = {
+  running:   { label: "در حال کار", color: "var(--ok)" },
+  deploying: { label: "در حال اعمال", color: "var(--warn)" },
+  stopped:   { label: "متوقف", color: "var(--muted)" },
+  failed:    { label: "خطا", color: "var(--danger)" },
+  pending:   { label: "اعمال نشده", color: "var(--muted)" },
+};
+
+function useTunnel(password) {
+  const [data, setData] = useState(null);
+  const [loading, setLoading] = useState(true);
+
+  const load = async () => {
+    try {
+      const d = await fetch(`${API_URL}/api/admin/tunnel/overview`, {
+        headers: { "X-Admin-Password": password },
+      }).then((r) => r.json());
+      setData(d);
+    } catch {
+      setData({ ready: false, error: "اتصال برقرار نشد", nodes: [], tunnels: [] });
+    } finally { setLoading(false); }
+  };
+
+  useEffect(() => {
+    load();
+    // نودها هر ۲۰ ثانیه ping می‌زنند، پس تازه‌سازی خودکار
+    const t = setInterval(load, 20000);
+    return () => clearInterval(t);
+  }, [password]);
+
+  return { data, loading, reload: load };
+}
+
+/* ── داشبورد تانل ── */
+function TunnelOverview({ password }) {
+  const { data, loading, reload } = useTunnel(password);
+
+  if (loading) return <div className="flex justify-center py-16">
+    <Loader2 className="animate-spin" style={{ color: "var(--muted)" }} /></div>;
+
+  if (!data?.ready) {
+    return (
+      <div className="fx-anim">
+        <SectionHead title="داشبورد تانل" desc="" />
+        <div className="fx-card p-8 text-center" style={{ borderStyle: "dashed" }}>
+          <AlertTriangle size={24} style={{ color: "var(--warn)" }} className="mx-auto mb-3" />
+          <div className="text-[12.5px]" style={{ color: "var(--muted)" }}>
+            {data?.error || "ماژول تانل در دسترس نیست"}
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  const s = data.stats;
+
+  return (
+    <div className="fx-anim">
+      <SectionHead title="داشبورد تانل"
+        desc="سرورهای متصل و تانل‌های فعال."
+        action={<button onClick={reload} className="fx-btn-g px-3 py-2.5 text-[12px] flex items-center gap-1.5">
+          <RefreshCw size={13} /> تازه‌سازی</button>} />
+
+      <div className="fx-g4 grid grid-cols-4 gap-3 mb-5">
+        {[["سرورها", s.nodes, "var(--accent-2)", Server],
+          ["آنلاین", s.online, "var(--ok)", Activity],
+          ["تانل‌ها", s.tunnels, "#A78BFA", Network],
+          ["در حال کار", s.running, "var(--ok)", CheckCircle2]].map(([l, v, col, I], i) => (
+          <div key={i} className="fx-card fx-card-i p-4">
+            <div className="fx-ico mb-3" style={{ background: `color-mix(in srgb, ${col} 12%, transparent)` }}>
+              <I size={15} style={{ color: col }} />
+            </div>
+            <div className="fx-stat-num text-[19px] font-extrabold text-white leading-none"
+              style={{ fontFamily: "'JetBrains Mono',monospace" }}>{faNum(v)}</div>
+            <div className="text-[10.5px] mt-1.5" style={{ color: "var(--dim)" }}>{l}</div>
+          </div>
+        ))}
+      </div>
+
+      {data.nodes.length === 0 ? (
+        <div className="fx-card p-10 text-center" style={{ borderStyle: "dashed" }}>
+          <Server size={26} style={{ color: "var(--muted)" }} className="mx-auto mb-3" />
+          <div className="text-[13px] font-semibold text-white mb-2">هنوز سروری اضافه نشده</div>
+          <p className="text-[11.5px] max-w-sm mx-auto leading-relaxed" style={{ color: "var(--muted)" }}>
+            از بخش «سرورها» یک سرور ایران اضافه کنید. یک دستور نصب می‌گیرید
+            که روی آن سرور اجرا می‌کنید — بدون نیاز به باز کردن پورت یا دادن رمز.
+          </p>
+        </div>
+      ) : (
+        <>
+          <div className="fx-card p-5 mb-4">
+            <div className="text-[13px] font-semibold text-white mb-4">سرورها</div>
+            {data.nodes.map((n, i, arr) => (
+              <div key={n.id} className="flex items-center justify-between gap-3 py-3 flex-wrap"
+                style={{ borderBottom: i < arr.length - 1 ? "1px solid var(--border)" : "none" }}>
+                <div className="flex items-center gap-3 min-w-0">
+                  <div style={{
+                    width: 8, height: 8, borderRadius: "50%",
+                    background: n.online ? "var(--ok)" : "var(--muted)",
+                    boxShadow: n.online ? "0 0 8px var(--ok)" : "none",
+                    flexShrink: 0,
+                  }} />
+                  <div className="min-w-0">
+                    <div className="text-[12.5px] font-semibold text-white">{n.name}</div>
+                    <div className="text-[10px] mt-0.5" style={{ color: "var(--muted)" }}>
+                      {n.os_info || "—"}{n.public_ip ? ` · ${n.public_ip}` : ""}
+                    </div>
+                  </div>
+                </div>
+                <div className="flex items-center gap-4 shrink-0 text-[11px]"
+                  style={{ color: "var(--dim)", fontFamily: "'JetBrains Mono',monospace" }}>
+                  {n.cpu_percent != null && <span>CPU {faNum(n.cpu_percent)}٪</span>}
+                  {n.mem_percent != null && <span>RAM {faNum(n.mem_percent)}٪</span>}
+                  <span style={{ color: n.online ? "var(--ok)" : "var(--muted)" }}>
+                    {n.running_count}/{n.tunnel_count} تانل
+                  </span>
+                </div>
+              </div>
+            ))}
+          </div>
+
+          {data.tunnels.length > 0 && (
+            <div className="fx-card p-5">
+              <div className="text-[13px] font-semibold text-white mb-4">تانل‌های اخیر</div>
+              {data.tunnels.slice(0, 6).map((t, i, arr) => {
+                const st = TUN_STATUS[t.status] || TUN_STATUS.pending;
+                const ec = ENGINE_COLOR[t.engine] || "var(--accent-2)";
+                return (
+                  <div key={t.id} className="flex items-center justify-between gap-3 py-3 flex-wrap"
+                    style={{ borderBottom: i < arr.length - 1 ? "1px solid var(--border)" : "none" }}>
+                    <div className="min-w-0">
+                      <div className="text-[12.5px] font-semibold text-white">{t.name}</div>
+                      <div className="text-[10px] mt-0.5" style={{ color: "var(--muted)" }}>
+                        {t.node_name} · {t.ports.length} پورت
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2.5 shrink-0">
+                      <span className="text-[10px] px-2 py-1 rounded-lg"
+                        style={{ background: `color-mix(in srgb, ${ec} 14%, transparent)`, color: ec }}>
+                        {t.engineName}
+                      </span>
+                      <span className="text-[11px]" style={{ color: st.color }}>{st.label}</span>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </>
+      )}
+    </div>
+  );
+}
+
+/* ── سرورها ── */
+function TunnelNodes({ password }) {
+  const { data, loading, reload } = useTunnel(password);
+  const [adding, setAdding] = useState(false);
+  const [name, setName] = useState("");
+  const [note, setNote] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [created, setCreated] = useState(null);
+  const [msg, setMsg] = useState(null);
+
+  useEffect(() => { if (msg) { const t = setTimeout(() => setMsg(null), 4000); return () => clearTimeout(t); } }, [msg]);
+
+  const add = async () => {
+    if (!name.trim()) return;
+    setBusy(true);
+    try {
+      const res = await fetch(`${API_URL}/api/admin/tunnel/node`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "X-Admin-Password": password },
+        body: JSON.stringify({ name, note }),
+      });
+      const d = await res.json();
+      if (res.ok) {
+        setCreated(d);
+        setAdding(false);
+        setName(""); setNote("");
+        reload();
+      } else setMsg({ t: "err", m: d.detail || "افزودن ناموفق" });
+    } catch { setMsg({ t: "err", m: "اتصال برقرار نشد" }); }
+    finally { setBusy(false); }
+  };
+
+  const remove = async (id) => {
+    await fetch(`${API_URL}/api/admin/tunnel/node/${id}`, {
+      method: "DELETE", headers: { "X-Admin-Password": password } });
+    reload();
+  };
+
+  const rotate = async (id) => {
+    const res = await fetch(`${API_URL}/api/admin/tunnel/node/${id}/rotate`, {
+      method: "POST", headers: { "X-Admin-Password": password } });
+    const d = await res.json();
+    if (res.ok) setCreated({ id, token: d.token, rotated: true });
+  };
+
+  if (loading) return <div className="flex justify-center py-16">
+    <Loader2 className="animate-spin" style={{ color: "var(--muted)" }} /></div>;
+
+  return (
+    <div className="fx-anim">
+      <SectionHead title="سرورها"
+        desc="سرورهایی که agent روی آن‌ها نصب است."
+        action={<button onClick={() => setAdding(true)} className="fx-btn px-4 py-2.5 text-[12.5px] flex items-center gap-1.5">
+          <PlusIcon size={14} /> افزودن سرور</button>} />
+
+      {msg && <Msg msg={msg} />}
+
+      {(!data?.nodes || data.nodes.length === 0) ? (
+        <div className="fx-card p-10 text-center" style={{ borderStyle: "dashed" }}>
+          <Server size={26} style={{ color: "var(--muted)" }} className="mx-auto mb-3" />
+          <div className="text-[12.5px]" style={{ color: "var(--muted)" }}>هنوز سروری اضافه نشده</div>
+        </div>
+      ) : data.nodes.map((n) => (
+        <div key={n.id} className="fx-card p-5 mb-3">
+          <div className="flex items-start justify-between gap-3 flex-wrap">
+            <div className="flex items-center gap-3 min-w-0">
+              <div className="fx-ico" style={{
+                background: n.online ? "rgba(52,211,153,.12)" : "rgba(255,255,255,.04)",
+                width: 38, height: 38,
+              }}>
+                <Server size={17} style={{ color: n.online ? "var(--ok)" : "var(--muted)" }} />
+              </div>
+              <div className="min-w-0">
+                <div className="text-[13px] font-bold text-white flex items-center gap-2">
+                  {n.name}
+                  <span className="text-[10px] px-2 py-0.5 rounded-full"
+                    style={{
+                      background: n.online ? "rgba(52,211,153,.14)" : "rgba(255,255,255,.05)",
+                      color: n.online ? "var(--ok)" : "var(--muted)",
+                    }}>
+                    {n.online ? "آنلاین" : "آفلاین"}
+                  </span>
+                </div>
+                <div className="text-[10.5px] mt-1" style={{ color: "var(--muted)" }}>
+                  {n.os_info || "هنوز خبری نداده"}
+                  {n.public_ip && ` · ${n.public_ip}`}
+                  {n.agent_version && ` · agent ${n.agent_version}`}
+                </div>
+              </div>
+            </div>
+            <div className="flex gap-2 shrink-0">
+              <button onClick={() => rotate(n.id)} className="fx-ico-btn" title="توکن جدید">
+                <RefreshCw size={13} />
+              </button>
+              <button onClick={() => remove(n.id)} className="fx-ico-btn" title="حذف">
+                <Trash2 size={13} />
+              </button>
+            </div>
+          </div>
+
+          {n.online && (n.cpu_percent != null || n.mem_percent != null) && (
+            <div className="fx-g3 grid grid-cols-3 gap-3 mt-4">
+              {[["پردازنده", n.cpu_percent], ["حافظه", n.mem_percent],
+                ["دیسک", n.disk_percent]].map(([l, v], i) => (
+                <div key={i} className="p-3 rounded-xl" style={{ background: "var(--surface-3)" }}>
+                  <div className="flex justify-between items-baseline mb-2">
+                    <span className="text-[10.5px]" style={{ color: "var(--muted)" }}>{l}</span>
+                    <span className="text-[12px] font-bold" style={{
+                      color: v == null ? "var(--muted)"
+                           : v > 85 ? "var(--danger)" : v > 65 ? "var(--warn)" : "var(--dim)",
+                      fontFamily: "'JetBrains Mono',monospace",
+                    }}>{v == null ? "—" : `${faNum(v)}٪`}</span>
+                  </div>
+                  <div style={{ height: 4, borderRadius: 99, background: "rgba(255,255,255,.06)", overflow: "hidden" }}>
+                    <div style={{
+                      width: `${Math.min(100, v || 0)}%`, height: "100%",
+                      background: (v || 0) > 85 ? "var(--danger)" : (v || 0) > 65 ? "var(--warn)" : "var(--accent)",
+                    }} />
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+
+          <div className="flex items-center justify-between mt-4 pt-3 flex-wrap gap-2"
+            style={{ borderTop: "1px solid var(--border)" }}>
+            <span className="text-[11px]" style={{ color: "var(--muted)" }}>
+              {faNum(n.running_count)} از {faNum(n.tunnel_count)} تانل در حال کار
+            </span>
+            <span className="text-[10px]" dir="ltr"
+              style={{ color: "var(--muted)", fontFamily: "'JetBrains Mono',monospace" }}>
+              {n.token}
+            </span>
+          </div>
+        </div>
+      ))}
+
+      {adding && (
+        <Modal title="افزودن سرور" onClose={() => setAdding(false)}>
+          <Field label="نام سرور" hint="مثلاً: تهران — پارس‌پک">
+            <input className="fx-input" value={name} onChange={(e) => setName(e.target.value)}
+              placeholder="سرور ایران" />
+          </Field>
+          <Field label="یادداشت (اختیاری)">
+            <input className="fx-input" value={note} onChange={(e) => setNote(e.target.value)}
+              placeholder="مشخصات یا محل سرور" />
+          </Field>
+          <InfoBox>
+            بعد از ساخت، یک دستور نصب می‌گیرید که روی سرور اجرا می‌کنید.
+            سرور شما هیچ پورتی باز نمی‌کند و رمزی جایی ذخیره نمی‌شود.
+          </InfoBox>
+          <button onClick={add} disabled={busy || !name.trim()}
+            className="fx-btn w-full py-3 text-[12.5px] flex items-center justify-center gap-2 mt-4">
+            {busy ? <Loader2 size={14} className="animate-spin" /> : <PlusIcon size={14} />}
+            ساخت و دریافت دستور نصب
+          </button>
+        </Modal>
+      )}
+
+      {created && <AgentInstallModal data={created} onClose={() => setCreated(null)} />}
+    </div>
+  );
+}
+
+/** دستور نصب agent */
+function AgentInstallModal({ data, onClose }) {
+  const [copied, setCopied] = useState(false);
+  const panel = typeof window !== "undefined" ? window.location.origin : "";
+  const cmd = `curl -fsSL "${panel}/api/agent/install.sh?token=${data.token}&panel=${panel}" | sudo bash`;
+
+  const copy = () => {
+    navigator.clipboard?.writeText(cmd);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  };
+
+  return (
+    <Modal title={data.rotated ? "توکن جدید" : "نصب روی سرور"} onClose={onClose} width="560px">
+      <p className="text-[11.5px] mb-4 leading-relaxed" style={{ color: "var(--muted)" }}>
+        {data.rotated
+          ? "توکن قبلی باطل شد. agent را با این دستور دوباره نصب کنید."
+          : "این دستور را روی سرور ایران اجرا کنید. کمتر از یک دقیقه طول می‌کشد."}
+      </p>
+
+      <div className="rounded-xl p-3.5 mb-3" dir="ltr"
+        style={{ background: "var(--surface-3)", border: "1px solid var(--border)" }}>
+        <code className="text-[11px] break-all block leading-relaxed"
+          style={{ color: "var(--accent-2)", fontFamily: "'JetBrains Mono',monospace" }}>
+          {cmd}
+        </code>
+      </div>
+
+      <button onClick={copy}
+        className="fx-btn w-full py-2.5 text-[12.5px] flex items-center justify-center gap-2">
+        {copied ? <><Check size={14} /> کپی شد</> : <><Copy size={14} /> کپی دستور</>}
+      </button>
+
+      <InfoBox tone="warn">
+        این دستور فقط یک‌بار نمایش داده می‌شود. توکن داخلش کلید دسترسی
+        agent است — جایی که دیگران ببینند نگذارید.
+      </InfoBox>
+    </Modal>
+  );
+}
+
+/* ── فهرست تانل‌ها ── */
+function TunnelList({ password }) {
+  const { data, loading, reload } = useTunnel(password);
+  const [adding, setAdding] = useState(false);
+  const [cfgFor, setCfgFor] = useState(null);
+  const [msg, setMsg] = useState(null);
+
+  useEffect(() => { if (msg) { const t = setTimeout(() => setMsg(null), 4000); return () => clearTimeout(t); } }, [msg]);
+
+  const act = async (id, what) => {
+    const url = what === "deploy"
+      ? `${API_URL}/api/admin/tunnel/${id}/deploy`
+      : `${API_URL}/api/admin/tunnel/${id}/action/${what}`;
+    const res = await fetch(url, { method: "POST", headers: { "X-Admin-Password": password } });
+    const d = await res.json().catch(() => ({}));
+    setMsg(res.ok
+      ? { t: "ok", m: what === "deploy" ? "در صف اعمال قرار گرفت" : "دستور فرستاده شد" }
+      : { t: "err", m: d.detail || "ناموفق" });
+    reload();
+  };
+
+  const remove = async (id) => {
+    await fetch(`${API_URL}/api/admin/tunnel/${id}`, {
+      method: "DELETE", headers: { "X-Admin-Password": password } });
+    reload();
+  };
+
+  if (loading) return <div className="flex justify-center py-16">
+    <Loader2 className="animate-spin" style={{ color: "var(--muted)" }} /></div>;
+
+  const hasNodes = data?.nodes?.length > 0;
+
+  return (
+    <div className="fx-anim">
+      <SectionHead title="تانل‌ها"
+        desc="اتصال بین سرور ایران و سرور خارج."
+        action={hasNodes && (
+          <button onClick={() => setAdding(true)} className="fx-btn px-4 py-2.5 text-[12.5px] flex items-center gap-1.5">
+            <PlusIcon size={14} /> تانل جدید
+          </button>
+        )} />
+
+      {msg && <Msg msg={msg} />}
+
+      {!hasNodes ? (
+        <div className="fx-card p-10 text-center" style={{ borderStyle: "dashed" }}>
+          <Server size={26} style={{ color: "var(--muted)" }} className="mx-auto mb-3" />
+          <div className="text-[12.5px]" style={{ color: "var(--muted)" }}>
+            اول از بخش «سرورها» یک سرور اضافه کنید
+          </div>
+        </div>
+      ) : data.tunnels.length === 0 ? (
+        <div className="fx-card p-10 text-center" style={{ borderStyle: "dashed" }}>
+          <Network size={26} style={{ color: "var(--muted)" }} className="mx-auto mb-3" />
+          <div className="text-[12.5px]" style={{ color: "var(--muted)" }}>هنوز تانلی ساخته نشده</div>
+        </div>
+      ) : data.tunnels.map((t) => {
+        const st = TUN_STATUS[t.status] || TUN_STATUS.pending;
+        const ec = ENGINE_COLOR[t.engine] || "var(--accent-2)";
+        return (
+          <div key={t.id} className="fx-card p-5 mb-3">
+            <div className="flex items-start justify-between gap-3 flex-wrap mb-4">
+              <div className="min-w-0">
+                <div className="text-[13px] font-bold text-white flex items-center gap-2 flex-wrap">
+                  {t.name}
+                  <span className="text-[10px] px-2 py-0.5 rounded-lg"
+                    style={{ background: `color-mix(in srgb, ${ec} 14%, transparent)`, color: ec }}>
+                    {t.engineName} · {t.transport}
+                  </span>
+                </div>
+                <div className="text-[10.5px] mt-1.5" dir="ltr"
+                  style={{ color: "var(--muted)", fontFamily: "'JetBrains Mono',monospace", textAlign: "right" }}>
+                  {t.node_name} ← {t.remote_host}:{t.bridge_port}
+                </div>
+              </div>
+              <span className="text-[11px] px-2.5 py-1 rounded-lg shrink-0"
+                style={{ background: `color-mix(in srgb, ${st.color} 12%, transparent)`, color: st.color }}>
+                {st.label}
+              </span>
+            </div>
+
+            <div className="flex gap-1.5 flex-wrap mb-4">
+              {t.ports.map((p, i) => (
+                <span key={i} className="text-[10.5px] px-2 py-1 rounded-lg" dir="ltr"
+                  style={{ background: "var(--surface-3)", color: "var(--dim)",
+                           fontFamily: "'JetBrains Mono',monospace" }}>
+                  {p.local === p.remote ? p.local : `${p.local}→${p.remote}`}
+                </span>
+              ))}
+            </div>
+
+            {t.last_error && (
+              <div className="text-[10.5px] p-2.5 rounded-lg mb-3"
+                style={{ background: "rgba(248,113,113,.08)", color: "var(--danger)" }}>
+                {t.last_error.slice(0, 160)}
+              </div>
+            )}
+
+            <div className="flex gap-2 flex-wrap pt-3" style={{ borderTop: "1px solid var(--border)" }}>
+              <button onClick={() => act(t.id, "deploy")} disabled={!t.nodeOnline}
+                className="fx-btn px-3 py-2 text-[11.5px] flex items-center gap-1.5"
+                style={!t.nodeOnline ? { opacity: .4, cursor: "not-allowed" } : {}}>
+                <UploadCloud size={12} /> اعمال
+              </button>
+              {["restart", "stop", "logs"].map((w) => (
+                <button key={w} onClick={() => act(t.id, w)} disabled={!t.nodeOnline}
+                  className="fx-btn-g px-3 py-2 text-[11.5px]"
+                  style={!t.nodeOnline ? { opacity: .4, cursor: "not-allowed" } : {}}>
+                  {{ restart: "ری‌استارت", stop: "توقف", logs: "لاگ" }[w]}
+                </button>
+              ))}
+              <button onClick={() => setCfgFor(t)} className="fx-btn-g px-3 py-2 text-[11.5px] flex items-center gap-1.5">
+                <FileText size={12} /> کانفیگ سرور خارج
+              </button>
+              <button onClick={() => remove(t.id)} className="fx-ico-btn mr-auto" style={{ width: 30, height: 30 }}>
+                <Trash2 size={12} />
+              </button>
+            </div>
+
+            {!t.nodeOnline && (
+              <div className="text-[10.5px] mt-3" style={{ color: "var(--warn)" }}>
+                سرور آفلاین است — دستورها وقتی وصل شود اجرا می‌شوند
+              </div>
+            )}
+          </div>
+        );
+      })}
+
+      {adding && (
+        <TunnelForm password={password} nodes={data.nodes} engines={data.engines}
+          onClose={() => setAdding(false)}
+          onDone={() => { setAdding(false); reload(); setMsg({ t: "ok", m: "تانل ساخته شد" }); }} />
+      )}
+
+      {cfgFor && <TunnelConfigModal tunnel={cfgFor} password={password}
+        onClose={() => setCfgFor(null)} />}
+    </div>
+  );
+}
+
+/** ساخت تانل */
+function TunnelForm({ password, nodes, engines, onClose, onDone }) {
+  const [f, setF] = useState({
+    name: "", engine: "backhaul", transport: "tcpmux",
+    node_id: nodes[0]?.id || "", remote_host: "", bridge_port: 3080,
+  });
+  const [ports, setPorts] = useState([{ local: 443, remote: 443 }]);
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState("");
+
+  const eng = engines.find((e) => e.key === f.engine);
+
+  const submit = async () => {
+    setBusy(true); setErr("");
+    try {
+      const res = await fetch(`${API_URL}/api/admin/tunnel`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "X-Admin-Password": password },
+        body: JSON.stringify({ ...f, ports }),
+      });
+      const d = await res.json();
+      if (res.ok) onDone();
+      else setErr(d.detail || "ساخت ناموفق");
+    } catch { setErr("اتصال برقرار نشد"); }
+    finally { setBusy(false); }
+  };
+
+  return (
+    <Modal title="تانل جدید" onClose={onClose} width="560px">
+      <Field label="نام">
+        <input className="fx-input" value={f.name}
+          onChange={(e) => setF({ ...f, name: e.target.value })}
+          placeholder="تانل اصلی" />
+      </Field>
+
+      <Field label="موتور">
+        <div className="fx-g4 grid grid-cols-2 gap-2">
+          {engines.map((e) => {
+            const on = f.engine === e.key;
+            const col = ENGINE_COLOR[e.key];
+            return (
+              <button key={e.key}
+                onClick={() => setF({ ...f, engine: e.key, transport: e.default_transport })}
+                className="p-3 rounded-xl text-right"
+                style={{
+                  background: on ? `color-mix(in srgb, ${col} 12%, transparent)` : "var(--surface-3)",
+                  border: `1px solid ${on ? col : "var(--border)"}`,
+                }}>
+                <div className="flex items-center gap-2">
+                  <span className="text-[12px] font-bold" style={{ color: on ? col : "var(--dim)" }}>
+                    {e.name}
+                  </span>
+                  {e.recommended && (
+                    <span className="text-[9px] px-1.5 py-0.5 rounded"
+                      style={{ background: "rgba(52,211,153,.14)", color: "var(--ok)" }}>
+                      پیشنهادی
+                    </span>
+                  )}
+                </div>
+                <div className="text-[10px] mt-1 leading-relaxed" style={{ color: "var(--muted)" }}>
+                  {e.desc}
+                </div>
+              </button>
+            );
+          })}
+        </div>
+      </Field>
+
+      <div className="fx-g3 grid grid-cols-2 gap-3">
+        <Field label="سرور ایران">
+          <select className="fx-input" value={f.node_id}
+            onChange={(e) => setF({ ...f, node_id: e.target.value })}>
+            {nodes.map((n) => <option key={n.id} value={n.id}>{n.name}</option>)}
+          </select>
+        </Field>
+        <Field label="پروتکل انتقال">
+          <select className="fx-input" value={f.transport}
+            onChange={(e) => setF({ ...f, transport: e.target.value })}>
+            {(eng?.transports || []).map((t) => <option key={t} value={t}>{t}</option>)}
+          </select>
+        </Field>
+      </div>
+
+      <div className="fx-g3 grid grid-cols-2 gap-3">
+        <Field label="آدرس سرور ایران" hint="سرور خارج به اینجا وصل می‌شود">
+          <input className="fx-input" dir="ltr" value={f.remote_host}
+            onChange={(e) => setF({ ...f, remote_host: e.target.value })}
+            placeholder="1.2.3.4" style={{ fontFamily: "'JetBrains Mono',monospace" }} />
+        </Field>
+        <Field label="پورت ارتباط">
+          <input className="fx-input" type="number" dir="ltr" value={f.bridge_port}
+            onChange={(e) => setF({ ...f, bridge_port: e.target.value })}
+            style={{ fontFamily: "'JetBrains Mono',monospace" }} />
+        </Field>
+      </div>
+
+      <Field label="پورت‌ها" hint="پورت‌هایی که مشتری به آن‌ها وصل می‌شود">
+        {ports.map((p, i) => (
+          <div key={i} className="flex gap-2 mb-2">
+            <input className="fx-input" type="number" dir="ltr" value={p.local}
+              onChange={(e) => {
+                const l = [...ports];
+                l[i] = { local: +e.target.value, remote: +e.target.value };
+                setPorts(l);
+              }}
+              style={{ fontFamily: "'JetBrains Mono',monospace" }} />
+            <button onClick={() => setPorts(ports.filter((_, x) => x !== i))}
+              className="fx-ico-btn shrink-0" style={{ width: 38, height: 38 }}>
+              <Trash2 size={13} />
+            </button>
+          </div>
+        ))}
+        <button onClick={() => setPorts([...ports, { local: 8443, remote: 8443 }])}
+          className="fx-btn-dash w-full py-2.5 text-[11.5px]">
+          <PlusIcon size={12} /> افزودن پورت
+        </button>
+      </Field>
+
+      {err && <div className="text-[11.5px] p-3 rounded-xl mt-3"
+        style={{ background: "rgba(248,113,113,.1)", color: "var(--danger)" }}>{err}</div>}
+
+      <button onClick={submit} disabled={busy || !f.name.trim() || !f.remote_host.trim()}
+        className="fx-btn w-full py-3 text-[12.5px] flex items-center justify-center gap-2 mt-4">
+        {busy ? <Loader2 size={14} className="animate-spin" /> : <CheckCircle2 size={14} />}
+        ساخت تانل
+      </button>
+    </Modal>
+  );
+}
+
+/** کانفیگ سمت خارج */
+function TunnelConfigModal({ tunnel, password, onClose }) {
+  const [cfg, setCfg] = useState(null);
+  const [copied, setCopied] = useState(false);
+
+  useEffect(() => {
+    fetch(`${API_URL}/api/admin/tunnel/${tunnel.id}/config?side=foreign`, {
+      headers: { "X-Admin-Password": password },
+    }).then((r) => r.json()).then(setCfg).catch(() => setCfg({ config: "" }));
+  }, [tunnel.id]);
+
+  const copy = () => {
+    navigator.clipboard?.writeText(cfg?.config || "");
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  };
+
+  return (
+    <Modal title="کانفیگ سرور خارج" onClose={onClose} width="600px">
+      <p className="text-[11.5px] mb-4 leading-relaxed" style={{ color: "var(--muted)" }}>
+        این فایل را روی سرور خارج بگذارید. چون آنجا agent نصب نیست،
+        این یک مرحله دستی است.
+      </p>
+
+      {!cfg ? (
+        <div className="flex justify-center py-8">
+          <Loader2 className="animate-spin" style={{ color: "var(--muted)" }} /></div>
+      ) : (
+        <>
+          <div className="rounded-xl p-3.5 mb-3 overflow-auto" dir="ltr"
+            style={{ background: "var(--surface-3)", border: "1px solid var(--border)", maxHeight: 300 }}>
+            <pre className="text-[11px] leading-relaxed whitespace-pre-wrap"
+              style={{ color: "var(--dim)", fontFamily: "'JetBrains Mono',monospace" }}>
+              {cfg.config}
+            </pre>
+          </div>
+          <div className="text-[10.5px] mb-3" dir="ltr"
+            style={{ color: "var(--muted)", fontFamily: "'JetBrains Mono',monospace" }}>
+            {cfg.filename}
+          </div>
+          <button onClick={copy}
+            className="fx-btn w-full py-2.5 text-[12.5px] flex items-center justify-center gap-2">
+            {copied ? <><Check size={14} /> کپی شد</> : <><Copy size={14} /> کپی کانفیگ</>}
+          </button>
+        </>
+      )}
+    </Modal>
+  );
+}
+
+/* ── رویدادها ── */
+function TunnelEvents({ password }) {
+  const { data, loading } = useTunnel(password);
+
+  if (loading) return <div className="flex justify-center py-16">
+    <Loader2 className="animate-spin" style={{ color: "var(--muted)" }} /></div>;
+
+  const events = data?.events || [];
+  const color = { error: "var(--danger)", warn: "var(--warn)", info: "var(--muted)" };
+
+  return (
+    <div className="fx-anim">
+      <SectionHead title="رویدادها" desc="آنچه روی سرورها اتفاق افتاده." />
+
+      {events.length === 0 ? (
+        <div className="fx-card p-10 text-center" style={{ borderStyle: "dashed" }}>
+          <Clock size={26} style={{ color: "var(--muted)" }} className="mx-auto mb-3" />
+          <div className="text-[12.5px]" style={{ color: "var(--muted)" }}>هنوز رویدادی ثبت نشده</div>
+        </div>
+      ) : (
+        <div className="fx-card overflow-hidden" style={{ padding: 0 }}>
+          {events.map((e, i) => (
+            <div key={e.id} className="flex items-start gap-3 p-4"
+              style={{ borderBottom: i < events.length - 1 ? "1px solid var(--border)" : "none" }}>
+              <Circle size={7} fill={color[e.level] || "var(--muted)"} strokeWidth={0}
+                style={{ marginTop: 5, flexShrink: 0 }} />
+              <div className="min-w-0 flex-1">
+                <div className="text-[12px]" style={{ color: "var(--dim)" }}>{e.message}</div>
+                <div className="text-[10px] mt-1" style={{ color: "var(--muted)" }}>
+                  {e.node_name && `${e.node_name} · `}
+                  {e.created_at?.replace("T", " ").slice(0, 16)}
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
   );
 }
 
@@ -6725,6 +7472,10 @@ export default function App() {
           {active === "bill-invoice" && <BillingInvoice password={password} />}
           {active === "bill-pay" && <BillingPayments password={password} />}
           {active === "bill-clients" && <BillingClients password={password} />}
+          {active === "tun-overview" && <TunnelOverview password={password} />}
+          {active === "tun-nodes" && <TunnelNodes password={password} />}
+          {active === "tun-list" && <TunnelList password={password} />}
+          {active === "tun-events" && <TunnelEvents password={password} />}
           {active === "bill-settings" && <BillingSettings password={password} />}
           {active === "bot-texts" && <BotTextsSection password={password} />}
           {active === "bot-preview" && <BotPreviewSection />}
