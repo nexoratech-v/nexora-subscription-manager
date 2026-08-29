@@ -4505,6 +4505,7 @@ function TunnelOverview({ password }) {
 /* ── سرورها ── */
 function TunnelNodes({ password }) {
   const { data, loading, reload } = useTunnel(password);
+  const [diag, setDiag] = useState(null);
   const [adding, setAdding] = useState(false);
   const [name, setName] = useState("");
   const [note, setNote] = useState("");
@@ -4593,6 +4594,12 @@ function TunnelNodes({ password }) {
               </div>
             </div>
             <div className="flex gap-2 shrink-0">
+              {!n.online && (
+                <button onClick={() => setDiag(n.id)}
+                  className="fx-btn-g px-3 py-2 text-[11px] flex items-center gap-1.5">
+                  <ShieldCheck size={12} /> چرا آفلاین؟
+                </button>
+              )}
               <button onClick={() => rotate(n.id)} className="fx-ico-btn" title="توکن جدید">
                 <RefreshCw size={13} />
               </button>
@@ -4662,7 +4669,79 @@ function TunnelNodes({ password }) {
       )}
 
       {created && <AgentInstallModal data={created} onClose={() => setCreated(null)} />}
+      {diag && <NodeDiagnoseModal nodeId={diag} password={password}
+        onClose={() => setDiag(null)} />}
     </div>
+  );
+}
+
+/** چرا نود آفلاین است */
+function NodeDiagnoseModal({ nodeId, password, onClose }) {
+  const [d, setD] = useState(null);
+
+  useEffect(() => {
+    fetch(`${API_URL}/api/admin/tunnel/node/${nodeId}/check`, {
+      headers: { "X-Admin-Password": password },
+    }).then((r) => r.json()).then(setD).catch(() => setD({ steps: [] }));
+  }, [nodeId]);
+
+  const copy = (t) => navigator.clipboard?.writeText(t);
+
+  return (
+    <Modal title="چرا نود آفلاین است" onClose={onClose} width="520px">
+      {!d ? (
+        <div className="flex justify-center py-8">
+          <Loader2 className="animate-spin" style={{ color: "var(--muted)" }} /></div>
+      ) : (
+        <>
+          {d.steps?.map((s, i) => (
+            <div key={i} className="flex gap-3 py-2.5"
+              style={{ borderBottom: "1px solid var(--border)" }}>
+              <div className="shrink-0 mt-0.5">
+                {s.ok ? <CheckCircle2 size={15} style={{ color: "var(--ok)" }} />
+                      : <XCircle size={15} style={{ color: "var(--danger)" }} />}
+              </div>
+              <div className="min-w-0 flex-1">
+                <div className="text-[12px] font-semibold"
+                  style={{ color: s.ok ? "var(--text)" : "var(--danger)" }}>{s.title}</div>
+                {s.detail && (
+                  <div className="text-[10.5px] mt-1" style={{ color: "var(--muted)" }}>
+                    {s.detail}
+                  </div>
+                )}
+                {s.hint && (
+                  <div className="text-[11px] mt-2 px-2.5 py-1.5 rounded-lg leading-relaxed"
+                    style={{ color: "var(--warn)", background: "rgba(251,191,36,.08)" }}>
+                    {s.hint}
+                  </div>
+                )}
+              </div>
+            </div>
+          ))}
+
+          <div className="mt-4">
+            <div className="text-[12px] font-semibold text-white mb-2.5">
+              روی سرور ایران اجرا کنید
+            </div>
+            {d.commands?.map((cm, i) => (
+              <div key={i} className="mb-2">
+                <div className="text-[10.5px] mb-1" style={{ color: "var(--muted)" }}>
+                  {cm.label}
+                </div>
+                <div onClick={() => copy(cm.cmd)}
+                  className="rounded-lg px-3 py-2 cursor-pointer" dir="ltr"
+                  style={{ background: "var(--surface-3)", border: "1px solid var(--border)" }}>
+                  <code className="text-[11px]"
+                    style={{ color: "var(--accent-2)", fontFamily: "'JetBrains Mono',monospace" }}>
+                    {cm.cmd}
+                  </code>
+                </div>
+              </div>
+            ))}
+          </div>
+        </>
+      )}
+    </Modal>
   );
 }
 

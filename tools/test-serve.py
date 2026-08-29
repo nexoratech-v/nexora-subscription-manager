@@ -48,7 +48,7 @@ def chk(name, ok, extra=""):
 
 def main():
     if not DIST.exists():
-        print(f"\n{R}اول اجرا کنید: cd frontend && npm run build{X}\n")
+        print(f"\n{R}Run this first: cd frontend && npm run build{X}\n")
         return 1
 
     port = 8877
@@ -71,49 +71,49 @@ def main():
         with urllib.request.urlopen(base + path, timeout=10) as r:
             return r.status, r.headers.get("Content-Type", ""), r.read()
 
-    print(f"\n{D}شبیه‌سازی درخواست‌های مرورگر{X}\n")
+    print(f"\n{D}Simulating browser requests{X}\n")
 
     try:
         st, _, body = get("/")
         html = body.decode()
-        chk("index.html", st == 200, f"{len(html)} بایت")
+        chk("index.html", st == 200, f"{len(html)} bytes")
 
         m = re.search(r'href="(/assets/[^"]+\.css)"', html)
-        chk("لینک CSS در HTML", bool(m), m.group(1) if m else "پیدا نشد")
+        chk("CSS link in HTML", bool(m), m.group(1) if m else "not found")
 
         if m:
             st, ct, body = get(m.group(1))
             css = body.decode()
-            chk("دانلود CSS", st == 200, f"{len(css):,} بایت")
-            chk("نوع MIME", "text/css" in ct, ct)
-            chk("کلاس‌ها و متغیرها", ".flex" in css and "--bg" in css)
-            chk("حجم منطقی", len(css) > 15000,
+            chk("CSS download", st == 200, f"{len(css):,} bytes")
+            chk("MIME type", "text/css" in ct, ct)
+            chk("classes and variables", ".flex" in css and "--bg" in css)
+            chk("sensible size", len(css) > 15000,
                 "زیر ۱۵ کیلوبایت یعنی Tailwind کار نکرده"
                 if len(css) <= 15000 else "")
 
             fonts = sorted(set(re.findall(r"url\((/assets/[^)]+\.woff2?)\)", css)))
-            chk("ارجاع فونت", len(fonts) >= 2, f"{len(fonts)} فایل")
+            chk("font references", len(fonts) >= 2, f"{len(fonts)} files")
             for f in fonts:
                 st, ct, body = get(f)
-                chk(f"  {f.split('/')[-1][:28]}", st == 200, f"{len(body):,} بایت")
+                chk(f"  {f.split('/')[-1][:28]}", st == 200, f"{len(body):,} bytes")
 
         m = re.search(r'src="(/assets/[^"]+\.js)"', html)
         if m:
             st, ct, body = get(m.group(1))
-            chk("دانلود JS", st == 200, f"{len(body):,} بایت")
-            chk("نوع MIME جاوااسکریپت", "javascript" in ct, ct)
+            chk("JS download", st == 200, f"{len(body):,} bytes")
+            chk("JS MIME type", "javascript" in ct, ct)
 
     except Exception as e:
-        chk("اجرای تست", False, f"{type(e).__name__}: {e}")
+        chk("test run", False, f"{type(e).__name__}: {e}")
     finally:
         httpd.shutdown()
         httpd.server_close()
 
     print(f"\n{D}{'─' * 46}{X}")
     if failed:
-        print(f"  {R}{passed} پاس · {failed} ناموفق{X}\n")
+        print(f"  {R}{passed} passed · {failed} failed{X}\n")
         return 1
-    print(f"  {G}{passed} پاس — مرورگر همه‌چیز را می‌گیرد{X}\n")
+    print(f"  {G}{passed} passed - the browser gets everything{X}\n")
     return 0
 
 

@@ -19,29 +19,29 @@ bad(){ echo "  ${BAD}✗${RS} $1"; }
 warn(){ echo "  ${WARN}!${RS} $1"; }
 info(){ echo "  ${DIM}$1${RS}"; }
 
-[ "$(id -u)" -eq 0 ] || { echo "با sudo اجرا کنید"; exit 1; }
+[ "$(id -u)" -eq 0 ] || { echo "Run with sudo"; exit 1; }
 
 CONF="/etc/nginx/conf.d/nexora-panel.conf"
 [ -f "$CONF" ] || CONF=$(grep -rl "nexora" /etc/nginx/ 2>/dev/null | head -1)
 
 echo
-echo "${ACC}رفع پیکربندی nginx${RS}"
+echo "${ACC}Repairing nginx config${RS}"
 echo
 
 if [ -z "$CONF" ] || [ ! -f "$CONF" ]; then
-  bad "پیکربندی nexora پیدا نشد"
+  bad "config nexora not found"
   exit 1
 fi
-ok "پیکربندی: $CONF"
+ok "config: $CONF"
 
 # ── پشتیبان ──
 BK="$CONF.bak-$(date +%Y%m%d-%H%M%S)"
 cp "$CONF" "$BK"
-ok "پشتیبان: $(basename "$BK")"
+ok "backup: $(basename "$BK")"
 
 # ── حذف بلوک خراب ──
 if grep -q "location /fonts/" "$CONF"; then
-  warn "بلوک خراب پیدا شد — حذف می‌شود"
+  warn "Found the broken block - removing"
   python3 - "$CONF" <<'PY'
 import re, sys
 p = sys.argv[1]
@@ -76,28 +76,28 @@ c = re.sub(r'\n\s*#[^\n]*وگرنه بعد از تعویض فونت[^\n]*', '', 
 c = re.sub(r'\n{3,}', '\n\n', c)
 open(p, "w", encoding="utf-8").write(c)
 PY
-  ok "حذف شد"
+  ok "removed"
 else
-  ok "بلوک خراب ندارد"
+  ok "No broken block"
 fi
 
 # ── مطمئن شویم mime.types هست ──
 if ! grep -q "include.*mime.types" /etc/nginx/nginx.conf; then
-  warn "mime.types در nginx.conf نیست — اضافه می‌شود"
+  warn "mime.types missing from nginx.conf - adding"
   sed -i '/http\s*{/a\    include /etc/nginx/mime.types;\n    default_type application/octet-stream;' \
       /etc/nginx/nginx.conf
-  ok "اضافه شد"
+  ok "added"
 else
-  ok "mime.types سر جایش است"
+  ok "mime.types in place"
 fi
 
 # ── بررسی و اعمال ──
 echo
 if nginx -t 2>/dev/null; then
-  ok "پیکربندی معتبر است"
-  systemctl reload nginx && ok "nginx بارگذاری مجدد شد"
+  ok "config valid"
+  systemctl reload nginx && ok "nginx reloaded"
 else
-  bad "پیکربندی معتبر نیست — برمی‌گردانیم"
+  bad "config invalid — rolling back"
   nginx -t 2>&1 | sed 's/^/    /'
   cp "$BK" "$CONF"
   systemctl reload nginx 2>/dev/null
@@ -113,16 +113,16 @@ if [ -n "$DOMAIN" ]; then
     CT=$(curl -skI "https://$DOMAIN$CSS" 2>/dev/null | grep -i "^content-type" | tr -d '\r')
     SZ=$(curl -sk "https://$DOMAIN$CSS" 2>/dev/null | wc -c)
     if echo "$CT" | grep -qi "text/css"; then
-      ok "CSS با نوع درست سرو می‌شود ($SZ بایت)"
+      ok "CSS served with the correct type ($SZ bytes)"
     else
-      bad "نوع MIME هنوز اشتباه است: $CT"
+      bad "MIME type still wrong: $CT"
     fi
   else
-    warn "لینک CSS در صفحه پیدا نشد — شاید پنل build نشده"
-    info "اجرا کنید: nexora update"
+    warn "No CSS link on the page - the panel may not be built"
+    info "Run: nexora update"
   fi
 fi
 
 echo
-ok "تمام — مرورگر را با Ctrl+Shift+R تازه کنید"
+ok "Done — Refresh the browser with Ctrl+Shift+R"
 echo

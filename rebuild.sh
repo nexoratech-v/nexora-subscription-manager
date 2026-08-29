@@ -21,13 +21,13 @@ bad(){ echo "  ${BAD}✗${RS} $1"; }
 warn(){ echo "  ${WARN}!${RS} $1"; }
 info(){ echo "  ${DIM}$1${RS}"; }
 
-[ "$(id -u)" -eq 0 ] || { echo "با sudo اجرا کنید"; exit 1; }
+[ "$(id -u)" -eq 0 ] || { echo "Run with sudo"; exit 1; }
 
 DIR="${INSTALL_DIR:-/opt/nexora-panel}"
-[ -d "$DIR/frontend" ] || { bad "پنل در $DIR پیدا نشد"; exit 1; }
+[ -d "$DIR/frontend" ] || { bad "Panel not found at $DIR not found"; exit 1; }
 
 echo
-echo "${ACC}بازسازی پنل${RS}"
+echo "${ACC}Rebuilding the panel${RS}"
 echo
 
 cd "$DIR/frontend"
@@ -36,45 +36,45 @@ cd "$DIR/frontend"
 if [ -d dist ]; then
   rm -rf dist.backup
   cp -r dist dist.backup
-  ok "نسخه‌ی فعلی نگه داشته شد"
+  ok "Current build saved"
 fi
 
 # ── ۲. پاکسازی کامل ──
-info "پاکسازی کش بیلد..."
+info "Clearing build cache..."
 rm -rf dist node_modules/.vite .vite 2>/dev/null
-ok "کش پاک شد"
+ok "Cache cleared"
 
 # ── ۳. آدرس API ──
 DOMAIN=$(grep -oP 'server_name\s+\K[^;]+' /etc/nginx/conf.d/nexora-panel.conf 2>/dev/null \
          | head -1 | tr -d ' ')
 if [ -n "$DOMAIN" ]; then
   echo "VITE_API_URL=https://$DOMAIN" > .env
-  ok "آدرس API: https://$DOMAIN"
+  ok "API address: https://$DOMAIN"
 else
-  warn "دامنه پیدا نشد — .env دست‌نخورده ماند"
+  warn "No domain found - .env left as is"
 fi
 
 # ── ۴. وابستگی‌ها ──
-info "نصب وابستگی‌ها..."
+info "Installing dependencies..."
 export NODE_OPTIONS="--max-old-space-size=1536"
 
 MEM=$(free -m 2>/dev/null | awk '/^Mem:/{print $2}')
 SWP=$(free -m 2>/dev/null | awk '/^Swap:/{print $2}')
 if [ -n "$MEM" ] && [ $((MEM + SWP)) -lt 1500 ] && [ ! -f /swapfile ]; then
-  warn "حافظه کم — swap موقت ساخته می‌شود"
+  warn "Low memory - creating temporary swap"
   fallocate -l 2G /swapfile 2>/dev/null && chmod 600 /swapfile && \
     mkswap /swapfile > /dev/null 2>&1 && swapon /swapfile > /dev/null 2>&1
 fi
 
 npm install --no-fund --no-audit --loglevel=error > /tmp/nexora-rebuild.log 2>&1
-ok "وابستگی‌ها نصب شدند"
+ok "Dependencies installed"
 
 # ── ۵. بیلد ──
-info "ساخت پنل..."
+info "Building the panel..."
 if ! npm run build >> /tmp/nexora-rebuild.log 2>&1; then
-  bad "بیلد شکست خورد — /tmp/nexora-rebuild.log"
+  bad "Build failed — /tmp/nexora-rebuild.log"
   tail -15 /tmp/nexora-rebuild.log | sed 's/^/    /'
-  [ -d dist.backup ] && mv dist.backup dist && info "نسخه‌ی قبلی برگردانده شد"
+  [ -d dist.backup ] && mv dist.backup dist && info "Previous build restored"
   exit 1
 fi
 
@@ -84,7 +84,7 @@ CSS=$(ls dist/assets/*.css 2>/dev/null | head -1)
 JS=$(ls dist/assets/*.js 2>/dev/null | head -1)
 
 if [ -z "$CSS" ]; then
-  bad "هیچ فایل CSS ساخته نشد"
+  bad "No stylesheet was produced"
   [ -d dist.backup ] && rm -rf dist && mv dist.backup dist
   exit 1
 fi
@@ -93,17 +93,17 @@ CSSZ=$(wc -c < "$CSS")
 JSZ=$(wc -c < "$JS" 2>/dev/null || echo 0)
 
 if [ "$CSSZ" -lt 15000 ]; then
-  bad "CSS خیلی کوچک است (${CSSZ}B) — Tailwind اجرا نشده"
-  info "پنل با این فایل بدون ظاهر بالا می‌آید"
-  [ -d dist.backup ] && rm -rf dist && mv dist.backup dist && info "نسخه‌ی قبلی برگردانده شد"
+  bad "CSS is too small (${CSSZ}B) — Tailwind did not run"
+  info "The panel would render unstyled"
+  [ -d dist.backup ] && rm -rf dist && mv dist.backup dist && info "Previous build restored"
   exit 1
 fi
-ok "CSS: $(basename "$CSS") — ${CSSZ} بایت"
-ok "JS:  $(basename "$JS") — ${JSZ} بایت"
+ok "CSS: $(basename "$CSS") — ${CSSZ} bytes"
+ok "JS:  $(basename "$JS") — ${JSZ} bytes"
 
 # محتوای واقعی
 for token in "--bg" "fx-card" "IRANSansX"; do
-  grep -q -- "$token" "$CSS" && ok "شامل $token" || warn "بدون $token"
+  grep -q -- "$token" "$CSS" && ok "contains $token" || warn "missing $token"
 done
 
 rm -rf dist.backup
@@ -112,15 +112,15 @@ rm -rf dist.backup
 echo
 if command -v nginx >/dev/null 2>&1; then
   if nginx -t 2>/dev/null; then
-    systemctl reload nginx && ok "nginx بارگذاری مجدد شد"
+    systemctl reload nginx && ok "nginx reloaded"
   else
-    bad "پیکربندی nginx مشکل دارد:"
+    bad "nginx config has a problem:"
     nginx -t 2>&1 | sed 's/^/    /'
-    info "اجرا کنید: sudo bash fix-nginx.sh"
+    info "Run: sudo bash fix-nginx.sh"
   fi
 fi
 
-systemctl restart nexora-panel 2>/dev/null && ok "سرویس پنل ری‌استارت شد"
+systemctl restart nexora-panel 2>/dev/null && ok "Panel service restarted"
 
 # ── ۸. تست از بیرون ──
 echo
@@ -130,17 +130,17 @@ if [ -n "$DOMAIN" ]; then
     CT=$(curl -skI "https://$DOMAIN$LIVE" 2>/dev/null | grep -i "^content-type" | tr -d '\r')
     SZ=$(curl -sk "https://$DOMAIN$LIVE" 2>/dev/null | wc -c)
     if echo "$CT" | grep -qi "text/css" && [ "$SZ" -gt 15000 ]; then
-      ok "سرور CSS را درست می‌دهد (${SZ}B)"
+      ok "Server delivers CSS correctly (${SZ}B)"
     else
-      bad "مشکل در سرو کردن: $CT (${SZ}B)"
-      info "اجرا کنید: sudo bash fix-nginx.sh"
+      bad "Problem serving: $CT (${SZ}B)"
+      info "Run: sudo bash fix-nginx.sh"
     fi
   fi
 fi
 
 echo
-ok "تمام"
+ok "Done"
 echo
-echo "  ${WARN}مهم:${RS} مرورگر را با ${ACC}Ctrl+Shift+R${RS} تازه کنید"
-echo "  ${DIM}با F5 معمولی، فایل‌های قدیمی از کش می‌آیند${RS}"
+echo " ${WARN}Note:${RS} and ${ACC}Ctrl+Shift+R${RS} from "
+echo "  ${DIM}A plain F5 will serve the old files from cache${RS}"
 echo

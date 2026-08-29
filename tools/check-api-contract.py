@@ -41,7 +41,7 @@ for m in re.finditer(r"\$\{API_URL\}(/api/[^`\"']*)", frontend):
     if p:
         called.add(p)
 
-print(f"\n{D}بررسی {len(called)} آدرس در برابر {len(routes)} مسیر{X}\n")
+print(f"\n{D}Checking {len(called)} URLs against {len(routes)} routes{X}\n")
 
 
 def matches(path, route):
@@ -60,9 +60,9 @@ missing = [p for p in sorted(called)
 if missing:
     for p in missing:
         problems += 1
-        print(f"  {R}✗{X} آدرس بدون مسیر: {p}")
+        print(f"  {R}✗{X} URL with no route: {p}")
 else:
-    print(f"  {G}✓{X} همه‌ی آدرس‌ها مسیر دارند")
+    print(f"  {G}✓{X} every URL has a route")
 
 # ═══════════════════════════════════════════════
 #  ۲. نام فیلدهایی که هر دو طرف باید بشناسند
@@ -79,15 +79,15 @@ for fn, names in CONTRACTS:
     m = re.search(rf"def {fn}\(.*?(?=\n@app\.|\ndef |\Z)", backend, re.S)
     if not m:
         problems += 1
-        print(f"  {R}✗{X} تابع {fn} پیدا نشد")
+        print(f"  {R}✗{X} function {fn} not found")
         continue
     src = m.group(0)
     unknown = [n for n in names if f'"{n}"' not in src]
     if unknown:
         problems += 1
-        print(f"  {R}✗{X} {fn} این نام‌ها را نمی‌پذیرد: {unknown}")
+        print(f"  {R}✗{X} {fn} does not accept: {unknown}")
     else:
-        print(f"  {G}✓{X} {fn} هر دو نام را می‌پذیرد")
+        print(f"  {G}✓{X} {fn} accepts both names")
 
 # ═══════════════════════════════════════════════
 #  ۳. فیلدهایی که فرانت‌اند از پاسخ می‌خواند
@@ -102,9 +102,9 @@ absent = set(ALIASES) - set(sent)
 
 if absent:
     problems += 1
-    print(f"  {R}✗{X} بک‌اند این نام‌های مترادف را نمی‌فرستد: {sorted(absent)}")
+    print(f"  {R}✗{X} backend does not send these aliases: {sorted(absent)}")
 else:
-    print(f"  {G}✓{X} همه‌ی نام‌های مترادف فرستاده می‌شوند")
+    print(f"  {G}✓{X} all aliases are sent")
 
 # ═══════════════════════════════════════════════
 #  ۴. سلامت CSS
@@ -123,10 +123,10 @@ if css_path.exists():
           if d not in css]
     if tw:
         problems += 1
-        print(f"  {R}✗{X} دستورهای Tailwind حذف شده‌اند: {tw}")
-        print(f"      بدون این‌ها کل ظاهر پنل از بین می‌رود")
+        print(f"  {R}✗{X} Tailwind directives are missing: {tw}")
+        print(f"      without them the panel has no styling at all")
     else:
-        print(f"  {G}✓{X} دستورهای Tailwind سر جایشان هستند")
+        print(f"  {G}✓{X} Tailwind directives present")
 
     # فونت باید هم تعریف و هم اعمال شود
     has_face = "@font-face" in css
@@ -134,16 +134,16 @@ if css_path.exists():
     applied = bool(re.search(r'(html|body|#root)[^{]*\{[^}]*font-family', css))
     if has_face and not applied:
         problems += 1
-        print(f"  {R}✗{X} فونت تعریف شده ولی روی body اعمال نشده")
+        print(f"  {R}✗{X} font declared but never applied to body")
     elif has_face:
-        print(f"  {G}✓{X} فونت تعریف و اعمال شده")
+        print(f"  {G}✓{X} font declared and applied")
 else:
     problems += 1
-    print(f"  {R}✗{X} index.css پیدا نشد")
+    print(f"  {R}✗{X} index.css not found")
 
 print()
 if problems:
-    print(f"{R}{problems} ناهماهنگی پیدا شد{X}\n")
+    print(f"{R}{problems} mismatches found{X}\n")
     sys.exit(1)
 
-print(f"{G}قرارداد API سالم است{X}\n")
+print(f"{G}API contract is sound{X}\n")

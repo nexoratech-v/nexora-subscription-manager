@@ -2,6 +2,38 @@
 
 ## [1.1.1]
 
+### Fixed
+- **Nodes stayed offline even though the agent was checking in.** The tunnel module read
+  its database path once at import time, but import order under uvicorn is not
+  guaranteed — if the environment variable was not set at that moment, the wrong path
+  stuck for the life of the process and every write went silently to another file. The
+  path is now resolved on each connection
+
+### Changed
+- **The agent installer verifies each step and prints in English.** It confirms the
+  panel is reachable before installing anything, checks the downloaded file is valid
+  Python, performs one manual check-in, and only then installs the service. A failure at
+  any step stops with the reason
+- All shell and CLI output is now English; comments in the source stay Persian
+
+## [1.1.1]
+
+### Changed
+- **Shell and CLI output is now English.** Persian renders as mangled boxes on most
+  Linux terminals, so error messages from install and repair scripts were unreadable —
+  which meant real failures went unnoticed. All 178 output lines across the scripts,
+  tools and agent are now plain ASCII. Comments in the source stay Persian
+
+### Added
+- **«چرا آفلاین؟»** on any node the panel shows as offline. It reports whether the agent
+  has ever checked in, when it last did, and gives the four commands to run on the
+  Iranian server — status, live log, panel reachability and restart
+- `rebuild.sh` rebuilds the panel from scratch when it comes up unstyled or shows
+  `undefined` — usually a stale `dist`. It verifies the stylesheet before installing it
+  and restores the previous build on failure
+
+## [1.1.1]
+
 ### Added
 - `rebuild.sh` rebuilds the panel from scratch when it comes up unstyled or shows
   `undefined` where data should be — usually a stale `dist` left behind by a build that

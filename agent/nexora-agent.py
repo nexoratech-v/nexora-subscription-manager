@@ -365,7 +365,7 @@ WantedBy=multi-user.target
 
     run(["systemctl", "daemon-reload"])
     ok, out = run(["systemctl", "enable", "--now", service_name(tid)])
-    return ok, out or "سرویس راه‌اندازی شد"
+    return ok, out or "service started"
 
 
 def remove_service(tunnel_id):
@@ -465,11 +465,11 @@ def update_self(url):
 
 def main():
     if not PANEL_URL or not TOKEN:
-        print("خطا: NEXORA_PANEL و NEXORA_TOKEN تنظیم نشده‌اند", file=sys.stderr)
+        print("Error: NEXORA_PANEL and NEXORA_TOKEN are not set", file=sys.stderr)
         sys.exit(1)
 
     BASE.mkdir(parents=True, exist_ok=True)
-    log(f"Nexora Agent {VERSION} — پنل: {PANEL_URL}")
+    log(f"Nexora Agent {VERSION} - panel: {PANEL_URL}")
 
     fails = 0
     while True:
@@ -478,18 +478,18 @@ def main():
 
             if res.get("error"):
                 fails += 1
-                log(f"اتصال ناموفق ({fails}): {res['error']}")
+                log(f"Connection failed ({fails}): {res['error']}")
                 # عقب‌نشینی تدریجی تا پنل خاموش را بمباران نکنیم
                 time.sleep(min(INTERVAL * min(fails, 6), 300))
                 continue
 
             if fails:
-                log("اتصال برقرار شد")
+                log("Connected")
                 fails = 0
 
             for job in res.get("jobs", []):
                 jid, action = job.get("id"), job.get("action")
-                log(f"کار {jid}: {action}")
+                log(f"Job {jid}: {action}")
                 try:
                     ok, out = handle(job)
                 except Exception as e:
@@ -498,10 +498,10 @@ def main():
                 api("job-result", {"job_id": jid, "ok": ok, "result": str(out)[:2000]})
 
         except KeyboardInterrupt:
-            log("خروج")
+            log("Exiting")
             return
         except Exception as e:
-            log(f"خطای غیرمنتظره: {type(e).__name__}: {str(e)[:120]}")
+            log(f"Unexpected error: {type(e).__name__}: {str(e)[:120]}")
 
         time.sleep(INTERVAL)
 

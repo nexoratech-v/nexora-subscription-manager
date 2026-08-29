@@ -4140,16 +4140,89 @@ def agent_installer(token: str = "", panel: str = ""):
                          if ch.isalnum() or ch in ".:/-_")[:120]
 
     script = f"""#!/usr/bin/env bash
-set -e
+#
+# Nexora agent installer.
+#
+# Output is English on purpose: Persian renders as boxes on most server
+# terminals, and an error you cannot read is an error you will not notice.
+
+set -u
+
 PANEL="{safe_panel}"
 TOKEN="{safe_token}"
 
-[ "$(id -u)" -eq 0 ] || {{ echo "با sudo اجرا کنید"; exit 1; }}
-command -v python3 >/dev/null || {{ apt-get update -qq && apt-get install -y python3; }}
+G=$'\\033[38;5;42m'; R=$'\\033[38;5;203m'; D=$'\\033[38;5;245m'; X=$'\\033[0m'
+ok(){{ echo "  ${{G}}OK${{X}}    $1"; }}
+bad(){{ echo "  ${{R}}FAIL${{X}}  $1"; }}
+info(){{ echo "  ${{D}}$1${{X}}"; }}
+
+echo
+echo "Nexora agent installer"
+echo
+
+[ "$(id -u)" -eq 0 ] || {{ bad "Run with sudo"; exit 1; }}
+
+if ! command -v python3 >/dev/null 2>&1; then
+  info "Installing python3..."
+  apt-get update -qq >/dev/null 2>&1
+  apt-get install -y python3 >/dev/null 2>&1 || {{ bad "Could not install python3"; exit 1; }}
+fi
+ok "python3 $(python3 -V 2>&1 | cut -d' ' -f2)"
+
+# Reachability is checked before anything is installed, because it is the
+# most common reason a node never shows up online.
+CODE=$(curl -s -o /dev/null -w "%{{http_code}}" --max-time 15 "$PANEL/api/health" 2>/dev/null || echo 000)
+if [ "$CODE" = "200" ]; then
+  ok "Panel reachable"
+else
+  bad "Cannot reach the panel (HTTP $CODE)"
+  info "Tried: $PANEL/api/health"
+  info "Check DNS, firewall, and that the panel is running."
+  exit 1
+fi
 
 mkdir -p /opt/nexora-agent/bin /opt/nexora-agent/configs
-curl -fsSL "$PANEL/api/agent/agent.py" -o /opt/nexora-agent/nexora-agent.py
+if ! curl -fsSL --max-time 60 "$PANEL/api/agent/agent.py" -o /opt/nexora-agent/nexora-agent.py; then
+  bad "Download failed"
+  exit 1
+fi
+
+SIZE=$(wc -c < /opt/nexora-agent/nexora-agent.py)
+if [ "$SIZE" -lt 5000 ]; then
+  bad "Downloaded file is too small ($SIZE bytes)"
+  head -3 /opt/nexora-agent/nexora-agent.py | sed 's/^/    /'
+  exit 1
+fi
 chmod +x /opt/nexora-agent/nexora-agent.py
+ok "Agent downloaded ($SIZE bytes)"
+
+if ! python3 -m py_compile /opt/nexora-agent/nexora-agent.py 2>/dev/null; then
+  bad "Downloaded file is not valid Python"
+  exit 1
+fi
+ok "Agent file is valid"
+
+# One manual check-in before the service is installed. If this fails the
+# service would fail too, and finding out now beats reading journald later.
+OUT=$(NEXORA_PANEL="$PANEL" NEXORA_TOKEN="$TOKEN" timeout 25 python3 -c '
+import sys, importlib.util
+spec = importlib.util.spec_from_file_location("ag", "/opt/nexora-agent/nexora-agent.py")
+a = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(a)
+r = a.api("checkin", {{"metrics": a.metrics()}})
+if r.get("error"):
+    print("ERROR " + str(r["error"])); sys.exit(1)
+print("NODE " + str(r.get("node", "?")))
+' 2>&1)
+
+if echo "$OUT" | grep -q "^NODE "; then
+  ok "Check-in succeeded - node: $(echo "$OUT" | sed 's/^NODE //')"
+else
+  bad "Check-in failed"
+  echo "$OUT" | sed 's/^/    /'
+  info "The token may be wrong, or the node was removed from the panel."
+  exit 1
+fi
 
 cat > /etc/systemd/system/nexora-agent.service <<UNIT
 [Unit]
@@ -4161,20 +4234,36 @@ Wants=network-online.target
 Type=simple
 Environment="NEXORA_PANEL=$PANEL"
 Environment="NEXORA_TOKEN=$TOKEN"
+Environment="PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
 ExecStart=/usr/bin/python3 /opt/nexora-agent/nexora-agent.py
 Restart=always
 RestartSec=10
+StandardOutput=journal
+StandardError=journal
 
 [Install]
 WantedBy=multi-user.target
 UNIT
 
 systemctl daemon-reload
-systemctl enable --now nexora-agent
-sleep 2
-systemctl is-active --quiet nexora-agent \\
-  && echo "✓ agent نصب شد و در حال اجراست" \\
-  || {{ echo "✗ اجرا نشد:"; journalctl -u nexora-agent -n 20 --no-pager; exit 1; }}
+systemctl enable nexora-agent >/dev/null 2>&1
+systemctl restart nexora-agent
+sleep 4
+
+if systemctl is-active --quiet nexora-agent; then
+  ok "Service is running"
+  echo
+  info "Recent log:"
+  journalctl -u nexora-agent -n 5 --no-pager -o cat 2>/dev/null | sed 's/^/    /'
+  echo
+  echo "  ${{G}}Done.${{X}} The node should show as online within 30 seconds."
+else
+  bad "Service failed to start"
+  echo
+  journalctl -u nexora-agent -n 25 --no-pager 2>/dev/null | sed 's/^/    /'
+  exit 1
+fi
+echo
 """
     return Response(content=script, media_type="text/x-shellscript")
 
@@ -4190,6 +4279,74 @@ def agent_source():
 
 
 # ── مدیریت از پنل ──
+
+@app.get("/api/admin/tunnel/node/{node_id}/check")
+def tunnel_node_check(node_id: int, x_admin_password: str = Header(...)):
+    """
+    چرا نود آفلاین است.
+
+    وقتی agent نصب شده ولی پنل آفلاین نشانش می‌دهد، مشکل معمولاً
+    یکی از چند چیز مشخص است. به‌جای اینکه کاربر حدس بزند، اینجا
+    می‌گوییم کدام.
+    """
+    check_auth(x_admin_password)
+    _need_tunnels()
+
+    con = TUN.conn()
+    try:
+        r = con.execute("SELECT * FROM nodes WHERE id=?", (node_id,)).fetchone()
+        if not r:
+            raise HTTPException(status_code=404, detail="نود پیدا نشد")
+        node = dict(r)
+    finally:
+        con.close()
+
+    steps = []
+
+    def step(title, ok, detail="", hint=""):
+        steps.append({"title": title, "ok": ok, "detail": detail, "hint": hint})
+
+    never = not node.get("last_seen")
+    online = TUN._is_online(node.get("last_seen"))
+
+    step("نود در پنل ثبت است", True, node["name"])
+
+    if never:
+        step("agent تا حالا تماس گرفته", False, "هیچ تماسی ثبت نشده",
+             "یعنی یا agent نصب نشده، یا نصب شده و اجرا نمی‌شود، "
+             "یا اجرا می‌شود ولی به پنل نمی‌رسد")
+    else:
+        step("آخرین تماس", True, node["last_seen"])
+        step("زنده است", online,
+             "کمتر از ۹۰ ثانیه پیش" if online else "بیش از ۹۰ ثانیه سکوت",
+             "" if online else "روی سرور ایران: systemctl status nexora-agent")
+
+    # آیا خود پنل از بیرون در دسترس است؟
+    reachable = None
+    try:
+        cfg = load_config()
+        domain = ((cfg.get("advanced") or {}).get("panelDomain") or "").strip()
+    except Exception:
+        domain = ""
+
+    step("دستور نصب", True,
+         "از دکمه‌ی «توکن جدید» دوباره بگیرید اگر لازم شد")
+
+    return {
+        "ok": online,
+        "node": node["name"],
+        "online": online,
+        "neverSeen": never,
+        "steps": steps,
+        "commands": [
+            {"label": "وضعیت agent", "cmd": "systemctl status nexora-agent"},
+            {"label": "لاگ زنده", "cmd": "journalctl -u nexora-agent -n 40 --no-pager"},
+            {"label": "تست دسترسی به پنل",
+             "cmd": "curl -sI https://YOUR-PANEL/api/health"},
+            {"label": "ری‌استارت", "cmd": "systemctl restart nexora-agent"},
+        ],
+    }
+
 
 @app.get("/api/admin/tunnel/overview")
 def tunnel_overview(x_admin_password: str = Header(...)):

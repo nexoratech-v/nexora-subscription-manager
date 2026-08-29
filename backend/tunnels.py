@@ -78,13 +78,27 @@ ENGINES = {
     },
 }
 
-TUNNEL_DB = Path(os.getenv("TUNNEL_DB_PATH", "/opt/nexora-panel/data/tunnels.db"))
+def _db_path():
+    """
+    مسیر دیتابیس تانل.
+
+    هر بار خوانده می‌شود، نه یک‌بار هنگام import — چون ترتیب
+    بارگذاری ماژول‌ها زیر uvicorn تضمینی نیست و اگر متغیر محیطی
+    آن لحظه هنوز تنظیم نشده باشد، مسیر اشتباه برای همیشه می‌ماند
+    و نوشتن‌ها بی‌صدا به فایل دیگری می‌روند.
+    """
+    return Path(os.getenv("TUNNEL_DB_PATH", "/opt/nexora-panel/data/tunnels.db"))
+
+
+# برای سازگاری با کدی که مستقیم به این نام اشاره می‌کند
+TUNNEL_DB = _db_path()
 
 
 def conn():
     """اتصال به دیتابیس تانل. جداول در اولین تماس ساخته می‌شوند."""
-    TUNNEL_DB.parent.mkdir(parents=True, exist_ok=True)
-    con = sqlite3.connect(str(TUNNEL_DB), timeout=10)
+    path = _db_path()
+    path.parent.mkdir(parents=True, exist_ok=True)
+    con = sqlite3.connect(str(path), timeout=10)
     con.row_factory = sqlite3.Row
     con.executescript("""
         -- سرورهایی که agent رویشان نصب است

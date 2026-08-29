@@ -705,7 +705,7 @@ BOTEOF
     NEWPATH="${2:-}"
 
     if [ -z "$NEWPATH" ]; then
-      echo -e "${C_DIM}جستجوی دیتابیس x-ui...${C_RESET}"
+ echo -e "${C_DIM}and x-ui database...${C_RESET}"
       for p in /etc/x-ui/x-ui.db /usr/local/x-ui/x-ui.db /opt/x-ui/x-ui.db /etc/x-ui/db/x-ui.db; do
         [ -f "$p" ] && { NEWPATH="$p"; break; }
       done
@@ -714,11 +714,11 @@ BOTEOF
 
     if [ -z "$NEWPATH" ] || [ ! -f "$NEWPATH" ]; then
       err "دیتابیس x-ui پیدا نشد"
-      info "مسیر را دستی بدهید:  nexora fix-xui /path/to/x-ui.db"
+ info "path : nexora fix-xui /path/to/x-ui.db"
       exit 1
     fi
 
-    ok "پیدا شد: $NEWPATH"
+ ok " : $NEWPATH"
 
     # مجوز خواندن — فایل اصلی و فایل‌های جانبی WAL
     #
@@ -727,16 +727,16 @@ BOTEOF
     FIXED=0
     for f in "$NEWPATH" "$NEWPATH-wal" "$NEWPATH-shm" "$NEWPATH-journal"; do
       if [ -f "$f" ] && [ ! -r "$f" ]; then
-        chmod +r "$f" 2>/dev/null && { ok "مجوز اصلاح شد: $(basename "$f")"; FIXED=1; }
+        chmod +r "$f" 2>/dev/null && { ok "mode fixed: $(basename "$f")"; FIXED=1; }
       fi
     done
-    [ "$FIXED" = "0" ] && ok "مجوزها از قبل درست بودند"
+ [ "$FIXED" = "0" ] && ok "mode from and"
 
     # پوشه هم باید قابل ورود باشد
     chmod o+x "$(dirname "$NEWPATH")" 2>/dev/null
 
     if [ -f "$NEWPATH-wal" ]; then
-      info "دیتابیس در حالت WAL است — فایل‌های جانبی هم بررسی شدند"
+ info "Database is in WAL mode — check "
     fi
 
     # ۱. در سرویس
@@ -748,7 +748,7 @@ BOTEOF
         sed -i "/^\[Service\]/a Environment=\"XUI_DB_PATH=$NEWPATH\"" "$SVC"
       fi
       systemctl daemon-reload
-      ok "در سرویس تنظیم شد"
+ ok " Service "
     fi
 
     # ۲. در تنظیمات پنل
@@ -769,12 +769,12 @@ if not isinstance(adv, dict):
 adv["xuiDbPath"] = path
 json.dump(d, open(p, "w", encoding="utf-8"), ensure_ascii=False, indent=2)
 PY
-      ok "در تنظیمات پنل ذخیره شد"
+ ok " settings Panel save "
     fi
 
-    systemctl restart nexora-panel 2>/dev/null && ok "پنل ری‌استارت شد"
+ systemctl restart nexora-panel 2>/dev/null && ok "Panel restarted"
     echo
-    ok "حالا بخش حسابداری را باز کنید"
+ ok " Billing from "
     ;;
 
   doctor)
