@@ -638,9 +638,20 @@ BOTEOF
     export NODE_OPTIONS="--max-old-space-size=1536"
     npm install --no-fund --no-audit --loglevel=error > /dev/null 2>&1
     if npm run build > /tmp/nexora-rollback.log 2>&1 && [ -f dist/index.html ]; then
-      ok "Panel rebuilt"
+      # وجود index.html کافی نیست. اگر Tailwind اجرا نشود، build موفق
+      # تمام می‌شود ولی CSS تقریباً خالی است و پنل بدون ظاهر بالا می‌آید.
+      CSSF=$(ls dist/assets/*.css 2>/dev/null | head -1)
+      CSSZ=$(wc -c < "$CSSF" 2>/dev/null || echo 0)
+      if [ "$CSSZ" -lt 15000 ]; then
+        bad "Stylesheet too small (${CSSZ}B) — the panel would render unstyled"
+        info "Restoring previous build"
+        [ -d dist.prev ] && rm -rf dist && mv dist.prev dist
+        exit 1
+      fi
+      ok "Panel rebuilt (CSS ${CSSZ}B)"
     else
       bad "Rebuild failed — see /tmp/nexora-rollback.log"
+      [ -d dist.prev ] && rm -rf dist && mv dist.prev dist && info "Previous build restored"
       exit 1
     fi
 

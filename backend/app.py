@@ -1823,7 +1823,14 @@ def run_rollback(payload: dict, x_admin_password: str = Header(...)):
 
 
 @app.get("/api/admin/bot/receipt/{order_id}")
-def bot_receipt(order_id: int, x_admin_password: str = Header(...)):
+def bot_receipt(order_id: int, pw: str = "",
+                x_admin_password: str = Header(None)):
+    """
+    تصویر رسید.
+
+    رمز از هدر یا از پارامتر می‌آید — چون تگ <img> در مرورگر
+    نمی‌تواند هدر بفرستد و بدون این، تصویر هرگز نمایش داده نمی‌شود.
+    """
     """
     تصویر رسید یک سفارش.
 
@@ -1831,7 +1838,7 @@ def bot_receipt(order_id: int, x_admin_password: str = Header(...)):
     موقت تبدیل می‌کنیم، محتوا را می‌گیریم و به‌صورت تصویر برمی‌گردانیم
     تا پنل بتواند نمایش و بزرگ‌نمایی کند.
     """
-    check_auth(x_admin_password)
+    check_auth(x_admin_password or pw)
     con = _bot_conn()
     if not con:
         raise HTTPException(status_code=404, detail="دیتابیس ربات موجود نیست")
@@ -2428,6 +2435,7 @@ def _billing_conn():
             label       TEXT,
             billable    INTEGER DEFAULT 0,
             rates       TEXT DEFAULT '[]',
+            per_gb      INTEGER DEFAULT 0,
             note        TEXT,
             updated_at  TEXT DEFAULT CURRENT_TIMESTAMP
         );
@@ -2452,6 +2460,13 @@ def _billing_conn():
         CREATE INDEX IF NOT EXISTS idx_pay_group ON payments(group_key);
         CREATE INDEX IF NOT EXISTS idx_ren_email ON renewals(email);
     """)
+    try:
+        cols = {r[1] for r in con.execute("PRAGMA table_info(group_config)")}
+        if "per_gb" not in cols:
+            con.execute("ALTER TABLE group_config ADD COLUMN per_gb INTEGER DEFAULT 0")
+    except Exception:
+        pass
+
     con.commit()
     return con
 
@@ -2661,6 +2676,19 @@ def _months_for(cl, logged):
         return 1, "پیش‌فرض", 0
 
 
+def _price_per_gb(conf):
+    """
+    نرخ حجمی — وقتی با واسطه به‌جای پلن، روی هر گیگابایت توافق شده.
+
+    برمی‌گرداند: عدد تومان بر گیگابایت، یا None اگر تعریف نشده.
+    """
+    try:
+        v = int(conf.get("per_gb") or 0)
+        return v if v > 0 else None
+    except (TypeError, ValueError):
+        return None
+
+
 def _price_for(gb, rates):
     """
     قیمت یک کانفیگ. نرخ نامحدود با gb=0 مشخص می‌شود.
@@ -2734,6 +2762,7 @@ def _billing_overview_impl():
                 "label": conf.get("label") or g,
                 "billable": bool(conf.get("billable", 0)),
                 "rates": rates if isinstance(rates, list) else [],
+                "perGb": _price_per_gb(conf),
                 "configs": 0, "active": 0, "months": 0, "renewals": 0,
                 "used": 0, "quota": 0, "due": 0,
                 "paid": pays.get(g, 0), "unpriced": 0, "estimated": 0,
@@ -2754,11 +2783,19 @@ def _billing_overview_impl():
 
         if G["billable"]:
             gb = cl["totalGB"] // (1024 ** 3) if cl["totalGB"] > 1024 else cl["totalGB"]
-            price = _price_for(gb, G["rates"])
-            if price is None:
-                G["unpriced"] += 1
+
+            if G.get("perGb"):
+                # نرخ حجمی: بر اساس مصرف واقعی، نه پلن.
+                # چون در این مدل واسطه بابت چیزی که مصرف شده پول می‌دهد،
+                # نه بابت سقفی که خریده.
+                used_gb = cl["used"] / (1024 ** 3)
+                G["due"] += round(used_gb * G["perGb"])
             else:
-                G["due"] += months * price
+                price = _price_for(gb, G["rates"])
+                if price is None:
+                    G["unpriced"] += 1
+                else:
+                    G["due"] += months * price
 
     # گروه‌هایی که در پنل ساخته شده‌اند ولی هنوز کاربری ندارند هم
     # باید دیده شوند — وگرنه ادمین فکر می‌کند گروهش گم شده.
@@ -2774,6 +2811,7 @@ def _billing_overview_impl():
                 "label": conf.get("label") or gname,
                 "billable": bool(conf.get("billable", 0)),
                 "rates": rates if isinstance(rates, list) else [],
+                "perGb": _price_per_gb(conf),
                 "configs": 0, "active": 0, "months": 0, "renewals": 0,
                 "used": 0, "quota": 0, "due": 0,
                 "paid": pays.get(gname, 0), "unpriced": 0, "estimated": 0,
@@ -2836,21 +2874,28 @@ def billing_group_put(group_key: str, payload: dict, x_admin_password: str = Hea
         except (TypeError, ValueError):
             continue
 
+    try:
+        per_gb = int(payload.get("per_gb") or payload.get("perGb") or 0)
+    except (TypeError, ValueError):
+        per_gb = 0
+
     con = _billing_conn()
     try:
         con.execute(
-            "INSERT INTO group_config (group_key,label,billable,rates,note,updated_at) "
-            "VALUES (?,?,?,?,?,CURRENT_TIMESTAMP) "
+            "INSERT INTO group_config (group_key,label,billable,rates,per_gb,note,updated_at) "
+            "VALUES (?,?,?,?,?,?,CURRENT_TIMESTAMP) "
             "ON CONFLICT(group_key) DO UPDATE SET "
             "label=excluded.label, billable=excluded.billable, "
-            "rates=excluded.rates, note=excluded.note, updated_at=CURRENT_TIMESTAMP",
+            "rates=excluded.rates, per_gb=excluded.per_gb, "
+            "note=excluded.note, updated_at=CURRENT_TIMESTAMP",
             (group_key,
              (payload.get("label") or group_key).strip(),
              1 if billable else 0,
              json.dumps(clean, ensure_ascii=False),
+             per_gb,
              (payload.get("note") or "").strip()))
         con.commit()
-        return {"ok": True, "rates": clean,
+        return {"ok": True, "rates": clean, "per_gb": per_gb, "perGb": per_gb,
                 "billable": bool(billable), "billed": bool(billable),
                 "label": (payload.get("label") or group_key).strip()}
     finally:

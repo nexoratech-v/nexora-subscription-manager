@@ -30,6 +30,8 @@ class XUI:
         self.timeout = timeout
         self.s = requests.Session()
         self._logged_in = False
+        # مسیرهایی که یک‌بار جواب داده‌اند — تا هر بار دوباره نگردیم
+        self._path_cache = {}
         self._api_mode = None
 
     # ---------- احراز هویت ----------
@@ -93,6 +95,37 @@ class XUI:
         return self._req("GET", f"/panel/api/inbounds/get/{inbound_id}")
 
     # ---------- کلاینت ----------
+    def _try_paths(self, candidates, label):
+        """
+        امتحان چند مسیر تا یکی جواب دهد.
+
+        مسیرهای API بین نسخه‌های ۳x-ui عوض شده‌اند و از بیرون
+        نمی‌شود فهمید کدام نسخه کدام را دارد. به‌جای حدس زدن،
+        امتحان می‌کنیم و اولین مسیری که ۴۰۴ نمی‌دهد را نگه می‌داریم.
+        """
+        cached = self._path_cache.get(label)
+        if cached:
+            for method, path, payload in candidates:
+                if path == cached:
+                    return self._req(method, path, **payload)
+
+        tried = []
+        for method, path, payload in candidates:
+            try:
+                res = self._req(method, path, **payload)
+                self._path_cache[label] = path
+                return res
+            except XUIError as e:
+                msg = str(e)
+                tried.append(f"{path} → {msg[:60]}")
+                # فقط وقتی مسیر نبود ادامه می‌دهیم؛ خطای واقعی را
+                # نباید پنهان کنیم
+                if "404" not in msg and "not found" not in msg.lower():
+                    raise
+
+        raise XUIError(
+            f"هیچ مسیری برای {label} جواب نداد. امتحان شد:\n" + "\n".join(tried))
+
     def add_client(self, inbound_id, email, gb=0, days=0, ip_limit=0,
                    client_uuid=None, tg_id=None, sub_id=None, flow=""):
         """
@@ -120,9 +153,21 @@ class XUI:
         if flow:
             client["flow"] = flow
 
-        self._req("POST", "/panel/api/inbounds/addClient",
-                  data={"id": inbound_id,
-                        "settings": json.dumps({"clients": [client]})})
+        settings = json.dumps({"clients": [client]})
+
+        # نسخه‌های مختلف ۳x-ui مسیرهای متفاوتی دارند
+        self._try_paths([
+            ("POST", "/panel/api/inbounds/addClient",
+             {"data": {"id": inbound_id, "settings": settings}}),
+            ("POST", "/panel/api/inbounds/addClient",
+             {"json": {"id": inbound_id, "settings": settings}}),
+            ("POST", "/panel/api/clients/add",
+             {"json": {"inboundId": inbound_id, **client}}),
+            ("POST", "/panel/api/clients",
+             {"json": {"inboundId": inbound_id, **client}}),
+            ("POST", f"/panel/api/inbounds/{inbound_id}/clients",
+             {"json": client}),
+        ], "افزودن کلاینت")
         return client
 
     def update_client(self, inbound_id, client_uuid, **changes):
@@ -138,14 +183,34 @@ class XUI:
         for k, v in changes.items():
             client[k] = v
 
-        self._req("POST", f"/panel/api/inbounds/updateClient/{client_uuid}",
-                  data={"id": inbound_id,
-                        "settings": json.dumps({"clients": [client]})})
+        settings = json.dumps({"clients": [client]})
+        self._try_paths([
+            ("POST", f"/panel/api/inbounds/updateClient/{client_uuid}",
+             {"data": {"id": inbound_id, "settings": settings}}),
+            ("POST", f"/panel/api/inbounds/updateClient/{client_uuid}",
+             {"json": {"id": inbound_id, "settings": settings}}),
+            ("POST", f"/panel/api/clients/{client_uuid}",
+             {"json": {"inboundId": inbound_id, **client}}),
+            ("PUT", f"/panel/api/clients/{client_uuid}",
+             {"json": {"inboundId": inbound_id, **client}}),
+        ], "به‌روزرسانی کلاینت")
         return client
 
     def find_client(self, inbound_id, email=None, client_uuid=None):
+        """
+        پیدا کردن کلاینت.
+
+        در نسخه‌های جدید کلاینت‌ها ممکن است در JSON اینباند نباشند،
+        پس اگر آنجا پیدا نشد از مسیر مستقل هم می‌پرسیم.
+        """
         inb = self.inbound(inbound_id)
         if not inb:
+            # شاید نسخه‌ی جدید — از مسیر کلاینت مستقیم بپرسیم
+            if email:
+                try:
+                    return self._req("GET", f"/panel/api/clients/{email}")
+                except XUIError:
+                    pass
             return None
         try:
             settings = json.loads(inb.get("settings") or "{}")
@@ -159,8 +224,11 @@ class XUI:
         return None
 
     def delete_client(self, inbound_id, client_uuid):
-        return self._req("POST",
-                         f"/panel/api/inbounds/{inbound_id}/delClient/{client_uuid}")
+        return self._try_paths([
+            ("POST", f"/panel/api/inbounds/{inbound_id}/delClient/{client_uuid}", {}),
+            ("POST", f"/panel/api/clients/{client_uuid}/delete", {}),
+            ("DELETE", f"/panel/api/clients/{client_uuid}", {}),
+        ], "حذف کلاینت")
 
     def client_traffic(self, email):
         """مصرف کلاینت بر اساس ایمیل."""

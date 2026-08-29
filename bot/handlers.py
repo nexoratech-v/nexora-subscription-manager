@@ -117,6 +117,7 @@ def main_menu(ctx, user):
     rows = [
         [("🛒 خرید اشتراک", "buy")],
         [("📊 اشتراک‌های من", "mysubs"), ("👛 کیف پول", "wallet")],
+        [("🧾 سفارش‌های من", "myorders")],
         [("🎁 دعوت دوستان", "ref"), ("🪙 سکه‌های من", "coins")],
     ]
     if ctx.s.get("trial_enabled") and not user.get("trial_used"):
@@ -972,6 +973,66 @@ def require_membership(ctx, chat_id, message_id, u):
     return True
 
 
+def my_orders(ctx, user, chat_id, message_id):
+    """
+    تاریخچه‌ی سفارش‌های کاربر.
+
+    هر سفارش با وضعیتش می‌آید — تا کاربر بداند رسیدش دیده شده یا
+    نه، و اگر رد شده چرا. بدون این، تنها راهش پرسیدن از پشتیبانی است.
+    """
+    rows = ctx.db.q(
+        """SELECT o.*, p.name AS plan_name, p.gb, p.days
+           FROM orders o LEFT JOIN plans p ON p.id = o.plan_id
+           WHERE o.tenant_id=? AND o.user_id=?
+           ORDER BY o.id DESC LIMIT 15""",
+        (ctx.tid, user["id"]))
+
+    if not rows:
+        return _reply(ctx, chat_id, message_id,
+                      "🧾 <b>سفارش‌های من</b>\n\n"
+                      "هنوز سفارشی ثبت نکرده‌اید.\n"
+                      "از دکمه‌ی «خرید اشتراک» شروع کنید.",
+                      kb([[("🛒 خرید اشتراک", "buy")], [("‹ منو", "menu")]]))
+
+    label = {
+        "pending": "⏳ در انتظار بررسی",
+        "approved": "✅ تایید شده",
+        "rejected": "❌ رد شده",
+        "cancelled": "🚫 لغو شده",
+    }
+
+    lines = ["🧾 <b>سفارش‌های من</b>", ""]
+    for o in rows:
+        st = label.get(o["status"], o["status"])
+        when = (o.get("created_at") or "")[:16].replace("T", " ")
+        name = o.get("plan_name") or "—"
+
+        lines.append(f"<b>#{o['id']}</b> · {name}")
+        lines.append(f"   {st} · {when}")
+
+        price = o.get("final_price") or o.get("price") or 0
+        if price:
+            lines.append(f"   مبلغ: {price:,} تومان")
+        if o.get("coins_used"):
+            lines.append(f"   سکه استفاده‌شده: {o['coins_used']}")
+
+        # دلیل رد — مهم‌ترین چیزی که کاربر می‌خواهد بداند
+        if o["status"] == "rejected" and o.get("admin_note"):
+            lines.append(f"   دلیل: {esc(o['admin_note'][:90])}")
+
+        lines.append("")
+
+    buttons = []
+    pending = [o for o in rows if o["status"] == "pending"]
+    if pending:
+        lines.append(f"<i>{len(pending)} سفارش در انتظار بررسی است.</i>")
+    if any(o["status"] == "rejected" for o in rows):
+        buttons.append([("🔄 خرید مجدد", "buy")])
+    buttons.append([("‹ منو", "menu")])
+
+    return _reply(ctx, chat_id, message_id, "\n".join(lines), kb(buttons))
+
+
 def give_trial(ctx, user, chat_id, message_id):
     u = ctx.db.get_user(user["tg_id"])
     if u.get("trial_used"):
@@ -1528,6 +1589,7 @@ _SIMPLE = {
     "menu":    lambda ctx, u, c, m: _reply(ctx, c, m, welcome_text(ctx, u), main_menu(ctx, u)),
     "buy":     lambda ctx, u, c, m: show_plans(ctx, u, c, m),
     "mysubs":  lambda ctx, u, c, m: show_subs(ctx, u, c, m),
+    "myorders": lambda ctx, u, c, m: my_orders(ctx, u, c, m),
     "wallet":  lambda ctx, u, c, m: show_wallet(ctx, u, c, m),
     "coins":   lambda ctx, u, c, m: show_coins(ctx, u, c, m),
     "ref":     lambda ctx, u, c, m: show_referral(ctx, u, c, m),

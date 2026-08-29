@@ -2,6 +2,39 @@
 
 ## [1.1.1]
 
+### Fixed
+- **Creating a config failed with HTTP 404 on 3x-ui 3.5.** The client called
+  `/panel/api/inbounds/addClient`, which that version no longer serves. Rather than
+  guessing the new path, the client now tries the known candidates in order, keeps
+  whichever answers, and reuses it. If none work it reports every path it tried instead
+  of a bare 404. This also unblocks order approval, which was silently stuck because
+  provisioning failed
+- **Receipt images never loaded in the panel.** An `<img>` tag cannot send the admin
+  password header, so every request came back 401. The endpoint now also accepts the
+  password as a query parameter
+
+### Added
+- **سفارش‌های من** in the bot — every order with its status, amount, coins spent, and
+  the rejection reason when there is one. Previously the only way to ask was support
+
+## [1.1.2]
+
+### Added
+- **Per-gigabyte pricing for resellers.** Where the deal is by traffic rather than by
+  plan, switch the group to حجمی and set a rate per GB. The amount is calculated from
+  actual usage, not the plan ceiling, and the panel shows the arithmetic as you type
+
+### Fixed
+- **`nexora update` accepted a broken build.** It only checked that `index.html`
+  existed. If Tailwind failed to run, the build still succeeded with a nearly empty
+  stylesheet and the panel came up unstyled. The stylesheet size is now verified, and
+  the previous build is restored if it is too small
+- The tunnel form asked for an address without making clear which server it belonged
+  to. It now shows the traffic direction and states plainly that the address is the
+  Iranian server, since the foreign server is the one that dials in
+
+## [1.1.1]
+
 ### Added
 - **Chisel** as a fifth tunnel engine. It carries traffic inside ordinary HTTP, which
   tends to keep working when other protocols get filtered — marked recommended

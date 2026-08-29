@@ -2875,7 +2875,7 @@ function BotOrdersSection({ password }) {
                 className="shrink-0 rounded-xl overflow-hidden relative"
                 style={{ width: 84, height: 108, border: "1px solid var(--border-2)", background: "var(--surface-3)" }}
                 title="بزرگ‌نمایی">
-                <img src={`${API_URL}/api/admin/bot/receipt/${o.id}`}
+                <img src={`${API_URL}/api/admin/bot/receipt/${o.id}?pw=${encodeURIComponent(password)}`}
                   alt="رسید" loading="lazy"
                   style={{ width: "100%", height: "100%", objectFit: "cover" }}
                   onError={(e) => { e.currentTarget.style.display = "none"; }} />
@@ -2932,7 +2932,7 @@ function BotOrdersSection({ password }) {
         <div onClick={() => setZoom(null)}
           className="fixed inset-0 z-[110] flex items-center justify-center p-6"
           style={{ background: "rgba(3,6,12,.93)", cursor: "zoom-out" }}>
-          <img src={`${API_URL}/api/admin/bot/receipt/${zoom}`} alt="رسید"
+          <img src={`${API_URL}/api/admin/bot/receipt/${zoom}?pw=${encodeURIComponent(password)}`} alt="رسید"
             style={{ maxWidth: "92vw", maxHeight: "88vh", borderRadius: 14, objectFit: "contain" }}
             onClick={(e) => e.stopPropagation()} />
           <button onClick={() => setZoom(null)}
@@ -4876,6 +4876,23 @@ function TunnelForm({ password, nodes, engines, onClose, onDone }) {
 
   return (
     <Modal title="تانل جدید" onClose={onClose} width="560px">
+      {/* جهت تانل — چون بارها گیج‌کننده بوده، صریح توضیح می‌دهیم */}
+      <div className="rounded-xl p-3.5 mb-4 text-[11px] leading-relaxed"
+        style={{ background: "var(--surface-3)", border: "1px solid var(--border)",
+                 color: "var(--muted)" }}>
+        <div className="flex items-center gap-2 mb-2 text-[11.5px]" dir="ltr"
+          style={{ color: "var(--dim)", fontFamily: "'JetBrains Mono',monospace" }}>
+          <span>مشتری</span>
+          <span style={{ color: "var(--accent-2)" }}>←</span>
+          <span style={{ color: "var(--ok)" }}>سرور ایران</span>
+          <span style={{ color: "var(--accent-2)" }}>←</span>
+          <span>سرور خارج</span>
+        </div>
+        سرور ایران پورت‌ها را باز می‌کند و مشتری به آن وصل می‌شود.
+        سرور خارج خودش به ایران وصل می‌شود — پس آدرسی که پایین می‌دهید،
+        <b style={{ color: "var(--dim)" }}> آی‌پی سرور ایران </b>است.
+      </div>
+
       <Field label="نام">
         <input className="fx-input" value={f.name}
           onChange={(e) => setF({ ...f, name: e.target.value })}
@@ -4931,7 +4948,8 @@ function TunnelForm({ password, nodes, engines, onClose, onDone }) {
       </div>
 
       <div className="fx-g3 grid grid-cols-2 gap-3">
-        <Field label="آدرس سرور ایران" hint="سرور خارج به اینجا وصل می‌شود">
+        <Field label="آی‌پی عمومی سرور ایران"
+          hint="همان سروری که بالا انتخاب کردید — سرور خارج به این آدرس وصل می‌شود">
           <input className="fx-input" dir="ltr" value={f.remote_host}
             onChange={(e) => setF({ ...f, remote_host: e.target.value })}
             placeholder="1.2.3.4" style={{ fontFamily: "'JetBrains Mono',monospace" }} />
@@ -6134,7 +6152,8 @@ function BillingGroups({ password }) {
     </div>
   );
 
-  const get = (g) => draft[g.name] || { label: g.label, billed: g.billed, rates: g.rates };
+  const get = (g) => draft[g.name]
+    || { label: g.label, billed: g.billed, rates: g.rates, perGb: g.perGb || 0 };
   const set = (g, patch) => setDraft({ ...draft, [g.name]: { ...get(g), ...patch } });
 
   const save = async (g) => {
@@ -6204,6 +6223,61 @@ function BillingGroups({ password }) {
                       </Field>
                     </div>
 
+                    {/* دو مدل قیمت‌گذاری — یا ماهانه بر اساس پلن، یا حجمی */}
+                    <div className="flex gap-2 mb-4">
+                      {[["پلنی", false], ["حجمی", true]].map(([label, isGb]) => {
+                        const on = !!d.perGb === isGb;
+                        return (
+                          <button key={label}
+                            onClick={() => set(g, { perGb: isGb ? (d.perGb || 3000) : 0 })}
+                            className="flex-1 py-2.5 rounded-xl text-[12px] transition-all"
+                            style={{
+                              background: on ? "var(--accent-soft)" : "var(--surface-3)",
+                              border: `1px solid ${on ? "rgba(43,127,214,.4)" : "var(--border)"}`,
+                              color: on ? "var(--accent-2)" : "var(--muted)",
+                            }}>
+                            {label}
+                          </button>
+                        );
+                      })}
+                    </div>
+
+                    {d.perGb ? (
+                      <div className="mb-3">
+                        <Field label="نرخ هر گیگابایت (تومان)"
+                          hint="بر اساس مصرف واقعی حساب می‌شود، نه سقف پلن">
+                          <div className="flex items-center gap-2">
+                            <input className="fx-input" type="number" dir="ltr"
+                              value={d.perGb || ""}
+                              onChange={(e) => set(g, { perGb: Math.max(0, +e.target.value) })}
+                              placeholder="3000"
+                              style={{ fontFamily: "'JetBrains Mono',monospace" }} />
+                            <div className="flex gap-1.5 shrink-0">
+                              {[2000, 3000, 5000].map((q) => (
+                                <button key={q} onClick={() => set(g, { perGb: q })}
+                                  className="px-2.5 py-2 rounded-lg text-[10.5px]"
+                                  style={{
+                                    background: d.perGb === q ? "var(--accent-soft)" : "transparent",
+                                    border: `1px solid ${d.perGb === q ? "rgba(43,127,214,.4)" : "var(--border)"}`,
+                                    color: d.perGb === q ? "var(--accent-2)" : "var(--muted)",
+                                    fontFamily: "'JetBrains Mono',monospace",
+                                  }}>{faNum(q / 1000)}k</button>
+                              ))}
+                            </div>
+                          </div>
+                        </Field>
+                        {g.usedGB > 0 && (
+                          <div className="text-[11px] p-2.5 rounded-lg"
+                            style={{ background: "var(--surface-3)", color: "var(--dim)" }}>
+                            {faNum(g.usedGB)} GB × {faNum(d.perGb)} = {" "}
+                            <b style={{ color: "var(--accent-2)" }}>
+                              {faNum(Math.round(g.usedGB * d.perGb))} تومان
+                            </b>
+                          </div>
+                        )}
+                      </div>
+                    ) : (
+                    <>
                     <div className="flex justify-between items-center mb-3 mt-1 flex-wrap gap-2">
                       <span className="text-[11.5px]" style={{ color: "var(--dim)" }}>نرخ ماهانه بر اساس حجم</span>
                       <button onClick={() => set(g, { rates: [...(d.rates || []), { gb: 0, price: 190000 }] })}
@@ -6230,6 +6304,9 @@ function BillingGroups({ password }) {
                         }}
                         onDelete={() => set(g, { rates: d.rates.filter((_, x) => x !== i) })} />
                     ))}
+
+                    </>
+                    )}
 
                     <div className="grid gap-2 mt-3 pt-3" style={{
                       gridTemplateColumns: "repeat(auto-fit,minmax(100px,1fr))",
