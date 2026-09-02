@@ -87,6 +87,7 @@ const WORKSPACES = {
           { key: "bill-groups", label: "واسطه‌ها و نرخ", icon: Users },
           { key: "bill-invoice", label: "صورتحساب", icon: FileText },
           { key: "bill-pay", label: "پرداخت‌ها", icon: Wallet },
+          { key: "bill-period", label: "صورتحساب دوره", icon: Clock },
           { key: "bill-clients", label: "همه کاربران", icon: Users },
           { key: "bill-settings", label: "تنظیمات و بک‌آپ", icon: Sliders },
         ],
@@ -4314,25 +4315,40 @@ function WorkspaceSwitch({ mode, workspace, onSwitch, active, setActive }) {
   );
 }
 
-function Modal({ title, onClose, children, width = "440px" }) {
+function Modal({ title, onClose, children, footer, width = "440px" }) {
   return createPortal(
     <div className="nx-modal-wrap fx-fade"
       style={{ background: "rgba(3,6,12,.82)", backdropFilter: "blur(6px)" }}
       onClick={onClose}>
-      <div className="rounded-2xl fx-scale nx-modal p-5" onClick={(e) => e.stopPropagation()}
+      {/* سه بخش جدا: سر و ته ثابت، وسط اسکرول‌شونده.
+          بدون این تقسیم، فرم‌های بلند از صفحه بیرون می‌زنند و
+          دکمه‌ی پایین دیده نمی‌شود. */}
+      <div className="rounded-2xl fx-scale nx-modal" onClick={(e) => e.stopPropagation()}
         style={{
           background: "var(--surface)",
           border: "1px solid var(--border-2)",
           width: `min(${width}, 94vw)`,
           boxShadow: "0 1px 0 rgba(255,255,255,.08) inset, 0 24px 60px -18px rgba(0,0,0,.75)",
         }}>
-        <div className="flex justify-between items-center mb-4">
+
+        <div className="nx-modal-head flex justify-between items-center px-5 py-4"
+          style={{ borderBottom: "1px solid var(--border)" }}>
           <span className="text-[14px] font-bold text-white">{title}</span>
           <button onClick={onClose} className="fx-ico-btn" style={{ width: 30, height: 30 }}>
             <X size={15} />
           </button>
         </div>
-        {children}
+
+        <div className="nx-modal-body px-5 py-4">
+          {children}
+        </div>
+
+        {footer && (
+          <div className="nx-modal-foot px-5 py-4"
+            style={{ borderTop: "1px solid var(--border)" }}>
+            {footer}
+          </div>
+        )}
       </div>
     </div>,
     document.body
@@ -4791,6 +4807,7 @@ function TunnelList({ password }) {
   const { data, loading, reload } = useTunnel(password);
   const [adding, setAdding] = useState(false);
   const [cfgFor, setCfgFor] = useState(null);
+  const [monFor, setMonFor] = useState(null);
   const [msg, setMsg] = useState(null);
 
   useEffect(() => { if (msg) { const t = setTimeout(() => setMsg(null), 4000); return () => clearTimeout(t); } }, [msg]);
@@ -4897,6 +4914,10 @@ function TunnelList({ password }) {
                   {{ restart: "ری‌استارت", stop: "توقف", logs: "لاگ" }[w]}
                 </button>
               ))}
+              <button onClick={() => setMonFor(t)}
+                className="fx-btn-g px-3 py-2 text-[11.5px] flex items-center gap-1.5">
+                <Activity size={12} /> کیفیت
+              </button>
               <button onClick={() => setCfgFor(t)} className="fx-btn-g px-3 py-2 text-[11.5px] flex items-center gap-1.5">
                 <FileText size={12} /> کانفیگ سرور خارج
               </button>
@@ -4922,6 +4943,8 @@ function TunnelList({ password }) {
 
       {cfgFor && <TunnelConfigModal tunnel={cfgFor} password={password}
         onClose={() => setCfgFor(null)} />}
+      {monFor && <TunnelMonitorModal tunnel={monFor} password={password}
+        onClose={() => setMonFor(null)} />}
     </div>
   );
 }
@@ -4954,22 +4977,53 @@ function TunnelForm({ password, nodes, engines, onClose, onDone }) {
   };
 
   return (
-    <Modal title="تانل جدید" onClose={onClose} width="560px">
-      {/* جهت تانل — چون بارها گیج‌کننده بوده، صریح توضیح می‌دهیم */}
-      <div className="rounded-xl p-3.5 mb-4 text-[11px] leading-relaxed"
-        style={{ background: "var(--surface-3)", border: "1px solid var(--border)",
-                 color: "var(--muted)" }}>
-        <div className="flex items-center gap-2 mb-2 text-[11.5px]" dir="ltr"
-          style={{ color: "var(--dim)", fontFamily: "'JetBrains Mono',monospace" }}>
-          <span>مشتری</span>
-          <span style={{ color: "var(--accent-2)" }}>←</span>
-          <span style={{ color: "var(--ok)" }}>سرور ایران</span>
-          <span style={{ color: "var(--accent-2)" }}>←</span>
-          <span>سرور خارج</span>
+    <Modal title="تانل جدید" onClose={onClose} width="560px"
+      footer={
+        <button onClick={submit} disabled={busy || !f.name.trim() || !f.remote_host.trim()}
+          className="fx-btn w-full py-3 text-[12.5px] flex items-center justify-center gap-2">
+          {busy ? <Loader2 size={14} className="animate-spin" /> : <CheckCircle2 size={14} />}
+          ساخت تانل
+        </button>
+      }>
+      {/* راهنمای کامل — چون بدون این، معلوم نیست چه چیزی کجا می‌رود */}
+      <div className="rounded-xl p-4 mb-4"
+        style={{ background: "var(--surface-3)", border: "1px solid var(--border)" }}>
+
+        <div className="flex items-center gap-2 mb-3 text-[12px] flex-wrap" dir="ltr"
+          style={{ fontFamily: "'JetBrains Mono',monospace" }}>
+          <span style={{ color: "var(--muted)" }}>مشتری</span>
+          <span style={{ color: "var(--accent-2)" }}>──►</span>
+          <span style={{ color: "var(--ok)", fontWeight: 700 }}>سرور ایران</span>
+          <span style={{ color: "var(--accent-2)" }}>──►</span>
+          <span style={{ color: "var(--dim)" }}>سرور خارج</span>
         </div>
-        سرور ایران پورت‌ها را باز می‌کند و مشتری به آن وصل می‌شود.
-        سرور خارج خودش به ایران وصل می‌شود — پس آدرسی که پایین می‌دهید،
-        <b style={{ color: "var(--dim)" }}> آی‌پی سرور ایران </b>است.
+
+        <div className="text-[11px] leading-relaxed mb-3" style={{ color: "var(--muted)" }}>
+          مشتری به <b style={{ color: "var(--ok)" }}>سرور ایران</b> وصل می‌شود.
+          سرور ایران ترافیک را از تانل به سرور خارج می‌فرستد.
+        </div>
+
+        <div className="text-[11px] font-semibold mb-2" style={{ color: "var(--dim)" }}>
+          سه مرحله:
+        </div>
+        {[
+          ["این فرم را پر کنید", "پورت‌هایی که مشتری به آن‌ها وصل می‌شود"],
+          ["دکمه‌ی «اعمال» را بزنید", "agent روی سرور ایران خودش نصب و راه‌اندازی می‌کند"],
+          ["کانفیگ سرور خارج را کپی کنید",
+           "چون آنجا agent نصب نیست، این یک مرحله دستی است"],
+        ].map(([t, d], i) => (
+          <div key={i} className="flex gap-2.5 mb-2">
+            <span className="shrink-0 flex items-center justify-center text-[10px] font-bold"
+              style={{
+                width: 18, height: 18, borderRadius: "50%",
+                background: "var(--accent-soft)", color: "var(--accent-2)",
+              }}>{faNum(i + 1)}</span>
+            <div className="min-w-0">
+              <div className="text-[11.5px]" style={{ color: "var(--dim)" }}>{t}</div>
+              <div className="text-[10px] mt-0.5" style={{ color: "var(--muted)" }}>{d}</div>
+            </div>
+          </div>
+        ))}
       </div>
 
       <Field label="نام">
@@ -5033,9 +5087,12 @@ function TunnelForm({ password, nodes, engines, onClose, onDone }) {
             onChange={(e) => setF({ ...f, remote_host: e.target.value })}
             placeholder="1.2.3.4" style={{ fontFamily: "'JetBrains Mono',monospace" }} />
         </Field>
-        <Field label="پورت ارتباط">
-          <input className="fx-input" type="number" dir="ltr" value={f.bridge_port}
-            onChange={(e) => setF({ ...f, bridge_port: e.target.value })}
+        <Field label="پورت ارتباط" hint="پورتی که دو سرور از آن حرف می‌زنند">
+          <input className="fx-input" type="text" inputMode="numeric" dir="ltr"
+            value={f.bridge_port}
+            onChange={(e) => setF({ ...f,
+              bridge_port: e.target.value.replace(/[^0-9]/g, "").slice(0, 5) })}
+            placeholder="3080"
             style={{ fontFamily: "'JetBrains Mono',monospace" }} />
         </Field>
       </div>
@@ -5047,9 +5104,13 @@ function TunnelForm({ password, nodes, engines, onClose, onDone }) {
           {ports.map((p, i) => (
             <div key={i} className="flex items-center rounded-xl overflow-hidden"
               style={{ background: "var(--surface-3)", border: "1px solid var(--border-2)" }}>
-              <input type="number" dir="ltr" value={p.local || ""}
+              {/* type=text نه number — چون فلش‌های بالا/پایین برای عددی
+                  که مستقیم تایپ می‌شود فقط مزاحمند */}
+              <input type="text" inputMode="numeric" dir="ltr"
+                value={p.local || ""}
                 onChange={(e) => {
-                  const v = +e.target.value;
+                  const digits = e.target.value.replace(/[^0-9]/g, "").slice(0, 5);
+                  const v = digits ? parseInt(digits, 10) : 0;
                   const l = [...ports];
                   l[i] = { local: v, remote: v };
                   setPorts(l);
@@ -5110,11 +5171,190 @@ function TunnelForm({ password, nodes, engines, onClose, onDone }) {
       {err && <div className="text-[11.5px] p-3 rounded-xl mt-3"
         style={{ background: "rgba(248,113,113,.1)", color: "var(--danger)" }}>{err}</div>}
 
-      <button onClick={submit} disabled={busy || !f.name.trim() || !f.remote_host.trim()}
-        className="fx-btn w-full py-3 text-[12.5px] flex items-center justify-center gap-2 mt-4">
-        {busy ? <Loader2 size={14} className="animate-spin" /> : <CheckCircle2 size={14} />}
-        ساخت تانل
-      </button>
+    </Modal>
+  );
+}
+
+
+/* ── کیفیت تانل ── */
+
+const QUALITY_COLOR = {
+  "عالی": "var(--ok)",
+  "خوب": "#5AA9E6",
+  "متوسط": "var(--warn)",
+  "ضعیف": "var(--danger)",
+  "نامشخص": "var(--muted)",
+};
+
+function TunnelMonitorModal({ tunnel, password, onClose }) {
+  const [m, setM] = useState(null);
+  const [busy, setBusy] = useState(false);
+
+  const load = async () => {
+    try {
+      const d = await fetch(`${API_URL}/api/admin/tunnel/${tunnel.id}/metrics`, {
+        headers: { "X-Admin-Password": password },
+      }).then((r) => r.json());
+      setM(d);
+      return d;
+    } catch {
+      setM({ samples: [], summary: null });
+      return null;
+    }
+  };
+
+  useEffect(() => { load(); }, [tunnel.id]);
+
+  const measure = async () => {
+    setBusy(true);
+    const before = m?.samples?.length || 0;
+    try {
+      await fetch(`${API_URL}/api/admin/tunnel/${tunnel.id}/monitor`, {
+        method: "POST",
+        headers: { "X-Admin-Password": password },
+      });
+      // agent تا ۳۰ ثانیه بعد سر می‌زند، پس چند بار نتیجه را چک می‌کنیم
+      for (let i = 0; i < 12; i++) {
+        await new Promise((r) => setTimeout(r, 4000));
+        const d = await load();
+        if ((d?.samples?.length || 0) > before) break;
+      }
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const s = m?.summary;
+  const detail = m?.latest?.detail || {};
+  const samples = m?.samples || [];
+  const qc = QUALITY_COLOR[s?.quality] || "var(--muted)";
+
+  const Bar = ({ label, value, unit = "ms", max = 200, color }) => (
+    <div className="mb-3">
+      <div className="flex justify-between text-[11.5px] mb-1.5">
+        <span style={{ color: "var(--muted)" }}>{label}</span>
+        <span style={{ color: color || "var(--dim)",
+                       fontFamily: "'JetBrains Mono',monospace" }}>
+          {value === null || value === undefined ? "—" : `${faNum(value)} ${unit}`}
+        </span>
+      </div>
+      <div style={{ height: 5, borderRadius: 99,
+                    background: "rgba(255,255,255,.06)", overflow: "hidden" }}>
+        <div style={{
+          width: `${Math.min(100, ((value || 0) / max) * 100)}%`,
+          height: "100%", background: color || "var(--accent)",
+          transition: "width .4s ease",
+        }} />
+      </div>
+    </div>
+  );
+
+  return (
+    <Modal title={`کیفیت — ${tunnel.name}`} onClose={onClose} width="540px">
+      {!m ? (
+        <div className="flex justify-center py-8">
+          <Loader2 className="animate-spin" style={{ color: "var(--muted)" }} />
+        </div>
+      ) : (
+        <>
+          {s ? (
+            <>
+              <div className="rounded-2xl p-4 mb-4 text-center"
+                style={{
+                  background: `color-mix(in srgb, ${qc} 10%, transparent)`,
+                  border: `1px solid color-mix(in srgb, ${qc} 28%, transparent)`,
+                }}>
+                <div className="text-[26px] font-extrabold"
+                  style={{ color: qc, fontFamily: "'JetBrains Mono',monospace" }}>
+                  {faNum(s.latest)} <span className="text-[14px]">ms</span>
+                </div>
+                <div className="text-[12px] mt-1" style={{ color: qc }}>{s.quality}</div>
+                <div className="text-[10.5px] mt-2" style={{ color: "var(--muted)" }}>
+                  از {faNum(s.count)} سنجش · بهترین {faNum(s.best)} · بدترین {faNum(s.worst)}
+                </div>
+              </div>
+
+              {samples.length > 1 && (
+                <div className="mb-4">
+                  <div className="text-[11px] mb-2" style={{ color: "var(--muted)" }}>روند</div>
+                  <div className="flex items-end gap-1" style={{ height: 48 }}>
+                    {samples.slice(-30).map((x, i) => {
+                      const v = x.tcp_avg || 0;
+                      const mx = Math.max(...samples.map((y) => y.tcp_avg || 0), 1);
+                      const col = v > 150 ? "var(--danger)"
+                                : v > 60 ? "var(--warn)" : "var(--accent)";
+                      return (
+                        <div key={i} title={`${v} ms`} style={{
+                          flex: 1, height: `${Math.max(8, (v / mx) * 100)}%`,
+                          background: col, borderRadius: "2px 2px 0 0", opacity: 0.85,
+                        }} />
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+
+              <Bar label="تاخیر TCP — همان چیزی که ترافیک واقعی حس می‌کند"
+                value={s.latest} max={200}
+                color={s.latest > 150 ? "var(--danger)"
+                     : s.latest > 60 ? "var(--warn)" : "var(--ok)"} />
+
+              {detail.icmp?.ok && (
+                <Bar label="پینگ ICMP" value={detail.icmp.avg} max={200} color="#A78BFA" />
+              )}
+              {detail.http?.ok && (
+                <Bar label="پاسخ HTTP — کل مسیر تا سرویس"
+                  value={detail.http.avg} max={600} color="#5AA9E6" />
+              )}
+
+              <div className="fx-g3 grid grid-cols-3 gap-3 mt-4">
+                {[["نوسان", m.latest?.jitter, "ms"],
+                  ["اتلاف بسته", s.lossAvg, "٪"],
+                  ["میانگین", s.average, "ms"]].map(([l, v, u], i) => (
+                  <div key={i} className="p-3 rounded-xl text-center"
+                    style={{ background: "var(--surface-3)" }}>
+                    <div className="text-[15px] font-bold"
+                      style={{ color: "var(--text)",
+                               fontFamily: "'JetBrains Mono',monospace" }}>
+                      {v === null || v === undefined ? "—" : faNum(v)}
+                    </div>
+                    <div className="text-[9.5px] mt-1" style={{ color: "var(--muted)" }}>
+                      {l} {u && `(${u})`}
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              <InfoBox>
+                تاخیر TCP از پینگ معمولی معنادارتر است، چون همان کاری را می‌کند که
+                ترافیک واقعی می‌کند. اگر ICMP خوب باشد ولی TCP بالا، مشکل از خود
+                تانل است نه مسیر شبکه.
+              </InfoBox>
+            </>
+          ) : (
+            <div className="text-center py-8">
+              <Activity size={26} style={{ color: "var(--muted)" }} className="mx-auto mb-3" />
+              <div className="text-[12.5px]" style={{ color: "var(--muted)" }}>
+                هنوز سنجشی انجام نشده
+              </div>
+            </div>
+          )}
+
+          <button onClick={measure} disabled={busy || !tunnel.nodeOnline}
+            className="fx-btn w-full py-3 text-[12.5px] flex items-center justify-center gap-2 mt-4"
+            style={!tunnel.nodeOnline ? { opacity: 0.4, cursor: "not-allowed" } : {}}>
+            {busy
+              ? <><Loader2 size={14} className="animate-spin" /> در حال سنجش…</>
+              : <><Activity size={14} /> سنجش جدید</>}
+          </button>
+
+          {!tunnel.nodeOnline && (
+            <div className="text-[10.5px] mt-2 text-center" style={{ color: "var(--warn)" }}>
+              سرور آفلاین است — دستور وقتی وصل شود اجرا می‌شود
+            </div>
+          )}
+        </>
+      )}
     </Modal>
   );
 }
@@ -5210,6 +5450,293 @@ function TunnelEvents({ password }) {
   );
 }
 
+
+/* ── صورتحساب دوره ── */
+
+function BillingPeriod({ password }) {
+  const { data } = useBilling(password);
+  const [sel, setSel] = useState("");
+  const [inv, setInv] = useState(null);
+  const [loading, setLoading] = useState(false);
+  const [shift, setShift] = useState(0);
+  const [custom, setCustom] = useState(false);
+  const [range, setRange] = useState({ start: "", end: "" });
+
+  const billed = data?.groups?.filter((g) => g.billed) || [];
+  useEffect(() => { if (!sel && billed.length) setSel(billed[0].name); }, [data]);
+
+  const load = async (offset = 0, manual = null) => {
+    if (!sel) return;
+    setLoading(true);
+    try {
+      let q = "";
+      if (manual && manual.start && manual.end) {
+        q = `?start=${manual.start}&end=${manual.end}`;
+      } else if (offset !== 0) {
+        // دوره‌های قبل و بعد را با جابه‌جایی تاریخ می‌گیریم
+        const g = billed.find((x) => x.name === sel);
+        const days = g?.periodDays || 30;
+        const base = inv?.period?.start
+          ? new Date(inv.period.start) : new Date();
+        const s = new Date(base);
+        s.setDate(s.getDate() + offset * days);
+        const e = new Date(s);
+        e.setDate(e.getDate() + days);
+        q = `?start=${s.toISOString().slice(0, 10)}&end=${e.toISOString().slice(0, 10)}`;
+      }
+      const d = await fetch(
+        `${API_URL}/api/admin/billing/period/${encodeURIComponent(sel)}${q}`,
+        { headers: { "X-Admin-Password": password } }).then((r) => r.json());
+      setInv(d);
+    } catch { setInv({ ready: false, error: "اتصال برقرار نشد" }); }
+    finally { setLoading(false); }
+  };
+
+  useEffect(() => { setShift(0); load(0); }, [sel]);
+
+  const move = (dir) => { setShift(shift + dir); load(dir); };
+
+  if (!data?.ready) {
+    return (
+      <div className="fx-anim">
+        <SectionHead title="صورتحساب دوره" desc="" />
+        <BillingUnavailable info={data} password={password} />
+      </div>
+    );
+  }
+
+  const t = inv?.totals;
+  const p = inv?.period;
+
+  return (
+    <div className="fx-anim">
+      <SectionHead title="صورتحساب دوره"
+        desc="فقط کانفیگ‌ها و تمدیدهای همین دوره — نه کل بدهی از ابتدا." />
+
+      {billed.length === 0 ? (
+        <div className="fx-card p-10 text-center" style={{ borderStyle: "dashed" }}>
+          <Users size={26} style={{ color: "var(--muted)" }} className="mx-auto mb-3" />
+          <div className="text-[12.5px]" style={{ color: "var(--muted)" }}>
+            ابتدا یک گروه را واسطه علامت بزنید
+          </div>
+        </div>
+      ) : (
+        <>
+          <div className="fx-card p-5 mb-4">
+            <div className="fx-g3 grid grid-cols-2 gap-3">
+              <Field label="واسطه">
+                <select className="fx-input" value={sel}
+                  onChange={(e) => setSel(e.target.value)}>
+                  {billed.map((g) => (
+                    <option key={g.name} value={g.name}>{g.label}</option>
+                  ))}
+                </select>
+              </Field>
+              <Field label="دوره">
+                {custom ? (
+                  <div className="flex items-center gap-2">
+                    <div className="flex-1 text-center py-2 rounded-xl text-[11.5px]"
+                      style={{ background: "var(--surface-3)", color: "var(--dim)" }}>
+                      {p ? `${p.startJalali} تا ${p.endJalali}` : "بازه دلخواه"}
+                    </div>
+                    <button onClick={() => { setCustom(false); setShift(0); load(0); }}
+                      className="fx-ico-btn shrink-0" title="بازگشت به دوره‌ها">
+                      <RefreshCw size={13} />
+                    </button>
+                  </div>
+                ) : (
+                  <div className="flex items-center gap-2">
+                    <button onClick={() => move(-1)} className="fx-ico-btn shrink-0">
+                      <ChevronLeft size={14} />
+                    </button>
+                    <div className="flex-1 text-center py-2 rounded-xl text-[11.5px]"
+                      style={{ background: "var(--surface-3)", color: "var(--dim)" }}>
+                      {p ? `${p.startJalali} تا ${p.endJalali}` : "—"}
+                    </div>
+                    <button onClick={() => move(1)} className="fx-ico-btn shrink-0"
+                      style={{ transform: "rotate(180deg)" }}>
+                      <ChevronLeft size={14} />
+                    </button>
+                  </div>
+                )}
+              </Field>
+            </div>
+
+            {/* بازه‌ی دلخواه — وقتی می‌خواهید بازه‌ای غیر از دوره‌های
+                خودکار را ببینید، مثلاً برای توافق خاص با یک واسطه */}
+            <div className="mt-4 pt-4" style={{ borderTop: "1px solid var(--border)" }}>
+              <div className="flex justify-between items-center mb-3 flex-wrap gap-2">
+                <span className="text-[11.5px]" style={{ color: "var(--dim)" }}>
+                  بازه‌ی دلخواه
+                </span>
+                <div className="flex gap-1.5 flex-wrap">
+                  {[["هفته گذشته", 7], ["دو هفته", 14],
+                    ["ماه گذشته", 30], ["سه ماه", 90]].map(([l, n]) => (
+                    <button key={n}
+                      onClick={() => {
+                        const e = new Date();
+                        const s = new Date();
+                        s.setDate(s.getDate() - n);
+                        const r = { start: s.toISOString().slice(0, 10),
+                                    end: e.toISOString().slice(0, 10) };
+                        setRange(r); setCustom(true); load(0, r);
+                      }}
+                      className="px-2.5 py-1 rounded-lg text-[10.5px]"
+                      style={{ background: "transparent",
+                               border: "1px solid var(--border)",
+                               color: "var(--muted)" }}>{l}</button>
+                  ))}
+                </div>
+              </div>
+
+              <div className="fx-g3 grid grid-cols-3 gap-2">
+                <input className="fx-input" dir="ltr" value={range.start}
+                  onChange={(e) => setRange({ ...range, start: e.target.value })}
+                  placeholder="از  2026-08-01"
+                  style={{ fontFamily: "'JetBrains Mono',monospace" }} />
+                <input className="fx-input" dir="ltr" value={range.end}
+                  onChange={(e) => setRange({ ...range, end: e.target.value })}
+                  placeholder="تا  2026-08-15"
+                  style={{ fontFamily: "'JetBrains Mono',monospace" }} />
+                <button
+                  onClick={() => { setCustom(true); load(0, range); }}
+                  disabled={!range.start || !range.end}
+                  className="fx-btn py-2.5 text-[12px] flex items-center justify-center gap-1.5"
+                  style={(!range.start || !range.end)
+                    ? { opacity: .45, cursor: "not-allowed" } : {}}>
+                  <FileText size={13} /> فاکتور
+                </button>
+              </div>
+            </div>
+          </div>
+
+          {loading ? (
+            <div className="flex justify-center py-14">
+              <Loader2 className="animate-spin" style={{ color: "var(--muted)" }} />
+            </div>
+          ) : !inv?.ready ? (
+            <div className="fx-card p-8 text-center" style={{ borderStyle: "dashed" }}>
+              <div className="text-[12px]" style={{ color: "var(--muted)" }}>
+                {inv?.error || "خطا در خواندن"}
+              </div>
+            </div>
+          ) : (
+            <>
+              {/* خلاصه */}
+              <div className="fx-card p-5 mb-4">
+                <div className="flex justify-between items-baseline mb-4 flex-wrap gap-2">
+                  <span className="text-[13px] font-semibold text-white">
+                    بدهی این دوره
+                  </span>
+                  <span className="text-[22px] font-extrabold"
+                    style={{ color: "var(--accent-2)",
+                             fontFamily: "'JetBrains Mono',monospace" }}>
+                    {faNum(t.due)} <span className="text-[12px]">تومان</span>
+                  </span>
+                </div>
+
+                {inv.perGb ? (
+                  <div className="p-3 rounded-xl text-[11.5px]"
+                    style={{ background: "var(--surface-3)", color: "var(--dim)" }}>
+                    نرخ حجمی — بر اساس مصرف کل گروه
+                  </div>
+                ) : (
+                  <div className="fx-g3 grid grid-cols-2 gap-3">
+                    {[["کانفیگ جدید", t.newCount, t.newAmount, "var(--ok)"],
+                      ["تمدید", t.renewalCount, t.renewalAmount, "var(--accent-2)"]
+                    ].map(([l, n, amt, col], i) => (
+                      <div key={i} className="p-3.5 rounded-xl"
+                        style={{ background: "var(--surface-3)" }}>
+                        <div className="flex justify-between items-baseline">
+                          <span className="text-[11px]" style={{ color: "var(--muted)" }}>{l}</span>
+                          <span className="text-[15px] font-bold" style={{ color: col,
+                                fontFamily: "'JetBrains Mono',monospace" }}>
+                            {faNum(n)}
+                          </span>
+                        </div>
+                        <div className="text-[12px] mt-1.5" style={{ color: "var(--dim)",
+                             fontFamily: "'JetBrains Mono',monospace" }}>
+                          {faNum(amt)} تومان
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                <div className="flex justify-between mt-4 pt-3 text-[12px]"
+                  style={{ borderTop: "1px solid var(--border)" }}>
+                  <span style={{ color: "var(--muted)" }}>پرداخت‌شده در این دوره</span>
+                  <span style={{ color: "var(--ok)",
+                                 fontFamily: "'JetBrains Mono',monospace" }}>
+                    {faNum(t.paid)}
+                  </span>
+                </div>
+                <div className="flex justify-between mt-2 text-[13px] font-bold">
+                  <span className="text-white">مانده</span>
+                  <span style={{ color: t.balance > 0 ? "var(--warn)" : "var(--ok)",
+                                 fontFamily: "'JetBrains Mono',monospace" }}>
+                    {faNum(t.balance)} تومان
+                  </span>
+                </div>
+
+                {inv.settledUntil && (
+                  <div className="text-[10.5px] mt-3" style={{ color: "var(--muted)" }}>
+                    {faNum(inv.skippedSettled)} کانفیگ قبل از {inv.settledUntil} تسویه‌شده
+                    فرض شده و در محاسبه نیامده
+                  </div>
+                )}
+              </div>
+
+              {/* ریز */}
+              {[["کانفیگ‌های جدید", inv.newConfigs, "var(--ok)"],
+                ["تمدیدها", inv.renewals, "var(--accent-2)"]].map(([title, rows, col]) => (
+                rows.length > 0 && (
+                  <div key={title} className="fx-card p-5 mb-4">
+                    <div className="text-[13px] font-semibold text-white mb-3">
+                      {title} <span style={{ color: "var(--muted)" }}>({faNum(rows.length)})</span>
+                    </div>
+                    {rows.map((x, i) => (
+                      <div key={i} className="flex justify-between items-center gap-3 py-2.5 flex-wrap"
+                        style={{ borderBottom: i < rows.length - 1 ? "1px solid var(--border)" : "none" }}>
+                        <div className="min-w-0">
+                          <div className="text-[12px]" dir="ltr"
+                            style={{ color: "var(--dim)", textAlign: "right",
+                                     fontFamily: "'JetBrains Mono',monospace" }}>
+                            {x.email}
+                          </div>
+                          <div className="text-[10px] mt-0.5" style={{ color: "var(--muted)" }}>
+                            {x.dateJalali || x.date} · {x.gbLabel}
+                            {x.kind === "تخمینی" && (
+                              <span style={{ color: "var(--warn)" }}> · تخمینی</span>
+                            )}
+                          </div>
+                        </div>
+                        <span className="text-[12.5px] font-bold shrink-0"
+                          style={{ color: x.price === null ? "var(--warn)" : col,
+                                   fontFamily: "'JetBrains Mono',monospace" }}>
+                          {x.price === null ? "بدون نرخ" : faNum(x.amount)}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                )
+              ))}
+
+              {t.estimated > 0 && (
+                <InfoBox tone="warn">
+                  {faNum(t.estimated)} تمدید تخمینی است — تاریخش از فاصله‌ی ایجاد تا
+                  انقضا حدس زده شده، نه از ثبت واقعی. تمدیدهایی که از نکسورا انجام
+                  شوند تاریخ قطعی دارند.
+                </InfoBox>
+              )}
+            </>
+          )}
+        </>
+      )}
+    </div>
+  );
+}
+
 /* ── همه‌ی کاربران ── */
 
 const CLIENT_STATUS_COLOR = {
@@ -5228,6 +5755,9 @@ function BillingClients({ password }) {
   const [group, setGroup] = useState("");
   const [status, setStatus] = useState("");
   const [renewed, setRenewed] = useState("");
+  const [age, setAge] = useState("");
+  const [priced, setPriced] = useState("");
+  const [dates, setDates] = useState({ from: "", to: "" });
   const [sort, setSort] = useState("created");
   const [order, setOrder] = useState("desc");
   const [page, setPage] = useState(0);
@@ -5238,7 +5768,8 @@ function BillingClients({ password }) {
     setLoading(true);
     try {
       const p = new URLSearchParams({
-        q, group, status, renewed, sort, order,
+        q, group, status, renewed, age, priced, sort, order,
+        created_from: dates.from, created_to: dates.to,
         limit: String(PER), offset: String(page * PER),
       });
       const d = await fetch(`${API_URL}/api/admin/billing/clients?${p}`, {
@@ -5250,7 +5781,8 @@ function BillingClients({ password }) {
     } finally { setLoading(false); }
   };
 
-  useEffect(() => { load(); }, [password, group, status, renewed, sort, order, page]);
+  useEffect(() => { load(); },
+    [password, group, status, renewed, age, priced, dates, sort, order, page]);
 
   // جستجو با تاخیر — تا با هر حرف یک درخواست نرود
   useEffect(() => {
@@ -5260,7 +5792,12 @@ function BillingClients({ password }) {
 
   const exportCsv = async () => {
     try {
-      const res = await fetch(`${API_URL}/api/admin/billing/clients/export`, {
+      // همان فیلترهای صفحه — وگرنه باید در اکسل دوباره فیلتر کنید
+      const p = new URLSearchParams({
+        q, group, status, renewed, age, priced, sort, order,
+        created_from: dates.from, created_to: dates.to,
+      });
+      const res = await fetch(`${API_URL}/api/admin/billing/clients/export?${p}`, {
         headers: { "X-Admin-Password": password } });
       const blob = await res.blob();
       const a = document.createElement("a");
@@ -5399,8 +5936,74 @@ function BillingClients({ password }) {
             <option value="no">فقط بدون تمدید</option>
           </select>
         </div>
-        {(q || group || status || renewed) && (
-          <button onClick={() => { setQ(""); setGroup(""); setStatus(""); setRenewed(""); setPage(0); }}
+        {/* فیلترهای حسابداری — سه چیزی که موقع فاکتور لازم می‌شوند */}
+        <div className="mt-4 pt-4" style={{ borderTop: "1px solid var(--border)" }}>
+          <div className="flex gap-1.5 flex-wrap mb-3">
+            {[["تازه (۳۰ روز)", "age", "new", s.newLast30],
+              ["قدیمی‌تر", "age", "old", s.olderThan30],
+              ["بدون نرخ", "priced", "no", s.unpriced]].map(([label, key, val, n]) => {
+              const cur = key === "age" ? age : priced;
+              const on = cur === val;
+              const setter = key === "age" ? setAge : setPriced;
+              const col = key === "priced" ? "var(--warn)" : "var(--accent-2)";
+              return (
+                <button key={label}
+                  onClick={() => { setter(on ? "" : val); setPage(0); }}
+                  className="px-3 py-1.5 rounded-lg text-[11px] flex items-center gap-1.5"
+                  style={{
+                    background: on ? `color-mix(in srgb, ${col} 14%, transparent)` : "transparent",
+                    border: `1px solid ${on ? col : "var(--border)"}`,
+                    color: on ? col : "var(--muted)",
+                  }}>
+                  {label}
+                  {n !== undefined && (
+                    <span style={{ fontFamily: "'JetBrains Mono',monospace", opacity: .8 }}>
+                      {faNum(n)}
+                    </span>
+                  )}
+                </button>
+              );
+            })}
+          </div>
+
+          <div className="flex items-center gap-2 flex-wrap">
+            <span className="text-[10.5px] shrink-0" style={{ color: "var(--muted)" }}>
+              ساخته‌شده بین
+            </span>
+            <input className="fx-input" dir="ltr" value={dates.from}
+              onChange={(e) => { setDates({ ...dates, from: e.target.value }); setPage(0); }}
+              placeholder="2026-08-01"
+              style={{ width: 130, fontFamily: "'JetBrains Mono',monospace",
+                       fontSize: 11.5, padding: "7px 10px" }} />
+            <span className="text-[10.5px]" style={{ color: "var(--muted)" }}>تا</span>
+            <input className="fx-input" dir="ltr" value={dates.to}
+              onChange={(e) => { setDates({ ...dates, to: e.target.value }); setPage(0); }}
+              placeholder="2026-08-31"
+              style={{ width: 130, fontFamily: "'JetBrains Mono',monospace",
+                       fontSize: 11.5, padding: "7px 10px" }} />
+
+            {[["۷ روز", 7], ["۳۰ روز", 30]].map(([l, n]) => (
+              <button key={n}
+                onClick={() => {
+                  const t = new Date();
+                  const f = new Date();
+                  f.setDate(f.getDate() - n);
+                  setDates({ from: f.toISOString().slice(0, 10),
+                             to: t.toISOString().slice(0, 10) });
+                  setPage(0);
+                }}
+                className="px-2.5 py-1.5 rounded-lg text-[10.5px]"
+                style={{ background: "transparent", border: "1px solid var(--border)",
+                         color: "var(--muted)" }}>{l}</button>
+            ))}
+          </div>
+        </div>
+
+        {(q || group || status || renewed || age || priced || dates.from || dates.to) && (
+          <button onClick={() => {
+              setQ(""); setGroup(""); setStatus(""); setRenewed("");
+              setAge(""); setPriced(""); setDates({ from: "", to: "" }); setPage(0);
+            }}
             className="text-[11px] mt-3 flex items-center gap-1.5"
             style={{ color: "var(--accent-2)" }}>
             <X size={12} /> پاک کردن فیلترها ({faNum(data.total)} نتیجه)
@@ -6231,8 +6834,12 @@ function BillingGroups({ password }) {
     </div>
   );
 
-  const get = (g) => draft[g.name]
-    || { label: g.label, billed: g.billed, rates: g.rates, perGb: g.perGb || 0 };
+  const get = (g) => draft[g.name] || {
+    label: g.label, billed: g.billed, rates: g.rates, perGb: g.perGb || 0,
+    periodDays: g.periodDays || 30,
+    periodStart: g.periodStart || "",
+    settledUntil: g.settledUntil || "",
+  };
   const set = (g, patch) => setDraft({ ...draft, [g.name]: { ...get(g), ...patch } });
 
   const save = async (g) => {
@@ -6386,6 +6993,44 @@ function BillingGroups({ password }) {
 
                     </>
                     )}
+
+                    {/* دوره‌ی پرداخت — بدون این، معلوم نیست بابت چه بازه‌ای
+                        پول می‌گیرید و پرداخت‌ها با هم قاطی می‌شوند */}
+                    <div className="mt-4 pt-4" style={{ borderTop: "1px solid var(--border)" }}>
+                      <div className="text-[11.5px] mb-3" style={{ color: "var(--dim)" }}>
+                        دوره‌ی پرداخت
+                      </div>
+
+                      <div className="flex gap-2 mb-3">
+                        {[["هفتگی", 7], ["دوهفته", 14], ["ماهانه", 30]].map(([l, n]) => {
+                          const on = (d.periodDays || 30) === n;
+                          return (
+                            <button key={n} onClick={() => set(g, { periodDays: n })}
+                              className="flex-1 py-2 rounded-xl text-[11.5px]"
+                              style={{
+                                background: on ? "var(--accent-soft)" : "var(--surface-3)",
+                                border: `1px solid ${on ? "rgba(43,127,214,.4)" : "var(--border)"}`,
+                                color: on ? "var(--accent-2)" : "var(--muted)",
+                              }}>{l}</button>
+                          );
+                        })}
+                      </div>
+
+                      <div className="fx-g3 grid grid-cols-2 gap-3">
+                        <Field label="شروع دوره‌ها" hint="مبنای شمارش">
+                          <input className="fx-input" dir="ltr" value={d.periodStart || ""}
+                            onChange={(e) => set(g, { periodStart: e.target.value })}
+                            placeholder="2026-08-01"
+                            style={{ fontFamily: "'JetBrains Mono',monospace" }} />
+                        </Field>
+                        <Field label="تسویه‌شده تا" hint="قبل از این تاریخ حساب نمی‌شود">
+                          <input className="fx-input" dir="ltr" value={d.settledUntil || ""}
+                            onChange={(e) => set(g, { settledUntil: e.target.value })}
+                            placeholder="2026-08-01"
+                            style={{ fontFamily: "'JetBrains Mono',monospace" }} />
+                        </Field>
+                      </div>
+                    </div>
 
                     <div className="grid gap-2 mt-3 pt-3" style={{
                       gridTemplateColumns: "repeat(auto-fit,minmax(100px,1fr))",
@@ -7672,6 +8317,7 @@ export default function App() {
           {active === "bill-groups" && <BillingGroups password={password} />}
           {active === "bill-invoice" && <BillingInvoice password={password} />}
           {active === "bill-pay" && <BillingPayments password={password} />}
+          {active === "bill-period" && <BillingPeriod password={password} />}
           {active === "bill-clients" && <BillingClients password={password} />}
           {active === "tun-overview" && <TunnelOverview password={password} />}
           {active === "tun-nodes" && <TunnelNodes password={password} />}

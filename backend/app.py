@@ -3,6 +3,7 @@
 import os
 import json
 import re as _re
+import secrets
 from pathlib import Path
 from datetime import datetime
 from fastapi import FastAPI, HTTPException, Header, Request, Response
@@ -922,6 +923,176 @@ def _bot_conn():
         return None
 
 
+@app.get("/api/admin/bot/affiliates")
+def bot_affiliates(x_admin_password: str = Header(...)):
+    """همکاران فروش با آمار و مانده‌ی هرکدام."""
+    check_auth(x_admin_password)
+    ok, err = _ensure_bot_db()
+    if not ok:
+        return {"ready": False, "error": err, "affiliates": []}
+
+    con = _bot_conn()
+    if not con:
+        return {"ready": False, "error": "دیتابیس ربات در دسترس نیست",
+                "affiliates": []}
+    try:
+        rows = [dict(r) for r in con.execute("""
+            SELECT a.*,
+              (SELECT COUNT(*) FROM users u WHERE u.affiliate_id = a.id) AS users,
+              (SELECT COUNT(*) FROM affiliate_commissions c
+                WHERE c.affiliate_id = a.id AND c.status != 'cancelled') AS orders,
+              (SELECT COALESCE(SUM(order_amount),0) FROM affiliate_commissions c
+                WHERE c.affiliate_id = a.id AND c.status != 'cancelled') AS sales,
+              (SELECT COALESCE(SUM(commission),0) FROM affiliate_commissions c
+                WHERE c.affiliate_id = a.id AND c.status != 'cancelled') AS earned,
+              (SELECT COALESCE(SUM(amount),0) FROM affiliate_payouts p
+                WHERE p.affiliate_id = a.id) AS payouts
+            FROM affiliates a ORDER BY a.id DESC""")]
+        for r in rows:
+            r["balance"] = r["earned"] - r["payouts"]
+        return {"ready": True, "affiliates": rows,
+                "totalOwed": sum(r["balance"] for r in rows)}
+    except Exception as e:
+        return {"ready": False, "error": str(e)[:160], "affiliates": []}
+    finally:
+        con.close()
+
+
+@app.post("/api/admin/bot/affiliate")
+def bot_affiliate_add(payload: dict, x_admin_password: str = Header(...)):
+    check_auth(x_admin_password)
+    _ensure_bot_db()
+
+    name = (payload or {}).get("name", "").strip()[:60]
+    if not name:
+        raise HTTPException(status_code=400, detail="نام همکار لازم است")
+
+    try:
+        percent = float(payload.get("percent") or 10)
+    except (TypeError, ValueError):
+        percent = 10
+    if not (0 < percent <= 100):
+        raise HTTPException(status_code=400, detail="درصد باید بین ۰ تا ۱۰۰ باشد")
+
+    code = (payload.get("code") or "").strip()
+    if not code:
+        code = secrets.token_urlsafe(6).replace("-", "").replace("_", "")[:8]
+    code = "".join(ch for ch in code if ch.isalnum())[:20]
+
+    try:
+        tg_id = int(payload.get("tg_id") or 0) or None
+    except (TypeError, ValueError):
+        tg_id = None
+
+    import sqlite3 as sq
+    con = sq.connect(str(BOT_DB), timeout=10)
+    try:
+        tid = con.execute("SELECT id FROM tenants LIMIT 1").fetchone()
+        tid = tid[0] if tid else 1
+        cur = con.execute(
+            """INSERT INTO affiliates (tenant_id, name, code, tg_id, percent, note)
+               VALUES (?,?,?,?,?,?)""",
+            (tid, name, code, tg_id, percent,
+             (payload.get("note") or "").strip()[:200]))
+        con.commit()
+        return {"ok": True, "id": cur.lastrowid, "code": code}
+    except sq.IntegrityError:
+        raise HTTPException(status_code=400, detail="این کد قبلاً استفاده شده")
+    finally:
+        con.close()
+
+
+@app.put("/api/admin/bot/affiliate/{aid}")
+def bot_affiliate_edit(aid: int, payload: dict,
+                       x_admin_password: str = Header(...)):
+    check_auth(x_admin_password)
+    import sqlite3 as sq
+    con = sq.connect(str(BOT_DB), timeout=10)
+    try:
+        fields, params = [], []
+        for key in ("name", "note"):
+            if key in payload:
+                fields.append(f"{key} = ?")
+                params.append(str(payload[key]).strip()[:200])
+        if "percent" in payload:
+            fields.append("percent = ?")
+            params.append(max(0.1, min(100.0, float(payload["percent"]))))
+        if "tg_id" in payload:
+            fields.append("tg_id = ?")
+            params.append(int(payload["tg_id"] or 0) or None)
+        if "active" in payload:
+            fields.append("active = ?")
+            params.append(1 if payload["active"] else 0)
+        if not fields:
+            return {"ok": True}
+        params.append(aid)
+        con.execute(f"UPDATE affiliates SET {', '.join(fields)} WHERE id = ?", params)
+        con.commit()
+        return {"ok": True}
+    finally:
+        con.close()
+
+
+@app.delete("/api/admin/bot/affiliate/{aid}")
+def bot_affiliate_del(aid: int, x_admin_password: str = Header(...)):
+    check_auth(x_admin_password)
+    import sqlite3 as sq
+    con = sq.connect(str(BOT_DB), timeout=10)
+    try:
+        # کاربران معرفی‌شده حفظ می‌شوند، فقط پیوندشان قطع می‌شود
+        con.execute("UPDATE users SET affiliate_id = NULL WHERE affiliate_id = ?", (aid,))
+        con.execute("DELETE FROM affiliates WHERE id = ?", (aid,))
+        con.commit()
+        return {"ok": True}
+    finally:
+        con.close()
+
+
+@app.post("/api/admin/bot/affiliate/{aid}/payout")
+def bot_affiliate_payout(aid: int, payload: dict,
+                         x_admin_password: str = Header(...)):
+    """
+    ثبت پرداخت به همکار.
+
+    پرداخت نقدی بیرون از ربات انجام می‌شود، پس فقط ثبتش می‌کنیم
+    تا مانده درست بماند.
+    """
+    check_auth(x_admin_password)
+    try:
+        amount = int((payload or {}).get("amount") or 0)
+    except (TypeError, ValueError):
+        amount = 0
+    if amount <= 0:
+        raise HTTPException(status_code=400, detail="مبلغ نامعتبر است")
+
+    import sqlite3 as sq
+    con = sq.connect(str(BOT_DB), timeout=10)
+    try:
+        tid = con.execute("SELECT tenant_id FROM affiliates WHERE id=?",
+                          (aid,)).fetchone()
+        if not tid:
+            raise HTTPException(status_code=404, detail="همکار پیدا نشد")
+        con.execute(
+            "INSERT INTO affiliate_payouts (tenant_id, affiliate_id, amount, note) "
+            "VALUES (?,?,?,?)",
+            (tid[0], aid, amount, (payload.get("note") or "").strip()[:200]))
+        # پورسانت‌های قدیمی‌تر را تا سقف مبلغ، پرداخت‌شده علامت می‌زنیم
+        remaining = amount
+        for r in con.execute(
+                "SELECT id, commission FROM affiliate_commissions "
+                "WHERE affiliate_id=? AND status='pending' ORDER BY id",
+                (aid,)).fetchall():
+            if remaining < r[1]:
+                break
+            con.execute("UPDATE affiliate_commissions SET status='paid' WHERE id=?",
+                        (r[0],))
+            remaining -= r[1]
+        con.commit()
+        return {"ok": True}
+    finally:
+        con.close()
+
+
 @app.get("/api/admin/bot/status")
 def bot_status(x_admin_password: str = Header(...)):
     """وضعیت کلی ربات — نصب شده؟ فعال است؟ چند کاربر؟"""
@@ -1057,8 +1228,22 @@ def _ensure_bot_db():
     برمی‌گرداند: (موفق, پیام خطا)
     پیام خطا دقیق است تا کاربر بداند چه کاری کند — نه یک «نصب نشده» مبهم.
     """
+    # وجود فایل کافی نیست — ممکن است ساخته شده ولی جدول‌ها نباشند
+    # (نصب نیمه‌کاره، یا فایلی که دستی کپی شده). این حالت خطای
+    # «no such table» می‌دهد که برای کاربر بی‌معناست.
     if BOT_DB.exists():
-        return True, None
+        try:
+            import sqlite3
+            con = sqlite3.connect(f"file:{BOT_DB}?mode=ro", uri=True, timeout=5)
+            has = con.execute(
+                "SELECT name FROM sqlite_master WHERE type='table' AND name='tenants'"
+            ).fetchone()
+            con.close()
+            if has:
+                return True, None
+        except Exception:
+            pass
+        # فایل هست ولی ناقص — از نو می‌سازیم
 
     bd = _bot_dir()
     if not (bd / "db.py").exists():
@@ -2101,12 +2286,27 @@ def bot_test_connection(payload: dict, x_admin_password: str = Header(...)):
         return {"ok": False, "steps": steps}
 
     # ۳ — معماری پنل
+    #
+    # از نسخه‌ی ۳ به بعد پنل مشخصات OpenAPI خودش را سرو می‌کند.
+    # اگر بتوانیم بخوانیمش، دیگر حدس نمی‌زنیم کدام مسیر را صدا بزنیم.
     try:
-        mode = client.detect_api()
-        step("api", "تشخیص نسخه پنل", True,
-             "معماری جدید (۳.۴ به بعد)" if mode == "modern" else "معماری کلاسیک")
+        routes = client.discover()
     except Exception:
-        step("api", "تشخیص نسخه پنل", True, "کلاسیک (پیش‌فرض)")
+        routes = {}
+
+    if routes:
+        modern = any(p.startswith("/panel/api/clients") for p in routes)
+        step("api", "مسیرهای API", True,
+             f"{len(routes)} مسیر از خود پنل خوانده شد — "
+             + ("معماری کلاینت مستقل" if modern else "معماری کلاسیک"))
+    else:
+        try:
+            mode = client.detect_api()
+            step("api", "تشخیص نسخه پنل", True,
+                 "معماری جدید (۳.۴ به بعد)" if mode == "modern" else "معماری کلاسیک",
+                 "مشخصات OpenAPI خوانده نشد — مسیرها با آزمون‌وخطا پیدا می‌شوند")
+        except Exception:
+            step("api", "تشخیص نسخه پنل", True, "کلاسیک (پیش‌فرض)")
 
     # ۴ — inbound انتخاب‌شده
     target = None
@@ -2434,9 +2634,12 @@ def _billing_conn():
             group_key   TEXT PRIMARY KEY,
             label       TEXT,
             billable    INTEGER DEFAULT 0,
-            rates       TEXT DEFAULT '[]',
-            per_gb      INTEGER DEFAULT 0,
-            note        TEXT,
+            rates         TEXT DEFAULT '[]',
+            per_gb        INTEGER DEFAULT 0,
+            period_days   INTEGER DEFAULT 30,
+            period_start  TEXT,
+            settled_until TEXT,
+            note          TEXT,
             updated_at  TEXT DEFAULT CURRENT_TIMESTAMP
         );
         CREATE TABLE IF NOT EXISTS payments (
@@ -2462,8 +2665,12 @@ def _billing_conn():
     """)
     try:
         cols = {r[1] for r in con.execute("PRAGMA table_info(group_config)")}
-        if "per_gb" not in cols:
-            con.execute("ALTER TABLE group_config ADD COLUMN per_gb INTEGER DEFAULT 0")
+        for col, decl in (("per_gb", "INTEGER DEFAULT 0"),
+                          ("period_days", "INTEGER DEFAULT 30"),
+                          ("period_start", "TEXT"),
+                          ("settled_until", "TEXT")):
+            if col not in cols:
+                con.execute(f"ALTER TABLE group_config ADD COLUMN {col} {decl}")
     except Exception:
         pass
 
@@ -2645,6 +2852,74 @@ def _usage_percent(used_bytes, quota_bytes):
     return round(used_bytes * 100.0 / quota_bytes)
 
 
+def _renewal_dates(cl, logged_rows):
+    """
+    تاریخ تقریبی هر تمدید.
+
+    تمدیدهایی که نکسورا ثبت کرده تاریخ واقعی دارند. برای بقیه —
+    که از فاصله‌ی ایجاد تا انقضا تخمین زده می‌شوند — فرض می‌کنیم
+    هر تمدید سر ماه انجام شده: ایجاد + ۳۰ روز، + ۶۰ روز و همین‌طور.
+
+    این تخمین است و صریح علامت می‌خورد، ولی برای دوره‌بندی لازم
+    است؛ وگرنه نمی‌شود گفت یک تمدید در کدام هفته اتفاق افتاده.
+    """
+    email = cl["email"]
+    real = [r for r in (logged_rows or []) if r["email"] == email]
+    if real:
+        return [(r["created_at"][:10], "قطعی") for r in real]
+
+    created = cl.get("createdAt")
+    exp = cl.get("expiry") or 0
+    if not created or exp <= 0:
+        return []
+
+    try:
+        c0 = float(created)
+        days = (exp - c0) / 86400000.0
+        months = max(1, round(days / 30))
+    except (TypeError, ValueError):
+        return []
+
+    out = []
+    for i in range(1, months):
+        j, g = _to_jalali(int(c0 + i * 30 * 86400000))
+        if g:
+            out.append((g, "تخمینی"))
+    return out
+
+
+def _period_bounds(conf, ref=None):
+    """
+    ابتدا و انتهای دوره‌ی جاری یک واسطه.
+
+    دوره از تاریخ شروعی که مدیر تعیین کرده جلو می‌رود، به طول
+    period_days. اگر شروعی تعریف نشده باشد، از اول ماه میلادی
+    جاری حساب می‌شود.
+    """
+    from datetime import date, timedelta
+
+    today = ref or date.today()
+    length = max(1, int(conf.get("period_days") or 30))
+
+    start_str = (conf.get("period_start") or "").strip()
+    if start_str:
+        try:
+            anchor = date.fromisoformat(start_str[:10])
+        except ValueError:
+            anchor = today.replace(day=1)
+    else:
+        anchor = today.replace(day=1)
+
+    if anchor > today:
+        return anchor, anchor + timedelta(days=length)
+
+    # چند دوره از لنگر گذشته؟
+    elapsed = (today - anchor).days
+    n = elapsed // length
+    start = anchor + timedelta(days=n * length)
+    return start, start + timedelta(days=length)
+
+
 def _months_for(cl, logged):
     """
     تعداد ماه یک کانفیگ.
@@ -2763,6 +3038,9 @@ def _billing_overview_impl():
                 "billable": bool(conf.get("billable", 0)),
                 "rates": rates if isinstance(rates, list) else [],
                 "perGb": _price_per_gb(conf),
+                "periodDays": conf.get("period_days") or 30,
+                "periodStart": conf.get("period_start"),
+                "settledUntil": conf.get("settled_until"),
                 "configs": 0, "active": 0, "months": 0, "renewals": 0,
                 "used": 0, "quota": 0, "due": 0,
                 "paid": pays.get(g, 0), "unpriced": 0, "estimated": 0,
@@ -2879,23 +3157,40 @@ def billing_group_put(group_key: str, payload: dict, x_admin_password: str = Hea
     except (TypeError, ValueError):
         per_gb = 0
 
+    try:
+        period_days = int(payload.get("period_days") or payload.get("periodDays") or 30)
+    except (TypeError, ValueError):
+        period_days = 30
+    period_days = max(1, min(period_days, 365))
+
+    period_start = (payload.get("period_start")
+                    or payload.get("periodStart") or "").strip()[:10]
+    settled_until = (payload.get("settled_until")
+                     or payload.get("settledUntil") or "").strip()[:10]
+
     con = _billing_conn()
     try:
         con.execute(
-            "INSERT INTO group_config (group_key,label,billable,rates,per_gb,note,updated_at) "
-            "VALUES (?,?,?,?,?,?,CURRENT_TIMESTAMP) "
+            "INSERT INTO group_config "
+            "(group_key,label,billable,rates,per_gb,period_days,period_start,"
+            " settled_until,note,updated_at) "
+            "VALUES (?,?,?,?,?,?,?,?,?,CURRENT_TIMESTAMP) "
             "ON CONFLICT(group_key) DO UPDATE SET "
             "label=excluded.label, billable=excluded.billable, "
             "rates=excluded.rates, per_gb=excluded.per_gb, "
+            "period_days=excluded.period_days, period_start=excluded.period_start, "
+            "settled_until=excluded.settled_until, "
             "note=excluded.note, updated_at=CURRENT_TIMESTAMP",
             (group_key,
              (payload.get("label") or group_key).strip(),
              1 if billable else 0,
              json.dumps(clean, ensure_ascii=False),
-             per_gb,
+             per_gb, period_days, period_start or None, settled_until or None,
              (payload.get("note") or "").strip()))
         con.commit()
         return {"ok": True, "rates": clean, "per_gb": per_gb, "perGb": per_gb,
+                "periodDays": period_days, "periodStart": period_start,
+                "settledUntil": settled_until,
                 "billable": bool(billable), "billed": bool(billable),
                 "label": (payload.get("label") or group_key).strip()}
     finally:
@@ -3472,33 +3767,33 @@ def billing_invoice_pdf(group_key: str, x_admin_password: str = Header(...)):
 
     # ─────────── جدول ───────────
     cols = [
-        ("ردیف", 10 * mm, "c"),
-        ("نام کاربر", 40 * mm, "r"),
-        ("تاریخ ایجاد", 23 * mm, "c"),
-        ("تاریخ انقضا", 23 * mm, "c"),
-        ("مدت (روز)", 18 * mm, "c"),
-        ("ماه", 11 * mm, "c"),
-        ("تمدید", 13 * mm, "c"),
-        ("حجم (GB)", 18 * mm, "c"),
-        ("مصرفی (GB)", 20 * mm, "c"),
-        ("درصد", 13 * mm, "c"),
-        ("دستگاه", 14 * mm, "c"),
-        ("مبلغ (تومان)", 26 * mm, "c"),
+        ("ردیف", 11 * mm, "c"),
+        ("نام کاربر", 52 * mm, "r"),
+        ("تاریخ ایجاد", 25 * mm, "c"),
+        ("تاریخ انقضا", 25 * mm, "c"),
+        ("مدت (روز)", 19 * mm, "c"),
+        ("ماه", 12 * mm, "c"),
+        ("تمدید", 15 * mm, "c"),
+        ("حجم (GB)", 20 * mm, "c"),
+        ("مصرفی (GB)", 22 * mm, "c"),
+        ("درصد", 15 * mm, "c"),
+        ("دستگاه", 16 * mm, "c"),
+        ("مبلغ (تومان)", 29 * mm, "c"),
     ]
     tw = sum(w for _, w, _ in cols)
     x0 = W - MR - tw
-    ROW = 5.6 * mm
+    ROW = 8.4 * mm
 
     def draw_thead(yy):
         c.setFillColor(NAVY)
-        c.rect(x0, yy - 1.5 * mm, tw, 6.5 * mm, fill=1, stroke=0)
-        c.setFont(FB, 6.8)
+        c.rect(x0, yy - 2 * mm, tw, 8 * mm, fill=1, stroke=0)
+        c.setFont(FB, 8)
         c.setFillColor(colors.white)
         x = x0 + tw
         for label, w, _a in cols:
             x -= w
             c.drawCentredString(x + w / 2, yy + 0.6 * mm, _fa(label))
-        return yy - 6.5 * mm
+        return yy - 8 * mm
 
     # سربرگ گروه
     c.setFillColor(HEAD)
@@ -3522,13 +3817,16 @@ def billing_invoice_pdf(group_key: str, x_admin_password: str = Header(...)):
     # صفحه‌ای که جمع‌ها رویش می‌آیند، به اندازه‌ی سه ردیف فضای
     # اضافه لازم دارد. بدون این حساب، یا ته صفحه خالی می‌ماند یا
     # جمع‌ها به صفحه‌ی بعد می‌افتند.
-    BOTTOM = 15 * mm
+    BOTTOM = 10 * mm
     TOTALS_H = 20 * mm          # جمع گروه + جمع کل
 
     first_cap = max(1, int((y - BOTTOM) / ROW))
     rest_cap = max(1, int((H - 34 * mm - 6.5 * mm - BOTTOM) / ROW))
 
     n = len(lines)
+    # فضای جمع‌ها فقط وقتی از صفحه‌ی اول کم می‌شود که همه‌ی ردیف‌ها
+    # همان‌جا جا شوند. وگرنه ردیف‌ها تا ته صفحه می‌آیند و جمع‌ها به
+    # صفحه‌ی بعد می‌روند — که بهتر از جا گذاشتن فضای خالی است.
     if n <= first_cap - int(TOTALS_H / ROW):
         pages_total[0] = 2          # جدول و جمع‌ها یک صفحه + توضیحات
     else:
@@ -3554,7 +3852,7 @@ def billing_invoice_pdf(group_key: str, x_admin_password: str = Header(...)):
 
         vals = [
             str(idx),
-            ln["email"][:22],
+            ln["email"][:30],
             ln.get("createdJalali") or "—",
             ln.get("expiryJalali") or "—",
             str(ln["days"]) if ln["days"] else "—",
@@ -3575,16 +3873,16 @@ def billing_invoice_pdf(group_key: str, x_admin_password: str = Header(...)):
                 c.setFillColor(REN)
                 c.rect(x, y - 1.2 * mm, w, ROW, fill=1, stroke=0)
                 c.setFillColor(RENT)
-                c.setFont(FB, 6.6)
+                c.setFont(FB, 8.2)
             elif label in ("ماه", "مبلغ (تومان)"):
                 c.setFillColor(INK)
-                c.setFont(FB, 6.6)
+                c.setFont(FB, 8.2)
             elif label == "نام کاربر":
                 c.setFillColor(INK if ln["active"] else MUTE)
-                c.setFont(F, 6.6)
+                c.setFont(F, 8.2)
             else:
                 c.setFillColor(GREY)
-                c.setFont(F, 6.6)
+                c.setFont(F, 8.2)
 
             txt = _fa(v) if any("\u0600" <= ch <= "\u06FF" for ch in v) else v
             if align == "r":
@@ -3738,12 +4036,150 @@ def billing_invoice_pdf(group_key: str, x_admin_password: str = Header(...)):
                  f'attachment; filename="nexora-{safe}-{stamp:%Y%m%d}.pdf"'})
 
 
+@app.get("/api/admin/billing/period/{group_key}")
+def billing_period(group_key: str, start: str = "", end: str = "",
+                   x_admin_password: str = Header(...)):
+    """
+    صورتحساب یک دوره — نه کل بدهی تا امروز.
+
+    این همان چیزی است که برای پرداخت دوره‌ای لازم است: در این
+    هفته یا ماه، چند کانفیگ ساخته شده و چند تمدید انجام شده، و
+    بابتش چقدر باید گرفت. هر کانفیگ فقط یک‌بار در دوره‌ای که
+    ساخته شده حساب می‌شود، نه هر بار که گزارش گرفته می‌شود.
+    """
+    check_auth(x_admin_password)
+
+    clients, _known, err = _read_xui_clients()
+    if clients is None:
+        return {"ready": False, "error": err}
+
+    bcon = _billing_conn()
+    try:
+        row = bcon.execute("SELECT * FROM group_config WHERE group_key=?",
+                           (group_key,)).fetchone()
+        conf = dict(row) if row else {}
+        try:
+            rates = json.loads(conf.get("rates") or "[]")
+        except (json.JSONDecodeError, TypeError):
+            rates = []
+        logged_rows = [dict(r) for r in bcon.execute(
+            "SELECT email, months, created_at FROM renewals")]
+        pays = [dict(r) for r in bcon.execute(
+            "SELECT * FROM payments WHERE group_key=? ORDER BY paid_at", (group_key,))]
+    finally:
+        bcon.close()
+
+    from datetime import date
+    if start and end:
+        try:
+            p_start = date.fromisoformat(start[:10])
+            p_end = date.fromisoformat(end[:10])
+        except ValueError:
+            raise HTTPException(status_code=400, detail="تاریخ نامعتبر")
+    else:
+        p_start, p_end = _period_bounds(conf)
+
+    settled = (conf.get("settled_until") or "").strip()[:10]
+    per_gb = _price_per_gb(conf)
+
+    def in_period(d):
+        return d and p_start.isoformat() <= d < p_end.isoformat()
+
+    new_configs, renewals, skipped = [], [], 0
+
+    for cl in clients:
+        if cl["group"] != group_key:
+            continue
+
+        gb = cl["totalGB"] // (1024 ** 3) if cl["totalGB"] > 1024 else cl["totalGB"]
+        price = _price_for(gb, rates)
+        _cj, created_g = _to_jalali(cl.get("createdAt"))
+        created_j, _ = _to_jalali(cl.get("createdAt"))
+
+        # کانفیگ‌های تسویه‌شده اصلاً وارد محاسبه نمی‌شوند
+        if settled and created_g and created_g < settled:
+            skipped += 1
+        elif in_period(created_g):
+            new_configs.append({
+                "email": cl["email"], "gb": gb,
+                "gbLabel": "نامحدود" if gb == 0 else f"{gb} GB",
+                "date": created_g, "dateJalali": created_j,
+                "price": price, "amount": price or 0,
+                "usedGB": round(cl["used"] / (1024 ** 3), 1),
+            })
+
+        for rdate, kind in _renewal_dates(cl, logged_rows):
+            if settled and rdate < settled:
+                continue
+            if in_period(rdate):
+                rj, _ = _to_jalali(int(date.fromisoformat(rdate).strftime("%s")) * 1000)
+                renewals.append({
+                    "email": cl["email"], "gb": gb,
+                    "gbLabel": "نامحدود" if gb == 0 else f"{gb} GB",
+                    "date": rdate, "dateJalali": rj, "kind": kind,
+                    "price": price, "amount": price or 0,
+                })
+
+    new_total = sum(x["amount"] for x in new_configs)
+    ren_total = sum(x["amount"] for x in renewals)
+
+    # نرخ حجمی: بر اساس مصرف کل گروه در دوره
+    gb_total = 0
+    if per_gb:
+        used = sum(c["used"] for c in clients if c["group"] == group_key)
+        gb_total = round(used / (1024 ** 3) * per_gb)
+
+    due = gb_total if per_gb else (new_total + ren_total)
+
+    paid_in_period = sum(p["amount"] for p in pays
+                         if in_period((p.get("paid_at") or "")[:10]))
+
+    return {
+        "ready": True,
+        "group": group_key,
+        "label": conf.get("label") or group_key,
+        "period": {
+            "start": p_start.isoformat(),
+            "end": p_end.isoformat(),
+            "startJalali": _to_jalali(int(
+                __import__("datetime").datetime.combine(
+                    p_start, __import__("datetime").time()).timestamp() * 1000))[0],
+            "endJalali": _to_jalali(int(
+                __import__("datetime").datetime.combine(
+                    p_end, __import__("datetime").time()).timestamp() * 1000))[0],
+            "days": (p_end - p_start).days,
+        },
+        "settledUntil": settled or None,
+        "skippedSettled": skipped,
+        "perGb": per_gb,
+        "newConfigs": sorted(new_configs, key=lambda x: x["date"] or ""),
+        "renewals": sorted(renewals, key=lambda x: x["date"] or ""),
+        "totals": {
+            "newCount": len(new_configs),
+            "newAmount": new_total,
+            "renewalCount": len(renewals),
+            "renewalAmount": ren_total,
+            "gbAmount": gb_total,
+            "due": due,
+            "paid": paid_in_period,
+            "balance": due - paid_in_period,
+            "estimated": sum(1 for r in renewals if r["kind"] == "تخمینی"),
+            "unpriced": sum(1 for x in new_configs + renewals if x["price"] is None),
+        },
+        "payments": [p for p in pays if in_period((p.get("paid_at") or "")[:10])],
+    }
+
+
 @app.get("/api/admin/billing/clients")
 def billing_clients(
     q: str = "",
     group: str = "",
     status: str = "",
     renewed: str = "",
+    created_from: str = "",
+    created_to: str = "",
+    age: str = "",
+    priced: str = "",
     sort: str = "created",
     order: str = "desc",
     limit: int = 500,
@@ -3869,6 +4305,33 @@ def billing_clients(
     elif renewed == "no":
         out = [x for x in out if x["renewals"] == 0]
 
+    # بازه‌ی تاریخ ایجاد — برای اینکه بدانید در یک بازه چه کسانی
+    # اضافه شده‌اند و بابتشان چقدر باید گرفت
+    if created_from:
+        out = [x for x in out
+               if (x.get("createdGregorian") or "") >= created_from[:10]]
+    if created_to:
+        out = [x for x in out
+               if (x.get("createdGregorian") or "") <= created_to[:10]]
+
+    # تازه یا قدیمی — مرز ۳۰ روز، چون دوره‌ی معمول همین است
+    if age in ("new", "old"):
+        from datetime import date, timedelta
+        cutoff = (date.today() - timedelta(days=30)).isoformat()
+        if age == "new":
+            out = [x for x in out
+                   if (x.get("createdGregorian") or "") >= cutoff]
+        else:
+            out = [x for x in out
+                   if (x.get("createdGregorian") or "9999") < cutoff]
+
+    # بدون نرخ — حجم‌هایی که در نرخ‌های گروه تعریف نشده‌اند.
+    # اینها پول از دست رفته‌اند چون در صورتحساب صفر می‌آیند.
+    if priced == "no":
+        out = [x for x in out if x["billable"] and x["price"] is None]
+    elif priced == "yes":
+        out = [x for x in out if x["price"] is not None]
+
     # ── مرتب‌سازی ──
     keys = {
         "email": lambda x: x["email"].lower(),
@@ -3903,6 +4366,14 @@ def billing_clients(
     stats["renewalRate"] = (round(stats["renewed"] * 100.0 / total, 1)
                             if total else 0)
 
+    from datetime import date, timedelta
+    cutoff = (date.today() - timedelta(days=30)).isoformat()
+    stats["newLast30"] = sum(1 for x in out
+                             if (x.get("createdGregorian") or "") >= cutoff)
+    stats["olderThan30"] = total - stats["newLast30"]
+    stats["unpriced"] = sum(1 for x in out
+                            if x["billable"] and x["price"] is None)
+
     # همه‌ی گروه‌ها برای فیلتر، حتی خالی‌ها
     all_groups = sorted({c["group"] for c in clients} | set(known_groups or []))
 
@@ -3920,11 +4391,32 @@ def billing_clients(
 
 
 @app.get("/api/admin/billing/clients/export")
-def billing_clients_export(x_admin_password: str = Header(...)):
-    """خروجی CSV همه‌ی کاربران — برای اکسل."""
+def billing_clients_export(
+    q: str = "",
+    group: str = "",
+    status: str = "",
+    renewed: str = "",
+    created_from: str = "",
+    created_to: str = "",
+    age: str = "",
+    priced: str = "",
+    sort: str = "created",
+    order: str = "desc",
+    x_admin_password: str = Header(...),
+):
+    """
+    خروجی CSV — با همان فیلترهایی که در صفحه اعمال کرده‌اید.
+
+    اگر خروجی همیشه کامل بود، بعد از فیلتر کردن باید دوباره در
+    اکسل همان کار را تکرار می‌کردید.
+    """
     check_auth(x_admin_password)
 
-    data = billing_clients(limit=100000, x_admin_password=x_admin_password)
+    data = billing_clients(
+        q=q, group=group, status=status, renewed=renewed,
+        created_from=created_from, created_to=created_to,
+        age=age, priced=priced, sort=sort, order=order,
+        limit=100000, x_admin_password=x_admin_password)
     if not data.get("ready"):
         raise HTTPException(status_code=400, detail=data.get("error") or "خواندن ناموفق")
 
@@ -4119,8 +4611,15 @@ def agent_job_result(payload: dict, x_agent_token: str = Header(None)):
         raise HTTPException(status_code=400, detail="شناسه کار نامعتبر")
 
     ok = bool(p.get("ok"))
-    result = str(p.get("result") or "")[:2000]
+    result = str(p.get("result") or "")[:4000]
     TUN.finish_job(jid, ok, result)
+
+    # نتیجه‌ی سنجش را جدا نگه می‌داریم تا روند قابل دیدن باشد
+    if ok and p.get("action") == "monitor" and p.get("tunnel_id"):
+        try:
+            TUN.save_metrics(int(p["tunnel_id"]), json.loads(result))
+        except Exception:
+            pass
 
     if not ok:
         TUN.log(node_id=node["id"], level="error",
@@ -4346,6 +4845,38 @@ def tunnel_node_check(node_id: int, x_admin_password: str = Header(...)):
             {"label": "ری‌استارت", "cmd": "systemctl restart nexora-agent"},
         ],
     }
+
+
+@app.post("/api/admin/tunnel/{tid}/monitor")
+def tunnel_monitor(tid: int, x_admin_password: str = Header(...)):
+    """سنجش کیفیت — در صف agent قرار می‌گیرد."""
+    check_auth(x_admin_password)
+    _need_tunnels()
+
+    t = TUN.get_tunnel(tid)
+    if not t:
+        raise HTTPException(status_code=404, detail="تانل پیدا نشد")
+
+    ports = [p["local"] for p in (t.get("ports") or [])][:6]
+    payload = {"tunnel_id": tid, "host": "127.0.0.1", "ports": ports}
+
+    # اگر پورت وب دارد، پاسخ HTTP را هم می‌سنجیم
+    for p in ports:
+        if p in (80, 443, 8443, 2053, 2087, 8080):
+            scheme = "http" if p in (80, 8080) else "https"
+            payload["url"] = f"{scheme}://127.0.0.1:{p}/"
+            break
+
+    TUN.queue_job(t["node_id"], "monitor", payload)
+    return {"ok": True, "queued": True, "ports": ports}
+
+
+@app.get("/api/admin/tunnel/{tid}/metrics")
+def tunnel_metrics(tid: int, x_admin_password: str = Header(...)):
+    """تاریخچه و خلاصه‌ی سنجش."""
+    check_auth(x_admin_password)
+    _need_tunnels()
+    return TUN.get_metrics(tid)
 
 
 @app.get("/api/admin/tunnel/overview")

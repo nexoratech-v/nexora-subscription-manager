@@ -2,6 +2,125 @@
 
 ## [1.1.1]
 
+### Fixed — Config creation on 3x-ui v3
+Version 3 changed the client model: clients are standalone records attached to inbounds,
+not entries inside an inbound'''s JSON. The old `/panel/api/inbounds/addClient` path is
+gone, which is why creation returned 404 and order approval silently stalled.
+
+Rather than hardcode paths for each version, the client now reads the panel'''s own
+OpenAPI specification from `/panel/api/openapi.json` and uses whatever routes it
+actually has. On v3 it creates the client and attaches it to the inbound; on older
+panels it falls back to the legacy path. Panels that serve no specification still work
+through path probing.
+
+The connection test reports how many routes were read and which architecture was found,
+so a future version changing paths again shows up there rather than as a bare 404.
+
+## [1.1.1]
+
+### Added — Affiliate sales
+For people who sell on your behalf rather than customers who refer friends. Separate
+from the coin-based referral system: this pays a cash percentage, tracked as a debt you
+settle outside the bot.
+
+- Each affiliate gets their own link and their own percentage
+- **Commission on every purchase that customer ever makes**, not just the first — the
+  link is recorded on the user, so it keeps paying
+- The affiliate sees their own panel in the bot: customers brought, orders placed, total
+  sales, commission earned, paid and outstanding, plus a line-by-line list
+- The panel shows what each affiliate is owed; recording a payout marks the oldest
+  pending commissions as settled
+- A commission is written once per order, so re-approving an order cannot pay twice
+- Commission is recorded only after the config is successfully created, since nothing
+  was sold until it was delivered
+
+## [1.1.1]
+
+### Added — Accounting filters on the client list
+Three filters aimed at the questions that come up when preparing an invoice:
+
+- **Created between two dates** — who was added in a given span, with one-tap shortcuts
+  for the last 7 and 30 days
+- **New versus older** — split at 30 days, so recent additions are separable from the
+  standing base
+- **No rate defined** — configs whose plan size is not in the group rate table. These
+  bill as zero and are quietly lost revenue, so the count is shown even when the filter
+  is off
+
+The CSV export now carries whatever filters are on screen, rather than always dumping
+everything and leaving you to filter again in Excel.
+
+### Added — Custom date ranges
+Alongside the automatic periods, any two dates can be entered directly to see who was
+created and who renewed between them. Useful when a reseller agreement covers a span
+that does not line up with the regular cycle. Shortcuts cover the last week, fortnight,
+month and quarter.
+
+### Added — Period-based invoicing
+The panel used to report one number: total owed since the beginning. That is unusable
+once you take payments regularly, because nothing says which months a payment covered.
+
+A new page bills one period at a time:
+
+- **New configs and renewals counted separately**, each priced at the group rate
+- **Each reseller has their own period** — weekly, fortnightly, monthly, anchored to a
+  start date you choose
+- **A settlement date** marks everything before it as already paid, so old configs stop
+  reappearing in every invoice
+- Payments recorded inside the period are matched against it, leaving a balance that
+  means something
+- Navigate to earlier or later periods to check what was agreed at the time
+
+Renewal dates are known exactly for renewals Nexora recorded. For older ones the date is
+estimated from the create-to-expiry gap and marked as such — necessary for period
+assignment, but never presented as fact.
+
+## [1.1.1]
+
+### Fixed
+- **The tunnel form had no visible submit button.** The button sat inside the scrolling
+  body, so on a long form it fell below the fold with nothing to scroll to. It now sits
+  in the modal footer, which stays fixed while the body scrolls, and is disabled until
+  the name, address and at least one port are filled in
+- Port fields used `type=number`, which shows spinner arrows and makes typing awkward.
+  They now accept digits directly
+
+### Changed
+- **Invoice table rows are taller and the text larger** — 8.4mm rows at 8pt instead of
+  7.2mm at 6.6pt. The space reserved for the totals is only taken from the first page
+  when every row fits there; otherwise rows run to the bottom and the totals move to the
+  next page, which beats leaving a gap
+
+## [1.1.1]
+
+### Added — Tunnel quality monitoring
+Three measurements taken together, because each says something different and only
+comparing them tells you where a problem lies:
+
+- **TCP latency** — opens a real connection and closes it, five times. More meaningful
+  than ping, since many routes treat ICMP differently from actual traffic. Reports min,
+  average, max, jitter and packet loss
+- **ICMP ping** — for comparison against the TCP figure
+- **HTTP response** — the whole path through to the service behind the tunnel
+
+High ICMP and high TCP means the network route is slow. Good ICMP but high TCP means
+the tunnel or destination is slow. Good TCP but high HTTP means the service is slow.
+
+The last 100 samples per tunnel are kept, with a trend chart and a plain quality rating.
+
+### Fixed
+- **The bot settings page failed with `no such table: tenants`.** The setup check only
+  looked for the database file, so a half-created database — one that exists but has no
+  tables — was accepted and every query then failed. It now verifies the schema and
+  rebuilds if it is incomplete
+- Port fields used `type=number`, which shows spinner arrows and makes typing a value
+  awkward. They now take digits directly
+
+### Changed
+- The tunnel form explains the three steps and which server each field refers to
+
+## [1.1.1]
+
 ### Fixed
 - **Nodes stayed offline even though the agent was checking in.** The tunnel module read
   its database path once at import time, but import order under uvicorn is not

@@ -120,6 +120,13 @@ def main_menu(ctx, user):
         [("🧾 سفارش‌های من", "myorders")],
         [("🎁 دعوت دوستان", "ref"), ("🪙 سکه‌های من", "coins")],
     ]
+    # پنل همکار فقط به کسی نشان داده می‌شود که واقعاً همکار است
+    try:
+        if ctx.db.affiliate_by_tg(ctx.tid, user["tg_id"]):
+            rows.append([("💼 پنل همکاری در فروش", "affiliate")])
+    except Exception:
+        pass
+
     if ctx.s.get("trial_enabled") and not user.get("trial_used"):
         rows.insert(1, [("🎉 دریافت اشتراک تست رایگان", "trial")])
     rows.append([("📚 آموزش نصب", "help"), ("💬 پشتیبانی", "support")])
@@ -203,9 +210,15 @@ def cmd_start(ctx, msg, args=None):
 
     if not user:
         referrer = None
-        if args:
-            ref = ctx.db.get_user_by_ref(args.strip())
-            # جلوگیری از خودارجاعی
+        affiliate = None
+        arg = (args or "").strip()
+
+        # لینک همکار فروش با پیشوند aff_ می‌آید تا با کد دعوت
+        # معمولی قاطی نشود
+        if arg.startswith("aff_"):
+            affiliate = ctx.db.affiliate_by_code(ctx.tid, arg[4:])
+        elif arg:
+            ref = ctx.db.get_user_by_ref(arg)
             if ref and ref["tg_id"] != tg["id"]:
                 referrer = ref["id"]
 
@@ -213,6 +226,11 @@ def cmd_start(ctx, msg, args=None):
             tg["id"], tg.get("username"), tg.get("first_name"),
             referred_by=referrer
         )
+
+        if affiliate:
+            ctx.db.exec("UPDATE users SET affiliate_id=? WHERE id=?",
+                        (affiliate["id"], user["id"]))
+            user["affiliate_id"] = affiliate["id"]
         ctx.db.log("signup", user["id"], {"ref": bool(referrer)})
 
         # پاداش خوش‌آمد به دعوت‌شده (اگر تنظیم شده باشد)
@@ -563,6 +581,28 @@ def approve_order(ctx, order_id, admin_tg_id):
         return False, result
 
     user = ctx.db.get_user_by_id(order["user_id"])
+
+    # پورسانت همکار فروش — بعد از ساخت موفق کانفیگ، چون تا وقتی
+    # کانفیگ تحویل نشده فروشی اتفاق نیفتاده
+    try:
+        paid_amount = order.get("final_price") or order.get("price") or 0
+        res = ctx.db.record_commission(ctx.tid, user["id"], order_id, paid_amount)
+        if res:
+            aff = res["affiliate"]
+            ctx.notify_group(
+                f"💼 <b>پورسانت همکار</b>\n"
+                f"همکار: {esc(aff['name'])}\n"
+                f"سفارش #{order_id} — {paid_amount:,} تومان\n"
+                f"پورسانت: {res['commission']:,} تومان ({aff['percent']}٪)")
+            if aff.get("tg_id"):
+                ctx.bot.send_message(
+                    aff["tg_id"],
+                    f"💼 <b>فروش جدید</b>\n\n"
+                    f"مبلغ خرید: {paid_amount:,} تومان\n"
+                    f"پورسانت شما: <b>{res['commission']:,} تومان</b>")
+    except Exception:
+        # نبود پورسانت نباید تحویل سفارش را متوقف کند
+        pass
 
     # مصرف سکه
     if order["coins_used"]:
@@ -971,6 +1011,87 @@ def require_membership(ctx, chat_id, message_id, u):
     _reply(ctx, chat_id, message_id,
            "برای استفاده از ربات، ابتدا در کانال ما عضو شوید:", invite)
     return True
+
+
+def affiliate_panel(ctx, user, chat_id, message_id):
+    """
+    پنل همکار فروش.
+
+    چیزی که همکار می‌خواهد بداند: لینکش، چند نفر آورده، چقدر
+    فروش شده، چقدر پورسانت گرفته و چقدر طلبکار است.
+    """
+    aff = ctx.db.affiliate_by_tg(ctx.tid, user["tg_id"])
+    if not aff:
+        return _reply(ctx, chat_id, message_id,
+                      "این بخش فقط برای همکاران فروش است.",
+                      back_kb())
+
+    st = ctx.db.affiliate_stats(ctx.tid, aff["id"])
+    bot_user = ctx.s.get("bot_username") or ""
+    link = (f"https://t.me/{bot_user}?start=aff_{aff['code']}"
+            if bot_user else f"کد شما: {aff['code']}")
+
+    lines = [
+        "💼 <b>پنل همکاری در فروش</b>",
+        "",
+        f"سلام {esc(aff['name'])} 👋",
+        f"درصد پورسانت شما: <b>{aff['percent']}٪</b>",
+        "",
+        "📊 <b>عملکرد</b>",
+        f"   کاربران معرفی‌شده: <b>{st['users']}</b>",
+        f"   خریدهای انجام‌شده: <b>{st['orders']}</b>",
+        f"   مجموع فروش: <b>{st['sales']:,}</b> تومان",
+        "",
+        "💰 <b>پورسانت</b>",
+        f"   کل پورسانت: <b>{st['earned']:,}</b> تومان",
+        f"   دریافت‌شده: {st['payouts']:,} تومان",
+        f"   <b>مانده: {st['balance']:,} تومان</b>",
+        "",
+        "🔗 <b>لینک اختصاصی شما</b>",
+        f"<code>{esc(link)}</code>",
+        "",
+        "<i>هر کسی با این لینک وارد شود، از تمام خریدهایش — "
+        "نه فقط خرید اول — به شما پورسانت می‌رسد.</i>",
+    ]
+
+    return _reply(ctx, chat_id, message_id, "\n".join(lines),
+                  kb([[("📋 ریز فروش‌ها", "aff_list")],
+                      [("‹ منو", "menu")]]))
+
+
+def affiliate_list(ctx, user, chat_id, message_id):
+    """ریز فروش‌های یک همکار."""
+    aff = ctx.db.affiliate_by_tg(ctx.tid, user["tg_id"])
+    if not aff:
+        return _reply(ctx, chat_id, message_id, "دسترسی ندارید.", back_kb())
+
+    rows = ctx.db.q(
+        """SELECT c.*, u.first_name, u.username
+           FROM affiliate_commissions c
+           LEFT JOIN users u ON u.id = c.user_id
+           WHERE c.tenant_id=? AND c.affiliate_id=? AND c.status != 'cancelled'
+           ORDER BY c.id DESC LIMIT 25""",
+        (ctx.tid, aff["id"]))
+
+    if not rows:
+        return _reply(ctx, chat_id, message_id,
+                      "📋 <b>ریز فروش‌ها</b>\n\nهنوز فروشی ثبت نشده.",
+                      kb([[("‹ بازگشت", "affiliate")]]))
+
+    lines = ["📋 <b>ریز فروش‌ها</b>", ""]
+    for r in rows:
+        who = r.get("first_name") or r.get("username") or "کاربر"
+        when = (r.get("created_at") or "")[:10]
+        mark = "✅" if r["status"] == "paid" else "⏳"
+        lines.append(f"{mark} {esc(who)} · {when}")
+        lines.append(f"   خرید {r['order_amount']:,} → "
+                     f"پورسانت <b>{r['commission']:,}</b>")
+
+    lines.append("")
+    lines.append("<i>⏳ در انتظار پرداخت · ✅ پرداخت‌شده</i>")
+
+    return _reply(ctx, chat_id, message_id, "\n".join(lines),
+                  kb([[("‹ بازگشت", "affiliate")]]))
 
 
 def my_orders(ctx, user, chat_id, message_id):
@@ -1590,6 +1711,8 @@ _SIMPLE = {
     "buy":     lambda ctx, u, c, m: show_plans(ctx, u, c, m),
     "mysubs":  lambda ctx, u, c, m: show_subs(ctx, u, c, m),
     "myorders": lambda ctx, u, c, m: my_orders(ctx, u, c, m),
+    "affiliate": lambda ctx, u, c, m: affiliate_panel(ctx, u, c, m),
+    "aff_list": lambda ctx, u, c, m: affiliate_list(ctx, u, c, m),
     "wallet":  lambda ctx, u, c, m: show_wallet(ctx, u, c, m),
     "coins":   lambda ctx, u, c, m: show_coins(ctx, u, c, m),
     "ref":     lambda ctx, u, c, m: show_referral(ctx, u, c, m),

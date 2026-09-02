@@ -6,6 +6,7 @@
 همه‌ی endpointها زیر /panel/api/ هر دو حالت را می‌پذیرند.
 """
 
+import re
 import json
 import time
 import uuid as uuidlib
@@ -32,6 +33,7 @@ class XUI:
         self._logged_in = False
         # مسیرهایی که یک‌بار جواب داده‌اند — تا هر بار دوباره نگردیم
         self._path_cache = {}
+        self._routes = None
         self._api_mode = None
 
     # ---------- احراز هویت ----------
@@ -62,7 +64,13 @@ class XUI:
         self._logged_in = True
         return True
 
-    def _req(self, method, path, **kw):
+    def _req(self, method, path, raw=False, **kw):
+        """
+        درخواست به پنل.
+
+        raw=True برای پاسخ‌هایی که ساختار {success, obj} ندارند —
+        مثل مشخصات OpenAPI که یک JSON استاندارد است.
+        """
         if not self._logged_in:
             self.login()
 
@@ -83,6 +91,9 @@ class XUI:
         except ValueError:
             raise XUIError(f"پاسخ غیر JSON از {path} (HTTP {r.status_code})")
 
+        if raw:
+            return data
+
         if not data.get("success", False):
             raise XUIError(data.get("msg") or f"خطا در {path}")
         return data.get("obj")
@@ -95,6 +106,45 @@ class XUI:
         return self._req("GET", f"/panel/api/inbounds/get/{inbound_id}")
 
     # ---------- کلاینت ----------
+    def discover(self):
+        """
+        خواندن فهرست واقعی مسیرها از خود پنل.
+
+        ۳x-ui از نسخه‌ی ۳ مشخصات OpenAPI را سرو می‌کند. به‌جای
+        حدس زدن اینکه کدام نسخه چه مسیری دارد، همان را می‌خوانیم.
+        این تنها راهی است که با نسخه‌های آینده هم کار می‌کند.
+        """
+        if self._routes is not None:
+            return self._routes
+
+        for path in ("/panel/api/openapi.json", "/openapi.json",
+                     "/panel/openapi.json"):
+            try:
+                spec = self._req("GET", path, raw=True)
+                if isinstance(spec, dict) and spec.get("paths"):
+                    self._routes = {
+                        p: set(m.upper() for m in ms)
+                        for p, ms in spec["paths"].items()
+                    }
+                    return self._routes
+            except Exception:
+                continue
+
+        self._routes = {}
+        return self._routes
+
+    def has_route(self, path, method="POST"):
+        """آیا پنل این مسیر را دارد؟"""
+        routes = self.discover()
+        if not routes:
+            return None          # نمی‌دانیم — باید امتحان کرد
+        for p, methods in routes.items():
+            # مسیرهای پارامتری مثل /clients/{email}
+            pattern = re.sub(r"\{[^}]+\}", "[^/]+", p)
+            if re.fullmatch(pattern, path) and method.upper() in methods:
+                return True
+        return False
+
     def _try_paths(self, candidates, label):
         """
         امتحان چند مسیر تا یکی جواب دهد.
@@ -127,7 +177,7 @@ class XUI:
             f"هیچ مسیری برای {label} جواب نداد. امتحان شد:\n" + "\n".join(tried))
 
     def add_client(self, inbound_id, email, gb=0, days=0, ip_limit=0,
-                   client_uuid=None, tg_id=None, sub_id=None, flow=""):
+                   client_uuid=None, tg_id=None, sub_id=None, flow="", group=None):
         """
         افزودن کلاینت به inbound.
 
@@ -155,7 +205,44 @@ class XUI:
 
         settings = json.dumps({"clients": [client]})
 
-        # نسخه‌های مختلف ۳x-ui مسیرهای متفاوتی دارند
+        # ── نسخه‌ی ۳: کلاینت مستقل است ──
+        #
+        # در معماری جدید، کلاینت جدا ساخته می‌شود و بعد به یک یا
+        # چند inbound وصل می‌شود. این با مدل قدیمی که کلاینت داخل
+        # JSON اینباند بود کاملاً فرق دارد.
+        if self.has_route("/panel/api/clients", "POST") is not False:
+            try:
+                body = {
+                    "email": email,
+                    "id": client["id"],
+                    "totalGB": client.get("totalGB", 0),
+                    "expiryTime": client.get("expiryTime", 0),
+                    "limitIp": client.get("limitIp", 0),
+                    "enable": True,
+                    "subId": client.get("subId") or "",
+                }
+                if group:
+                    body["groupName"] = group
+
+                self._req("POST", "/panel/api/clients", json=body)
+
+                # وصل کردن به اینباند — بدون این، کلاینت ساخته
+                # می‌شود ولی هیچ‌جا فعال نیست
+                for p in (f"/panel/api/clients/{email}/attach",
+                          f"/panel/api/clients/{email}/inbounds"):
+                    try:
+                        self._req("POST", p, json={"inboundIds": [inbound_id]})
+                        break
+                    except XUIError:
+                        continue
+
+                self._path_cache["افزودن کلاینت"] = "/panel/api/clients"
+                return client
+            except XUIError as e:
+                if "404" not in str(e):
+                    raise
+
+        # ── نسخه‌های قدیمی‌تر ──
         self._try_paths([
             ("POST", "/panel/api/inbounds/addClient",
              {"data": {"id": inbound_id, "settings": settings}}),

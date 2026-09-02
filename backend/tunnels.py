@@ -164,6 +164,21 @@ def conn():
             created_at TEXT DEFAULT CURRENT_TIMESTAMP
         );
 
+        -- تاریخچه‌ی سنجش، برای دیدن روند نه فقط لحظه
+        CREATE TABLE IF NOT EXISTS metrics (
+            id         INTEGER PRIMARY KEY AUTOINCREMENT,
+            tunnel_id  INTEGER NOT NULL,
+            tcp_avg    REAL,
+            tcp_min    REAL,
+            tcp_max    REAL,
+            jitter     REAL,
+            loss       REAL,
+            icmp_avg   REAL,
+            http_avg   REAL,
+            raw        TEXT,
+            created_at TEXT DEFAULT CURRENT_TIMESTAMP
+        );
+        CREATE INDEX IF NOT EXISTS idx_met_tun ON metrics(tunnel_id, id DESC);
         CREATE INDEX IF NOT EXISTS idx_jobs_node ON jobs(node_id, status);
         CREATE INDEX IF NOT EXISTS idx_tun_node ON tunnels(node_id);
         CREATE INDEX IF NOT EXISTS idx_ev_time  ON events(created_at DESC);
@@ -747,6 +762,7 @@ ALLOWED_ACTIONS = {
     "status",       # گزارش وضعیت
     "logs",         # آخرین خطوط لاگ
     "ping",         # تست شبکه به سرور خارج
+    "monitor",      # سنجش کیفیت تانل
     "update_agent",
 }
 
@@ -798,6 +814,90 @@ def finish_job(job_id, ok, result=""):
         c.commit()
     finally:
         c.close()
+
+
+def save_metrics(tunnel_id, data):
+    """
+    ثبت یک سنجش.
+
+    فقط ۱۰۰ نمونه‌ی آخر هر تانل نگه داشته می‌شود — بیشتر از این
+    برای دیدن روند لازم نیست و دیتابیس را بی‌دلیل بزرگ می‌کند.
+    """
+    tcp = {}
+    for v in (data.get("tcp") or {}).values():
+        if v.get("ok"):
+            tcp = v
+            break
+
+    icmp = data.get("icmp") or {}
+    http = data.get("http") or {}
+
+    c = conn()
+    try:
+        c.execute("""INSERT INTO metrics
+                     (tunnel_id, tcp_avg, tcp_min, tcp_max, jitter, loss,
+                      icmp_avg, http_avg, raw)
+                     VALUES (?,?,?,?,?,?,?,?,?)""",
+                  (tunnel_id, tcp.get("avg"), tcp.get("min"), tcp.get("max"),
+                   tcp.get("jitter"), tcp.get("loss"),
+                   icmp.get("avg"), http.get("avg"),
+                   json.dumps(data, ensure_ascii=False)[:4000]))
+        c.execute("""DELETE FROM metrics WHERE tunnel_id = ? AND id NOT IN
+                     (SELECT id FROM metrics WHERE tunnel_id = ?
+                      ORDER BY id DESC LIMIT 100)""", (tunnel_id, tunnel_id))
+        c.commit()
+    finally:
+        c.close()
+
+
+def get_metrics(tunnel_id, limit=40):
+    """آخرین سنجش‌ها به‌همراه خلاصه‌ی روند."""
+    c = conn()
+    try:
+        rows = [dict(r) for r in c.execute(
+            """SELECT * FROM metrics WHERE tunnel_id = ?
+               ORDER BY id DESC LIMIT ?""", (tunnel_id, limit))]
+    finally:
+        c.close()
+
+    if not rows:
+        return {"samples": [], "summary": None}
+
+    latest = rows[0]
+    try:
+        latest["detail"] = json.loads(latest.get("raw") or "{}")
+    except (json.JSONDecodeError, TypeError):
+        latest["detail"] = {}
+
+    vals = [r["tcp_avg"] for r in rows if r["tcp_avg"] is not None]
+    losses = [r["loss"] for r in rows if r["loss"] is not None]
+
+    summary = {
+        "count": len(rows),
+        "latest": latest.get("tcp_avg"),
+        "best": min(vals) if vals else None,
+        "worst": max(vals) if vals else None,
+        "average": round(sum(vals) / len(vals), 1) if vals else None,
+        "lossAvg": round(sum(losses) / len(losses), 1) if losses else None,
+        "since": rows[-1].get("created_at"),
+    }
+
+    # کیفیت — همان چیزی که کاربر می‌خواهد بداند
+    a = summary["average"]
+    l = summary["lossAvg"] or 0
+    if a is None:
+        summary["quality"] = "نامشخص"
+    elif l > 5 or a > 300:
+        summary["quality"] = "ضعیف"
+    elif l > 1 or a > 150:
+        summary["quality"] = "متوسط"
+    elif a > 60:
+        summary["quality"] = "خوب"
+    else:
+        summary["quality"] = "عالی"
+
+    return {"samples": list(reversed(rows)), "summary": summary,
+            "latest": latest}
 
 
 def recent_events(limit=60):

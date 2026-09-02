@@ -48,6 +48,53 @@ CREATE TABLE IF NOT EXISTS tenants (
 );
 
 -- ═══ کاربران ═══
+-- ═══════════════════════════════════════════════════════
+--  همکاری در فروش
+--
+--  با «دعوت دوستان» فرق دارد: آن سکه می‌دهد به مشتری عادی،
+--  این پورسانت نقدی می‌دهد به کسی که کارش فروش است.
+-- ═══════════════════════════════════════════════════════
+
+CREATE TABLE IF NOT EXISTS affiliates (
+    id          INTEGER PRIMARY KEY AUTOINCREMENT,
+    tenant_id   INTEGER NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+    name        TEXT NOT NULL,
+    code        TEXT NOT NULL,
+    tg_id       INTEGER,
+    percent     REAL NOT NULL DEFAULT 10,
+    active      INTEGER DEFAULT 1,
+    note        TEXT,
+    created_at  TEXT DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE (tenant_id, code)
+);
+
+-- هر پورسانت به یک سفارش مشخص گره خورده، تا بعداً قابل ردیابی باشد
+CREATE TABLE IF NOT EXISTS affiliate_commissions (
+    id            INTEGER PRIMARY KEY AUTOINCREMENT,
+    tenant_id     INTEGER NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+    affiliate_id  INTEGER NOT NULL REFERENCES affiliates(id) ON DELETE CASCADE,
+    order_id      INTEGER,
+    user_id       INTEGER,
+    order_amount  INTEGER NOT NULL DEFAULT 0,
+    percent       REAL NOT NULL DEFAULT 0,
+    commission    INTEGER NOT NULL DEFAULT 0,
+    status        TEXT DEFAULT 'pending',      -- pending | paid | cancelled
+    created_at    TEXT DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE (tenant_id, order_id)
+);
+
+CREATE TABLE IF NOT EXISTS affiliate_payouts (
+    id            INTEGER PRIMARY KEY AUTOINCREMENT,
+    tenant_id     INTEGER NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+    affiliate_id  INTEGER NOT NULL REFERENCES affiliates(id) ON DELETE CASCADE,
+    amount        INTEGER NOT NULL,
+    note          TEXT,
+    paid_at       TEXT DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX IF NOT EXISTS idx_aff_code ON affiliates(tenant_id, code);
+CREATE INDEX IF NOT EXISTS idx_comm_aff ON affiliate_commissions(affiliate_id, status);
+
 CREATE TABLE IF NOT EXISTS users (
     id            INTEGER PRIMARY KEY AUTOINCREMENT,
     tenant_id     INTEGER NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
@@ -221,6 +268,9 @@ def _migrate(con):
     """ستون‌های جدید را به دیتابیس‌های موجود اضافه می‌کند."""
     adds = [
         ("users", "phone_asked", "INTEGER DEFAULT 0"),
+        # کدام همکار فروش این کاربر را آورده — تا پورسانت هر خریدش
+        # به همان نفر برسد، نه فقط خرید اول
+        ("users", "affiliate_id", "INTEGER"),
     ]
     for table, col, spec in adds:
         try:
@@ -229,6 +279,109 @@ def _migrate(con):
                 con.execute(f"ALTER TABLE {table} ADD COLUMN {col} {spec}")
         except sqlite3.Error:
             pass
+
+
+# ═══════════════════════════════════════════════════════════
+#  همکاری در فروش
+# ═══════════════════════════════════════════════════════════
+
+def affiliate_by_code(tenant_id, code):
+    """پیدا کردن همکار از روی کد — برای وقتی کاربر با لینکش می‌آید."""
+    con = _connect()
+    try:
+        r = con.execute(
+            "SELECT * FROM affiliates WHERE tenant_id=? AND code=? AND active=1",
+            (tenant_id, (code or "").strip())).fetchone()
+        return dict(r) if r else None
+    finally:
+        con.close()
+
+
+def affiliate_by_tg(tenant_id, tg_id):
+    con = _connect()
+    try:
+        r = con.execute(
+            "SELECT * FROM affiliates WHERE tenant_id=? AND tg_id=? AND active=1",
+            (tenant_id, tg_id)).fetchone()
+        return dict(r) if r else None
+    finally:
+        con.close()
+
+
+def record_commission(tenant_id, user_id, order_id, amount):
+    """
+    ثبت پورسانت یک سفارش.
+
+    فقط وقتی ثبت می‌شود که کاربر همکاری داشته باشد و برای آن
+    سفارش قبلاً ثبت نشده باشد — تا اگر تاییدی دوباره اجرا شد،
+    پورسانت دو بار حساب نشود.
+    """
+    if not amount or amount <= 0:
+        return None
+
+    con = _connect()
+    try:
+        u = con.execute("SELECT affiliate_id FROM users WHERE id=?",
+                        (user_id,)).fetchone()
+        if not u or not u["affiliate_id"]:
+            return None
+
+        aff = con.execute("SELECT * FROM affiliates WHERE id=? AND active=1",
+                          (u["affiliate_id"],)).fetchone()
+        if not aff:
+            return None
+
+        commission = round(amount * float(aff["percent"]) / 100)
+        if commission <= 0:
+            return None
+
+        try:
+            con.execute(
+                """INSERT INTO affiliate_commissions
+                   (tenant_id, affiliate_id, order_id, user_id,
+                    order_amount, percent, commission)
+                   VALUES (?,?,?,?,?,?,?)""",
+                (tenant_id, aff["id"], order_id, user_id,
+                 amount, aff["percent"], commission))
+            con.commit()
+        except sqlite3.IntegrityError:
+            # این سفارش قبلاً ثبت شده
+            return None
+
+        return {"affiliate": dict(aff), "commission": commission}
+    finally:
+        con.close()
+
+
+def affiliate_stats(tenant_id, affiliate_id):
+    """آمار یک همکار — فروش، پورسانت، پرداختی و مانده."""
+    con = _connect()
+    try:
+        row = con.execute(
+            """SELECT COUNT(*) AS orders,
+                      COALESCE(SUM(order_amount),0) AS sales,
+                      COALESCE(SUM(commission),0) AS earned,
+                      COALESCE(SUM(CASE WHEN status='paid' THEN commission ELSE 0 END),0) AS paid
+               FROM affiliate_commissions
+               WHERE tenant_id=? AND affiliate_id=? AND status != 'cancelled'""",
+            (tenant_id, affiliate_id)).fetchone()
+
+        users = con.execute(
+            "SELECT COUNT(*) AS c FROM users WHERE tenant_id=? AND affiliate_id=?",
+            (tenant_id, affiliate_id)).fetchone()["c"]
+
+        payouts = con.execute(
+            """SELECT COALESCE(SUM(amount),0) AS s FROM affiliate_payouts
+               WHERE tenant_id=? AND affiliate_id=?""",
+            (tenant_id, affiliate_id)).fetchone()["s"]
+
+        d = dict(row)
+        d["users"] = users
+        d["payouts"] = payouts
+        d["balance"] = d["earned"] - payouts
+        return d
+    finally:
+        con.close()
 
 
 def init_db():

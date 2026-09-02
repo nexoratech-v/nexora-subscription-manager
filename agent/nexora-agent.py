@@ -401,6 +401,150 @@ def service_status(tunnel_id):
 #  اجرای کارها
 # ═══════════════════════════════════════════════════════════
 
+def tcp_latency(host, port, tries=5, timeout=4):
+    """
+    تاخیر واقعی برقراری اتصال TCP.
+
+    این عدد از ping معمولی معنادارتر است: ping فقط ICMP را می‌سنجد
+    که خیلی از مسیرها اولویت متفاوتی به آن می‌دهند، ولی این همان
+    کاری را می‌کند که ترافیک واقعی می‌کند — یک اتصال کامل باز
+    می‌کند و می‌بندد.
+    """
+    import socket
+    samples, fails = [], 0
+
+    for _ in range(tries):
+        s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        s.settimeout(timeout)
+        t0 = time.perf_counter()
+        try:
+            s.connect((host, int(port)))
+            samples.append((time.perf_counter() - t0) * 1000)
+        except Exception:
+            fails += 1
+        finally:
+            try:
+                s.close()
+            except Exception:
+                pass
+        time.sleep(0.15)
+
+    if not samples:
+        return {"ok": False, "loss": 100, "tries": tries}
+
+    samples.sort()
+    n = len(samples)
+    # jitter را از اختلاف نمونه‌های پیاپی می‌گیریم، نه از انحراف
+    # معیار — چون آنچه کاربر حس می‌کند همین نوسان لحظه‌ای است
+    jitter = 0.0
+    if n > 1:
+        jitter = sum(abs(samples[i] - samples[i - 1])
+                     for i in range(1, n)) / (n - 1)
+
+    return {
+        "ok": True,
+        "min": round(samples[0], 1),
+        "avg": round(sum(samples) / n, 1),
+        "max": round(samples[-1], 1),
+        "median": round(samples[n // 2], 1),
+        "jitter": round(jitter, 1),
+        "loss": round(fails * 100.0 / tries),
+        "tries": tries,
+    }
+
+
+def http_latency(url, tries=3, timeout=8):
+    """
+    زمان پاسخ HTTP — شامل TLS اگر https باشد.
+
+    فرق مهمش با TCP این است که کل مسیر تا لایه‌ی برنامه را
+    می‌سنجد، پس اگر تانل بالا باشد ولی سرویس پشتش کند باشد،
+    اینجا معلوم می‌شود.
+    """
+    samples, codes, err = [], [], None
+
+    for _ in range(tries):
+        t0 = time.perf_counter()
+        try:
+            req = urllib.request.Request(
+                url, headers={"User-Agent": "nexora-agent/monitor"},
+                method="HEAD")
+            with urllib.request.urlopen(req, timeout=timeout) as r:
+                codes.append(r.status)
+                samples.append((time.perf_counter() - t0) * 1000)
+        except urllib.error.HTTPError as e:
+            # پاسخ آمده، فقط کدش خطاست — از نظر شبکه موفق است
+            codes.append(e.code)
+            samples.append((time.perf_counter() - t0) * 1000)
+        except Exception as e:
+            err = f"{type(e).__name__}: {str(e)[:70]}"
+        time.sleep(0.2)
+
+    if not samples:
+        return {"ok": False, "error": err or "پاسخی نیامد"}
+
+    return {
+        "ok": True,
+        "avg": round(sum(samples) / len(samples), 1),
+        "min": round(min(samples), 1),
+        "max": round(max(samples), 1),
+        "codes": codes,
+    }
+
+
+def icmp_ping(host, count=5):
+    """ping معمولی — برای مقایسه با تاخیر TCP."""
+    if not re.match(r"^[A-Za-z0-9.\-:]{1,120}$", str(host)):
+        return {"ok": False, "error": "آدرس نامعتبر"}
+
+    ok, out = run(["ping", "-c", str(count), "-W", "3", str(host)], timeout=20)
+    if not ok:
+        return {"ok": False, "error": (out or "")[:120]}
+
+    res = {"ok": True, "raw": out[-400:]}
+    m = re.search(r"(\d+)% packet loss", out)
+    if m:
+        res["loss"] = int(m.group(1))
+    m = re.search(r"=\s*([\d.]+)/([\d.]+)/([\d.]+)/([\d.]+)", out)
+    if m:
+        res.update(min=float(m.group(1)), avg=float(m.group(2)),
+                   max=float(m.group(3)), mdev=float(m.group(4)))
+    return res
+
+
+def monitor(payload):
+    """
+    سنجش کیفیت یک تانل.
+
+    سه معیار با هم، چون هرکدام چیز متفاوتی می‌گویند و تنها با
+    مقایسه‌شان می‌شود فهمید مشکل کجاست:
+
+      ICMP بالا، TCP بالا   → مسیر شبکه کند است
+      ICMP خوب، TCP بالا    → تانل یا سرور مقصد کند است
+      TCP خوب، HTTP بالا    → سرویس پشت تانل کند است
+    """
+    host = str(payload.get("host") or "127.0.0.1")
+    ports = payload.get("ports") or []
+    result = {"host": host, "at": time.strftime("%Y-%m-%d %H:%M:%S")}
+
+    result["icmp"] = icmp_ping(host)
+
+    # هر پورت جدا سنجیده می‌شود تا اگر یکی مشکل داشت معلوم شود
+    result["tcp"] = {}
+    for p in ports[:6]:
+        try:
+            port = int(p)
+        except (TypeError, ValueError):
+            continue
+        result["tcp"][str(port)] = tcp_latency(host, port)
+
+    url = payload.get("url")
+    if url and str(url).startswith(("http://", "https://")):
+        result["http"] = http_latency(str(url))
+
+    return True, json.dumps(result, ensure_ascii=False)
+
+
 def handle(job):
     action = job.get("action")
     p = job.get("payload") or {}
@@ -432,6 +576,9 @@ def handle(job):
         if not re.match(r"^[A-Za-z0-9.\-:]{1,120}$", host):
             return False, "آدرس نامعتبر"
         return run(["ping", "-c", "4", "-W", "3", host], timeout=25)
+
+    if action == "monitor":
+        return monitor(p)
 
     if action == "update_agent":
         return update_self(p.get("url", ""))
@@ -495,7 +642,9 @@ def main():
                 except Exception as e:
                     ok, out = False, f"{type(e).__name__}: {str(e)[:200]}"
                 log(f"  {'✓' if ok else '✗'} {str(out)[:110]}")
-                api("job-result", {"job_id": jid, "ok": ok, "result": str(out)[:2000]})
+                api("job-result", {"job_id": jid, "ok": ok, "action": action,
+                                   "tunnel_id": (job.get("payload") or {}).get("tunnel_id"),
+                                   "result": str(out)[:4000]})
 
         except KeyboardInterrupt:
             log("Exiting")
