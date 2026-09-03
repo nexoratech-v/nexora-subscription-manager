@@ -101,10 +101,27 @@ fi
 ok "CSS: $(basename "$CSS") — ${CSSZ} bytes"
 ok "JS:  $(basename "$JS") — ${JSZ} bytes"
 
-# محتوای واقعی
-for token in "--bg" "fx-card" "IRANSansX"; do
-  grep -q -- "$token" "$CSS" && ok "contains $token" || warn "missing $token"
+# محتوای واقعی — نبودشان یعنی فایل منبع اشتباه است، نه بیلد
+MISSING=""
+for token in "--bg" "--surface" "fx-card" "fx-side" "IRANSansX"; do
+  if grep -q -- "$token" "$CSS"; then
+    ok "contains $token"
+  else
+    bad "missing $token"
+    MISSING="$MISSING $token"
+  fi
 done
+
+if [ -n "$MISSING" ]; then
+  echo
+  bad "The stylesheet is incomplete:$MISSING"
+  info "The build worked, but the source file is missing these definitions."
+  info "This usually means the release on GitHub is older than the fix."
+  info "Check src/index.css has a :root block with --bg and the other colour"
+  info "variables, then publish a new release before updating again."
+  [ -d dist.backup ] && rm -rf dist && mv dist.backup dist && info "Previous build restored"
+  exit 1
+fi
 
 rm -rf dist.backup
 
