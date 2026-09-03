@@ -1,6 +1,28 @@
 # Changelog
 
-## [1.1.1]
+## [1.1.3]
+
+### Added — Affiliate management in the panel
+The endpoints existed but there was no page for them. Bot > همکاری در فروش now shows
+every affiliate with customers brought, orders, sales, commission earned, paid and
+outstanding — plus the total owed across all of them at the top.
+
+Add an affiliate with a name and a percentage; the link code is generated unless you
+choose one. Give a Telegram ID and they get their own panel inside the bot and a
+message on every sale. Affiliates can be edited, deactivated without losing history, or
+removed — removing keeps their customers, only the link is cut.
+
+Recording a payout marks the oldest pending commissions as settled, so the outstanding
+figure stays honest.
+
+### Fixed — 'client email is required' on 3x-ui 3.7
+The request reached the panel but was rejected: the body shape for creating a client
+changed between 3.x releases, and the field the panel looks for was not where it
+expected. The same discovery approach used for paths now applies to the body — the
+client tries each known shape and keeps whichever the panel accepts, then caches it.
+
+A 404 stops the attempts immediately and falls back to the legacy path, since trying
+more shapes against a route that does not exist wastes time.
 
 ### Fixed — Config creation on 3x-ui v3
 Version 3 changed the client model: clients are standalone records attached to inbounds,

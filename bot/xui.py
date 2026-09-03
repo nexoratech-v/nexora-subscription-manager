@@ -211,21 +211,46 @@ class XUI:
         # چند inbound وصل می‌شود. این با مدل قدیمی که کلاینت داخل
         # JSON اینباند بود کاملاً فرق دارد.
         if self.has_route("/panel/api/clients", "POST") is not False:
-            try:
-                body = {
-                    "email": email,
-                    "id": client["id"],
-                    "totalGB": client.get("totalGB", 0),
-                    "expiryTime": client.get("expiryTime", 0),
-                    "limitIp": client.get("limitIp", 0),
-                    "enable": True,
-                    "subId": client.get("subId") or "",
-                }
-                if group:
-                    body["groupName"] = group
+            # شکل بدنه بین نسخه‌های ۳.x فرق کرده. همان روش کشف
+            # مسیر را برای شکل بدنه هم به‌کار می‌بریم: هرکدام که
+            # پذیرفته شد را نگه می‌داریم.
+            base = {
+                "email": email,
+                "id": client["id"],
+                "totalGB": client.get("totalGB", 0),
+                "expiryTime": client.get("expiryTime", 0),
+                "limitIp": client.get("limitIp", 0),
+                "enable": True,
+                "subId": client.get("subId") or email,
+                "tgId": client.get("tgId") or "",
+                "reset": 0,
+            }
+            if group:
+                base["groupName"] = group
 
-                self._req("POST", "/panel/api/clients", json=body)
+            shapes = [
+                base,                                   # مستقیم
+                {"clients": [base]},                    # آرایه‌ای
+                {"client": base},                       # پوشش‌دار
+                {"inboundId": inbound_id, **base},      # با اینباند
+                {"inboundIds": [inbound_id], **base},
+            ]
 
+            last_err = None
+            for shape in shapes:
+                try:
+                    self._req("POST", "/panel/api/clients", json=shape)
+                    last_err = None
+                    break
+                except XUIError as e:
+                    last_err = e
+                    # ۴۰۴ یعنی این مسیر اصلاً نیست — امتحان شکل‌های
+                    # دیگر بی‌فایده است، مستقیم می‌رویم سراغ مسیر قدیمی
+                    if "404" in str(e):
+                        break
+                    continue
+
+            if last_err is None:
                 # وصل کردن به اینباند — بدون این، کلاینت ساخته
                 # می‌شود ولی هیچ‌جا فعال نیست
                 for p in (f"/panel/api/clients/{email}/attach",
@@ -238,9 +263,6 @@ class XUI:
 
                 self._path_cache["افزودن کلاینت"] = "/panel/api/clients"
                 return client
-            except XUIError as e:
-                if "404" not in str(e):
-                    raise
 
         # ── نسخه‌های قدیمی‌تر ──
         self._try_paths([
