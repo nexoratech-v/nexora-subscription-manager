@@ -7,7 +7,7 @@
 
 set -o pipefail
 
-VERSION="1.1.3"
+VERSION="1.1.4"
 INSTALL_DIR="/opt/nexora-panel"
 SSL_DIR="/etc/nginx/ssl"
 

@@ -4,6 +4,7 @@ import os
 import json
 import re as _re
 import secrets
+import time
 from pathlib import Path
 from datetime import datetime
 from fastapi import FastAPI, HTTPException, Header, Request, Response
@@ -1675,6 +1676,45 @@ def _selfheal_backup_cron():
         return None
 
 
+def _start_health_loop():
+    """
+    بررسی خودکار سلامت هر ۵ دقیقه.
+
+    نخ پس‌زمینه، نه cron — چون باید همراه سرویس بالا و پایین برود
+    و اگر پنل خاموش شد، بررسی هم متوقف شود.
+    """
+    import threading
+
+    def loop():
+        time.sleep(60)          # فرصت بالا آمدن کامل سرویس
+        while True:
+            try:
+                if HEALTH:
+                    data = HEALTH.run_all(ports=_health_ports(),
+                                          domain=_health_domain())
+                    _health_alert("سرور پنل", data, key="local")
+
+                # نودها هم بررسی می‌شوند تا اختلال سمت ایران دیده شود
+                if TUNNELS_OK:
+                    try:
+                        con = TUN.conn()
+                        ids = [r[0] for r in con.execute(
+                            "SELECT id FROM nodes WHERE enabled=1")]
+                        con.close()
+                        for nid in ids:
+                            TUN.queue_job(nid, "health", {})
+                    except Exception:
+                        pass
+            except Exception:
+                pass
+            time.sleep(300)
+
+    try:
+        threading.Thread(target=loop, daemon=True).start()
+    except Exception:
+        pass
+
+
 @app.on_event("startup")
 def _selfheal():
     """
@@ -1683,6 +1723,8 @@ def _selfheal():
     هر مرحله جدا محافظت شده: اگر یکی شکست بخورد، بقیه ادامه می‌دهند
     و سرویس در هر حالت بالا می‌آید. اینها بهبودند، نه ضرورت.
     """
+    _start_health_loop()
+
     steps = [
         ("cli", _selfheal_cli),
         ("scripts", _selfheal_scripts),
@@ -2906,9 +2948,15 @@ def _period_bounds(conf, ref=None):
         try:
             anchor = date.fromisoformat(start_str[:10])
         except ValueError:
-            anchor = today.replace(day=1)
+            anchor = None
     else:
-        anchor = today.replace(day=1)
+        anchor = None
+
+    if anchor is None:
+        # بدون لنگر، دوره باید شامل امروز باشد و به عقب برسد —
+        # نه از اول ماه میلادی. وگرنه در روزهای اول ماه، کانفیگ‌های
+        # چند روز پیش بیرون می‌مانند و صورتحساب خالی درمی‌آید.
+        anchor = today - timedelta(days=length - 1)
 
     if anchor > today:
         return anchor, anchor + timedelta(days=length)
@@ -4621,6 +4669,14 @@ def agent_job_result(payload: dict, x_agent_token: str = Header(None)):
         except Exception:
             pass
 
+    if ok and p.get("action") == "health":
+        try:
+            data = json.loads(result)
+            TUN.save_health(node["id"], data)
+            _health_alert(node["name"], data, key=f"node:{node['id']}")
+        except Exception:
+            pass
+
     if not ok:
         TUN.log(node_id=node["id"], level="error",
                 message=f"کار {jid} ناموفق: {result[:150]}")
@@ -4765,6 +4821,16 @@ fi
 echo
 """
     return Response(content=script, media_type="text/x-shellscript")
+
+
+@app.get("/api/agent/health.py")
+def agent_health_module():
+    """ماژول سلامت — agent از اینجا می‌گیرد تا نسخه‌ها یکی بماند."""
+    p = _root_dir() / "backend" / "health.py"
+    if not p.exists():
+        raise HTTPException(status_code=404, detail="ماژول سلامت پیدا نشد")
+    return Response(content=p.read_text(encoding="utf-8"),
+                    media_type="text/x-python")
 
 
 @app.get("/api/agent/agent.py")
@@ -4987,10 +5053,27 @@ def tunnel_deploy(tid: int, x_admin_password: str = Header(...)):
     TUN.queue_job(t["node_id"], "apply",
                   {"tunnel_id": tid, "engine": t["engine"],
                    "config": cfg, "side": "iran"})
+
+    # اگر سرور خارج هم agent دارد، همان‌جا هم راه‌اندازی می‌شود.
+    # بدون این، هر تانل یک نصب دستی روی خارج می‌خواهد — که کل
+    # هدف این بخش را از بین می‌برد.
+    sides = ["ایران"]
+    if t.get("foreign_node"):
+        try:
+            cfg_f = TUN.build_config(t, "foreign")
+            TUN.queue_job(t["foreign_node"], "install", {"engine": t["engine"]})
+            TUN.queue_job(t["foreign_node"], "apply",
+                          {"tunnel_id": tid, "engine": t["engine"],
+                           "config": cfg_f, "side": "foreign"})
+            sides.append("خارج")
+        except Exception:
+            pass
+
     TUN.set_status(tid, "deploying")
     TUN.log(node_id=t["node_id"], tunnel_id=tid,
-            message=f"اعمال تانل «{t['name']}» در صف قرار گرفت")
-    return {"ok": True}
+            message=f"اعمال تانل «{t['name']}» — سمت " + " و ".join(sides))
+    return {"ok": True, "sides": sides,
+            "manual": "خارج" not in sides}
 
 
 @app.post("/api/admin/tunnel/{tid}/action/{what}")
@@ -5031,6 +5114,175 @@ def tunnel_config(tid: int, side: str = "foreign",
 
     return {"config": cfg, "engine": t["engine"], "side": side,
             "filename": f"tunnel-{tid}.{'yaml' if t['engine'] == 'gost' else 'toml'}"}
+
+
+# ═══════════════════════════════════════════════════════════
+#  سلامت سیستم
+# ═══════════════════════════════════════════════════════════
+
+try:
+    import health as HEALTH
+except Exception:
+    HEALTH = None
+
+# آخرین وضعیت هر سرور، تا فقط وقتی چیزی عوض شد هشدار بدهیم
+_health_state = {}
+
+
+def _health_ports():
+    """پورت‌هایی که باید شنونده داشته باشند — از inboundهای ۳x-ui."""
+    ports = set()
+    try:
+        con, _ = _xui_conn()
+        if con:
+            try:
+                for r in con.execute("SELECT port FROM inbounds WHERE enable=1"):
+                    if r[0]:
+                        ports.add(int(r[0]))
+            except Exception:
+                pass
+            con.close()
+    except Exception:
+        pass
+    return sorted(ports)[:12]
+
+
+def _health_domain():
+    try:
+        cfg = load_config()
+        return ((cfg.get("advanced") or {}).get("panelDomain") or "").strip() or None
+    except Exception:
+        return None
+
+
+def _health_alert(server, data, key):
+    """
+    هشدار تلگرام — فقط وقتی وضعیت عوض شود.
+
+    اگر هر بار پیام بدهیم، بعد از چند ساعت کسی نگاهشان نمی‌کند.
+    پس فقط گذار از سالم به مشکل‌دار، و برگشتش، خبر می‌شود.
+    """
+    level = data.get("level", "ok")
+    prev = _health_state.get(key)
+    _health_state[key] = level
+
+    if prev is None or prev == level:
+        return
+
+    crit = [c for c in data.get("checks", []) if c.get("level") == "crit"]
+    warn = [c for c in data.get("checks", []) if c.get("level") == "warn"]
+
+    if level == "ok":
+        text = f"✅ <b>{server}</b>\n\nمشکلات برطرف شد."
+    else:
+        icon = "🔴" if level == "crit" else "🟡"
+        lines = [f"{icon} <b>{server}</b>", "", data.get("summary", ""), ""]
+        for c in (crit + warn)[:6]:
+            mark = "❌" if c["level"] == "crit" else "⚠️"
+            lines.append(f"{mark} <b>{c['title']}</b> — {c['detail']}")
+            if c.get("hint"):
+                lines.append(f"   <i>{c['hint'][:110]}</i>")
+        text = "\n".join(lines)
+
+    try:
+        import sqlite3 as sq
+        con = sq.connect(f"file:{BOT_DB}?mode=ro", uri=True, timeout=5)
+        con.row_factory = sq.Row
+        r = con.execute(
+            "SELECT bot_token, admin_id, group_id FROM tenants LIMIT 1").fetchone()
+        con.close()
+        if not r or not r["bot_token"]:
+            return
+        target = r["group_id"] or r["admin_id"]
+        if not target:
+            return
+        import urllib.request
+        body = json.dumps({"chat_id": target, "text": text,
+                           "parse_mode": "HTML"}).encode()
+        req = urllib.request.Request(
+            f"https://api.telegram.org/bot{r['bot_token']}/sendMessage",
+            data=body, headers={"Content-Type": "application/json"})
+        urllib.request.urlopen(req, timeout=12)
+    except Exception:
+        pass
+
+
+@app.get("/api/admin/health/local")
+def health_local(x_admin_password: str = Header(...)):
+    """سلامت همین سرور — جایی که پنل نصب است."""
+    check_auth(x_admin_password)
+    if not HEALTH:
+        raise HTTPException(status_code=500, detail="ماژول سلامت بارگذاری نشد")
+
+    res = HEALTH.run_all(ports=_health_ports(), domain=_health_domain())
+    res["server"] = "سرور پنل"
+    return res
+
+
+@app.get("/api/admin/health/all")
+def health_all(x_admin_password: str = Header(...)):
+    """
+    سلامت همه‌ی سرورها.
+
+    سرور پنل مستقیم بررسی می‌شود؛ نودها آخرین گزارششان را
+    برمی‌گردانند — چون بررسی آنجا از طریق agent انجام می‌شود و
+    نتیجه‌اش با تاخیر می‌رسد.
+    """
+    check_auth(x_admin_password)
+    servers = []
+
+    if HEALTH:
+        try:
+            local = HEALTH.run_all(ports=_health_ports(), domain=_health_domain())
+            local["server"] = "سرور پنل"
+            local["nodeId"] = None
+            servers.append(local)
+        except Exception as e:
+            servers.append({"server": "سرور پنل", "level": "warn",
+                            "summary": f"بررسی ناموفق: {str(e)[:80]}",
+                            "checks": [], "nodeId": None})
+
+    if TUNNELS_OK:
+        try:
+            con = TUN.conn()
+            rows = [dict(r) for r in con.execute(
+                "SELECT id, name, health, health_at FROM nodes WHERE enabled=1")]
+            con.close()
+            for n in rows:
+                if n.get("health"):
+                    try:
+                        d = json.loads(n["health"])
+                        d["server"] = n["name"]
+                        d["nodeId"] = n["id"]
+                        servers.append(d)
+                        continue
+                    except Exception:
+                        pass
+                servers.append({"server": n["name"], "nodeId": n["id"],
+                                "level": "unknown", "summary": "هنوز گزارشی نرسیده",
+                                "checks": []})
+        except Exception:
+            pass
+
+    worst = "ok"
+    for s in servers:
+        if s.get("level") == "crit":
+            worst = "crit"
+            break
+        if s.get("level") == "warn":
+            worst = "warn"
+
+    return {"ready": True, "level": worst, "servers": servers,
+            "at": datetime.now().strftime("%Y-%m-%d %H:%M:%S")}
+
+
+@app.post("/api/admin/health/check/{node_id}")
+def health_check_node(node_id: int, x_admin_password: str = Header(...)):
+    """درخواست بررسی از یک نود."""
+    check_auth(x_admin_password)
+    _need_tunnels()
+    TUN.queue_job(node_id, "health", {})
+    return {"ok": True, "queued": True}
 
 
 @app.get("/api/health")

@@ -106,6 +106,7 @@ const WORKSPACES = {
           { key: "tun-overview", label: "داشبورد", icon: LayoutGrid },
           { key: "tun-nodes", label: "سرورها", icon: Server },
           { key: "tun-list", label: "تانل‌ها", icon: Network },
+          { key: "tun-health", label: "سلامت سرورها", icon: Activity },
           { key: "tun-events", label: "رویدادها", icon: Clock },
         ],
       },
@@ -5423,12 +5424,24 @@ function TunnelForm({ password, nodes, engines, onClose, onDone }) {
       </Field>
 
       <div className="fx-g3 grid grid-cols-2 gap-3">
-        <Field label="سرور ایران">
+        <Field label="سرور ایران" hint="پورت‌ها اینجا باز می‌شوند">
           <select className="fx-input" value={f.node_id}
             onChange={(e) => setF({ ...f, node_id: e.target.value })}>
             {nodes.map((n) => <option key={n.id} value={n.id}>{n.name}</option>)}
           </select>
         </Field>
+        <Field label="سرور خارج"
+          hint="اگر agent دارد، پنل خودش راه‌اندازی می‌کند">
+          <select className="fx-input" value={f.foreign_node || ""}
+            onChange={(e) => setF({ ...f, foreign_node: e.target.value })}>
+            <option value="">دستی — کانفیگ را کپی می‌کنم</option>
+            {nodes.filter((n) => String(n.id) !== String(f.node_id))
+              .map((n) => <option key={n.id} value={n.id}>{n.name}</option>)}
+          </select>
+        </Field>
+      </div>
+
+      <div className="fx-g3 grid grid-cols-2 gap-3">
         <Field label="پروتکل انتقال">
           <select className="fx-input" value={f.transport}
             onChange={(e) => setF({ ...f, transport: e.target.value })}>
@@ -5765,6 +5778,150 @@ function TunnelConfigModal({ tunnel, password, onClose }) {
     </Modal>
   );
 }
+
+
+/* ── سلامت سرورها ── */
+
+const HEALTH_COLOR = {
+  ok: "var(--ok)", warn: "var(--warn)",
+  crit: "var(--danger)", unknown: "var(--muted)",
+};
+const HEALTH_LABEL = {
+  ok: "سالم", warn: "هشدار", crit: "مشکل جدی", unknown: "نامشخص",
+};
+
+function SystemHealth({ password }) {
+  const [data, setData] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [busy, setBusy] = useState(false);
+
+  const load = async () => {
+    try {
+      const d = await fetch(`${API_URL}/api/admin/health/all`, {
+        headers: { "X-Admin-Password": password },
+      }).then((r) => r.json());
+      setData(d);
+    } catch {
+      setData({ ready: false, servers: [] });
+    } finally { setLoading(false); }
+  };
+
+  useEffect(() => {
+    load();
+    const t = setInterval(load, 60000);
+    return () => clearInterval(t);
+  }, [password]);
+
+  const recheck = async () => {
+    setBusy(true);
+    try {
+      for (const s of data?.servers || []) {
+        if (s.nodeId) {
+          await fetch(`${API_URL}/api/admin/health/check/${s.nodeId}`, {
+            method: "POST", headers: { "X-Admin-Password": password } });
+        }
+      }
+      await new Promise((r) => setTimeout(r, 3000));
+      await load();
+    } finally { setBusy(false); }
+  };
+
+  if (loading) return <div className="flex justify-center py-16">
+    <Loader2 className="animate-spin" style={{ color: "var(--muted)" }} /></div>;
+
+  const servers = data?.servers || [];
+  const worst = HEALTH_COLOR[data?.level] || "var(--muted)";
+
+  return (
+    <div className="fx-anim">
+      <SectionHead title="سلامت سرورها"
+        desc="هر ۵ دقیقه خودکار بررسی می‌شود و اگر مشکلی پیدا شود، در تلگرام خبر می‌دهد."
+        action={
+          <button onClick={recheck} disabled={busy}
+            className="fx-btn-g px-3 py-2.5 text-[12px] flex items-center gap-1.5">
+            {busy ? <Loader2 size={13} className="animate-spin" /> : <RefreshCw size={13} />}
+            بررسی دوباره
+          </button>
+        } />
+
+      <div className="fx-card p-5 mb-4" style={{
+        borderColor: data?.level === "crit" ? "rgba(248,113,113,.4)"
+                   : data?.level === "warn" ? "rgba(251,191,36,.35)" : undefined }}>
+        <div className="flex items-center gap-3">
+          <div style={{ width: 10, height: 10, borderRadius: "50%", background: worst,
+                        boxShadow: `0 0 10px ${worst}`, flexShrink: 0 }} />
+          <div className="min-w-0">
+            <div className="text-[14px] font-bold" style={{ color: worst }}>
+              {HEALTH_LABEL[data?.level] || "نامشخص"}
+            </div>
+            <div className="text-[11px] mt-0.5" style={{ color: "var(--muted)" }}>
+              {faNum(servers.length)} سرور · آخرین بررسی {data?.at?.slice(11, 16) || "—"}
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {servers.map((s, i) => {
+        const col = HEALTH_COLOR[s.level] || "var(--muted)";
+        const problems = (s.checks || []).filter((c) => c.level !== "ok");
+        const fine = (s.checks || []).filter((c) => c.level === "ok");
+        return (
+          <div key={i} className="fx-card p-5 mb-3">
+            <div className="flex items-center justify-between gap-3 mb-4 flex-wrap">
+              <div className="flex items-center gap-2.5 min-w-0">
+                <Circle size={8} fill={col} strokeWidth={0} />
+                <span className="text-[13px] font-bold text-white">{s.server}</span>
+              </div>
+              <span className="text-[11.5px]" style={{ color: col }}>{s.summary}</span>
+            </div>
+
+            {problems.map((c, j) => (
+              <div key={j} className="p-3.5 rounded-xl mb-2"
+                style={{
+                  background: c.level === "crit"
+                    ? "rgba(248,113,113,.07)" : "rgba(251,191,36,.07)",
+                  border: `1px solid ${c.level === "crit"
+                    ? "rgba(248,113,113,.2)" : "rgba(251,191,36,.2)"}`,
+                }}>
+                <div className="flex justify-between items-baseline gap-3 flex-wrap">
+                  <span className="text-[12.5px] font-semibold"
+                    style={{ color: HEALTH_COLOR[c.level] }}>{c.title}</span>
+                  <span className="text-[11.5px]" style={{ color: "var(--dim)" }}>
+                    {c.detail}
+                  </span>
+                </div>
+                {c.hint && (
+                  <div className="text-[11px] mt-2 leading-relaxed"
+                    style={{ color: "var(--muted)" }}>{c.hint}</div>
+                )}
+              </div>
+            ))}
+
+            {fine.length > 0 && (
+              <div className="flex gap-1.5 flex-wrap mt-3">
+                {fine.map((c, j) => (
+                  <span key={j} className="text-[10.5px] px-2 py-1 rounded-lg"
+                    style={{ background: "var(--surface-3)", color: "var(--muted)" }}
+                    title={c.detail}>
+                    ✓ {c.title}
+                  </span>
+                ))}
+              </div>
+            )}
+
+            {(s.checks || []).length === 0 && (
+              <div className="text-[11.5px]" style={{ color: "var(--muted)" }}>
+                {s.summary || "گزارشی نرسیده"}
+              </div>
+            )}
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+/* ── سلامت سرورها پایان ── */
 
 /* ── رویدادها ── */
 function TunnelEvents({ password }) {
@@ -8680,6 +8837,7 @@ export default function App() {
           {active === "tun-overview" && <TunnelOverview password={password} />}
           {active === "tun-nodes" && <TunnelNodes password={password} />}
           {active === "tun-list" && <TunnelList password={password} />}
+          {active === "tun-health" && <SystemHealth password={password} />}
           {active === "tun-events" && <TunnelEvents password={password} />}
           {active === "bill-settings" && <BillingSettings password={password} />}
           {active === "bot-texts" && <BotTextsSection password={password} />}

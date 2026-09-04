@@ -1,6 +1,63 @@
 # Changelog
 
-## [1.1.3]
+## [1.1.4]
+
+### Added — Server health monitoring
+Eleven checks across every server, run automatically every five minutes, with a Telegram
+alert when something changes:
+
+- Disk, memory and swap, CPU load, uptime
+- Critical services, including services that keep restarting — active but unstable is
+  how a 3 AM outage usually starts
+- Listening ports, taken from the enabled inbounds, so a port customers connect to that
+  has nothing behind it is caught
+- DNS resolution and speed
+- **Dead IPv6** — an address configured but unroutable makes Xray hang on every AAAA
+  record until timeout, which customers experience as sites not opening
+- Clock sync, since TLS breaks on drift
+- Kernel errors, with OOM kills named and the victim identified
+- Certificate expiry
+
+Every finding carries the command to fix it — knowing the disk is 92% full does not help
+on its own.
+
+Alerts fire only when the state changes, not on every cycle; an alert that arrives every
+five minutes stops being read. Iranian nodes are checked through the agent, which fetches
+the same module from the panel so both sides stay in step.
+
+### Fixed
+- **The new font never reached form elements.** Inputs, selects and buttons take their
+  font from the browser rather than inheriting it, so they kept the system default while
+  everything else showed IRANSansX. One rule fixes all of them
+- **Reading a config back used the legacy path**, which fails on v3 where clients are
+  standalone. It now asks the client endpoint first and falls back only if that route is
+  absent
+
+### Verified — Config creation end to end
+Tested against a simulated 3x-ui v3 panel: reading inbounds, discovering routes, reading
+the declared field names, creating a config, attaching it to an inbound, reading it back
+with the right quota and group, and deleting it. Nine checks, all passing.
+
+### Fixed — Period invoice showed zero
+The default period ran from the first of the calendar month, so on the second of a month
+everything created a few days earlier fell outside it and the invoice came back empty —
+which read as "the rates are not applied". Without an explicit start date the period now
+ends today and reaches back, so it always contains recent work.
+
+### Added — Wallet top-up
+The wallet could be spent but never filled. Choosing an amount now creates a top-up
+order through the same card-transfer flow as a purchase; approving it credits the
+balance instead of building a config.
+
+### Added — Both tunnel ends deployed from the panel
+A tunnel can now name a foreign node as well as an Iranian one. Both sides are queued on
+apply, so a new tunnel needs no manual step on the foreign server. Leaving it as manual
+still works for servers without an agent.
+
+### Added
+- `xui-trace.py` walks config creation end to end and prints what the panel was asked
+  and what it answered — routes read, fields it declares, the create attempt, the
+  read-back, and cleanup
 
 ### Added — Affiliate management in the panel
 The endpoints existed but there was no page for them. Bot > همکاری در فروش now shows

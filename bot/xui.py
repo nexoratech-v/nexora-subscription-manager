@@ -34,6 +34,7 @@ class XUI:
         # مسیرهایی که یک‌بار جواب داده‌اند — تا هر بار دوباره نگردیم
         self._path_cache = {}
         self._routes = None
+        self._spec = None
         self._api_mode = None
 
     # ---------- احراز هویت ----------
@@ -122,6 +123,7 @@ class XUI:
             try:
                 spec = self._req("GET", path, raw=True)
                 if isinstance(spec, dict) and spec.get("paths"):
+                    self._spec = spec
                     self._routes = {
                         p: set(m.upper() for m in ms)
                         for p, ms in spec["paths"].items()
@@ -144,6 +146,41 @@ class XUI:
             if re.fullmatch(pattern, path) and method.upper() in methods:
                 return True
         return False
+
+    def request_schema(self, path, method="post"):
+        """
+        فیلدهایی که پنل برای یک مسیر انتظار دارد.
+
+        مشخصات OpenAPI نه‌فقط مسیرها بلکه شکل بدنه را هم دارد. با
+        خواندنش دیگر لازم نیست شکل‌های مختلف را حدس بزنیم — دقیقاً
+        همان چیزی را می‌سازیم که پنل می‌خواهد.
+        """
+        self.discover()
+        if not self._spec:
+            return None
+
+        node = (self._spec.get("paths") or {}).get(path, {}).get(method.lower())
+        if not node:
+            return None
+
+        body = ((node.get("requestBody") or {}).get("content") or {})
+        schema = None
+        for ctype in ("application/json", "*/*"):
+            if ctype in body:
+                schema = body[ctype].get("schema")
+                break
+        if not schema:
+            return None
+
+        # ارجاع به تعریف مشترک را دنبال می‌کنیم
+        seen = 0
+        while isinstance(schema, dict) and "$ref" in schema and seen < 5:
+            ref = schema["$ref"].split("/")[-1]
+            schema = ((self._spec.get("components") or {})
+                      .get("schemas", {}).get(ref))
+            seen += 1
+
+        return schema if isinstance(schema, dict) else None
 
     def _try_paths(self, candidates, label):
         """
@@ -228,11 +265,55 @@ class XUI:
             if group:
                 base["groupName"] = group
 
-            shapes = [
-                base,                                   # مستقیم
-                {"clients": [base]},                    # آرایه‌ای
-                {"client": base},                       # پوشش‌دار
-                {"inboundId": inbound_id, **base},      # با اینباند
+            # اگر پنل شکل بدنه را اعلام کرده باشد، همان را می‌سازیم
+            # به‌جای اینکه حدس بزنیم
+            shapes = []
+            schema = self.request_schema("/panel/api/clients", "post")
+            if schema:
+                props = schema.get("properties") or {}
+                if props:
+                    # نگاشت نام‌های ما به نام‌هایی که پنل می‌خواهد
+                    aliases = {
+                        "email": ["email", "Email", "name", "remark"],
+                        "id": ["id", "uuid", "Id", "clientId"],
+                        "totalGB": ["totalGB", "total_gb", "totalBytes", "total"],
+                        "expiryTime": ["expiryTime", "expiry_time", "expiry"],
+                        "limitIp": ["limitIp", "limit_ip", "ipLimit"],
+                        "enable": ["enable", "enabled", "active"],
+                        "subId": ["subId", "sub_id", "subscriptionId"],
+                        "tgId": ["tgId", "tg_id", "telegramId"],
+                        "groupName": ["groupName", "group_name", "group"],
+                        "inboundId": ["inboundId", "inbound_id", "inbound"],
+                        "inboundIds": ["inboundIds", "inbound_ids"],
+                    }
+                    built = {}
+                    for ours, names in aliases.items():
+                        for n in names:
+                            if n in props:
+                                if ours == "inboundId":
+                                    built[n] = inbound_id
+                                elif ours == "inboundIds":
+                                    built[n] = [inbound_id]
+                                elif ours == "groupName":
+                                    if group:
+                                        built[n] = group
+                                else:
+                                    built[n] = base.get(ours)
+                                break
+                    # فیلدهای اجباری که نگاشت نداشتند
+                    for req in (schema.get("required") or []):
+                        if req not in built:
+                            built[req] = base.get(req, "")
+                    if built.get(
+                            next((n for n in aliases["email"] if n in props), "email")):
+                        shapes.append(built)
+
+            # اگر schema نبود یا ناقص بود، شکل‌های شناخته‌شده
+            shapes += [
+                base,
+                {"clients": [base]},
+                {"client": base},
+                {"inboundId": inbound_id, **base},
                 {"inboundIds": [inbound_id], **base},
             ]
 
@@ -312,14 +393,21 @@ class XUI:
         در نسخه‌های جدید کلاینت‌ها ممکن است در JSON اینباند نباشند،
         پس اگر آنجا پیدا نشد از مسیر مستقل هم می‌پرسیم.
         """
-        inb = self.inbound(inbound_id)
+        # در نسخه‌ی ۳ کلاینت‌ها مستقل‌اند و داخل JSON اینباند نیستند،
+        # پس اول همان‌جا می‌پرسیم — سریع‌تر و درست‌تر است
+        if email and self.has_route(f"/panel/api/clients/{email}", "GET") is not False:
+            try:
+                found = self._req("GET", f"/panel/api/clients/{email}")
+                if found:
+                    return found
+            except XUIError:
+                pass
+
+        try:
+            inb = self.inbound(inbound_id)
+        except XUIError:
+            inb = None
         if not inb:
-            # شاید نسخه‌ی جدید — از مسیر کلاینت مستقیم بپرسیم
-            if email:
-                try:
-                    return self._req("GET", f"/panel/api/clients/{email}")
-                except XUIError:
-                    pass
             return None
         try:
             settings = json.loads(inb.get("settings") or "{}")

@@ -116,6 +116,8 @@ def conn():
             mem_percent  REAL,
             disk_percent REAL,
             uptime_sec   INTEGER,
+    health       TEXT,
+    health_at    TEXT,
             enabled      INTEGER DEFAULT 1,
             created_at   TEXT DEFAULT CURRENT_TIMESTAMP
         );
@@ -127,6 +129,7 @@ def conn():
             engine       TEXT NOT NULL DEFAULT 'backhaul',
             transport    TEXT NOT NULL DEFAULT 'tcpmux',
             node_id      INTEGER NOT NULL,       -- سرور ایران
+    foreign_node INTEGER,                -- سرور خارج، اگر agent دارد
             remote_host  TEXT NOT NULL,          -- آدرسی که طرف مقابل به آن وصل می‌شود
             bridge_port  INTEGER NOT NULL,       -- پورت ارتباط دو سرور
             ports        TEXT NOT NULL DEFAULT '[]',
@@ -183,6 +186,17 @@ def conn():
         CREATE INDEX IF NOT EXISTS idx_tun_node ON tunnels(node_id);
         CREATE INDEX IF NOT EXISTS idx_ev_time  ON events(created_at DESC);
     """)
+    try:
+        cols = {r[1] for r in con.execute("PRAGMA table_info(tunnels)")}
+        if "foreign_node" not in cols:
+            con.execute("ALTER TABLE tunnels ADD COLUMN foreign_node INTEGER")
+        ncols = {r[1] for r in con.execute("PRAGMA table_info(nodes)")}
+        for col in ("health", "health_at"):
+            if col not in ncols:
+                con.execute(f"ALTER TABLE nodes ADD COLUMN {col} TEXT")
+    except Exception:
+        pass
+
     con.commit()
     return con
 
@@ -389,11 +403,16 @@ def create_tunnel(data):
 
     c = conn()
     try:
+        try:
+            foreign_node = int(data.get("foreign_node") or 0) or None
+        except (TypeError, ValueError):
+            foreign_node = None
+
         cur = c.execute("""INSERT INTO tunnels
-            (name, engine, transport, node_id, remote_host, bridge_port,
-             ports, secret, options)
-            VALUES (?,?,?,?,?,?,?,?,?)""",
-            (name, engine, transport, node_id, remote, bridge,
+            (name, engine, transport, node_id, foreign_node, remote_host,
+             bridge_port, ports, secret, options)
+            VALUES (?,?,?,?,?,?,?,?,?,?)""",
+            (name, engine, transport, node_id, foreign_node, remote, bridge,
              json.dumps(ports), secret,
              json.dumps(data.get("options") or {}, ensure_ascii=False)))
         c.commit()
@@ -763,6 +782,7 @@ ALLOWED_ACTIONS = {
     "logs",         # آخرین خطوط لاگ
     "ping",         # تست شبکه به سرور خارج
     "monitor",      # سنجش کیفیت تانل
+    "health",       # بررسی سلامت سیستم
     "update_agent",
 }
 
@@ -898,6 +918,17 @@ def get_metrics(tunnel_id, limit=40):
 
     return {"samples": list(reversed(rows)), "summary": summary,
             "latest": latest}
+
+
+def save_health(node_id, data):
+    """ثبت آخرین گزارش سلامت یک نود."""
+    c = conn()
+    try:
+        c.execute("UPDATE nodes SET health = ?, health_at = ? WHERE id = ?",
+                  (json.dumps(data, ensure_ascii=False)[:8000], now(), node_id))
+        c.commit()
+    finally:
+        c.close()
 
 
 def recent_events(limit=60):

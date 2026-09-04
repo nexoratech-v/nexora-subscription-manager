@@ -580,6 +580,23 @@ def handle(job):
     if action == "monitor":
         return monitor(p)
 
+    if action == "health":
+        # ماژول سلامت از خود پنل دانلود می‌شود تا نسخه‌ها یکی بمانند
+        try:
+            import importlib.util
+            mod_path = BASE / "health.py"
+            if not mod_path.exists() or p.get("refresh"):
+                download(f"{PANEL_URL}/api/agent/health.py", mod_path)
+            spec = importlib.util.spec_from_file_location("nx_health", mod_path)
+            m = importlib.util.module_from_spec(spec)
+            spec.loader.exec_module(m)
+            res = m.run_all(ports=p.get("ports"), domain=p.get("domain"),
+                            services=p.get("services") or
+                                     ["nexora-agent", "nginx"])
+            return True, json.dumps(res, ensure_ascii=False)
+        except Exception as e:
+            return False, f"{type(e).__name__}: {str(e)[:150]}"
+
     if action == "update_agent":
         return update_self(p.get("url", ""))
 

@@ -574,6 +574,23 @@ def approve_order(ctx, order_id, admin_tg_id):
         (admin_tg_id, ctx.tid, order_id)
     )
 
+    # شارژ کیف پول کانفیگ ندارد — فقط موجودی اضافه می‌شود
+    if order.get("kind") == "topup":
+        u = ctx.db.get_user_by_id(order["user_id"])
+        ctx.db.add_balance(u["id"], order["amount"], "topup",
+                           "شارژ کیف پول", order_id)
+        fresh = ctx.db.get_user_by_id(u["id"])
+        ctx.bot.send_message(
+            u["tg_id"],
+            f"✅ <b>کیف پول شارژ شد</b>\n\n"
+            f"مبلغ: {core.toman(order['amount'])} تومان\n"
+            f"موجودی جدید: <b>{core.toman(fresh['balance'])}</b> تومان")
+        ctx.notify_group(
+            f"💳 <b>شارژ کیف پول</b>\n"
+            f"کاربر: {esc(u.get('first_name') or u['tg_id'])}\n"
+            f"مبلغ: {core.toman(order['amount'])} تومان")
+        return True, "شارژ انجام شد"
+
     ok, result = provision(ctx, order_id)
     if not ok:
         ctx.db.exec("UPDATE orders SET admin_note=? WHERE tenant_id=? AND id=?",
@@ -833,19 +850,73 @@ def show_wallet(ctx, user, chat_id, message_id):
         lines += ["", "<b>آخرین تراکنش‌ها:</b>"]
         for t in txs:
             sign = "+" if t["amount"] > 0 else "−"
-            lines.append(f"{sign} {core.toman(abs(t['amount']))} — {esc(t.get('note') or t['kind'])}")
+            lines.append(f"{sign} {core.toman(abs(t['amount']))} — "
+                         f"{esc(t.get('note') or t['kind'])}")
 
     lines += ["", "با شارژ کیف پول می‌توانید سریع‌تر خرید کنید و "
               "تمدید خودکار را فعال نگه دارید."]
 
-    # شارژ کیف پول جریان پرداخت جدا می‌خواهد که هنوز ساخته نشده؛
-    # تا آن موقع کاربر را به پشتیبانی می‌فرستیم نه یک دکمه‌ی بی‌عمل.
-    support = ctx.s.get("support_username") or ""
-    rows = []
-    if support:
-        rows.append([("💵 شارژ کیف پول", f"https://t.me/{support.lstrip('@')}", "url")])
-    rows.append([("‹ بازگشت", "menu")])
-    _reply(ctx, chat_id, message_id, "\n".join(lines), kb(rows))
+    return _reply(ctx, chat_id, message_id, "\n".join(lines),
+                  kb([[("💳 شارژ کیف پول", "topup")],
+                      [("‹ منو", "menu")]]))
+
+
+def wallet_topup(ctx, user, chat_id, message_id):
+    """
+    انتخاب مبلغ شارژ.
+
+    همان جریان کارت‌به‌کارت خرید است — مبلغ انتخاب می‌شود، رسید
+    می‌آید، شما تایید می‌کنید و موجودی اضافه می‌شود.
+    """
+    cards = ctx.db.q("SELECT * FROM cards WHERE tenant_id=? AND active=1", (ctx.tid,))
+    if not cards:
+        return _reply(ctx, chat_id, message_id,
+                      "شارژ کیف پول فعلاً در دسترس نیست.", back_kb("wallet"))
+
+    amounts = [100000, 200000, 500000, 1000000]
+    rows = [[(f"{core.toman(a)} تومان", f"topup:{a}")] for a in amounts]
+    rows.append([("‹ بازگشت", "wallet")])
+
+    return _reply(ctx, chat_id, message_id,
+                  "💳 <b>شارژ کیف پول</b>\n\n"
+                  "مبلغ را انتخاب کنید. بعد از واریز، رسید را بفرستید "
+                  "تا موجودی‌تان اضافه شود.",
+                  kb(rows))
+
+
+def wallet_topup_amount(ctx, user, chat_id, message_id, amount):
+    """ساخت سفارش شارژ و نمایش کارت."""
+    try:
+        amount = int(amount)
+    except (TypeError, ValueError):
+        return _reply(ctx, chat_id, message_id, "مبلغ نامعتبر است.", back_kb("wallet"))
+
+    if not (10000 <= amount <= 50000000):
+        return _reply(ctx, chat_id, message_id,
+                      "مبلغ باید بین ۱۰ هزار تا ۵۰ میلیون تومان باشد.",
+                      back_kb("wallet"))
+
+    u = ctx.db.get_user(user["tg_id"])
+    card = ctx.db.q("SELECT * FROM cards WHERE tenant_id=? AND active=1 LIMIT 1",
+                    (ctx.tid,))
+    if not card:
+        return _reply(ctx, chat_id, message_id,
+                      "شماره کارتی ثبت نشده.", back_kb("wallet"))
+    card = card[0]
+
+    # plan_id خالی یعنی این سفارش شارژ است نه خرید پلن
+    order = ctx.db.create_order(u["id"], None, amount, amount, kind="topup")
+
+    ctx.db.set_state(u["id"], "await_receipt", {"order_id": order["id"]})
+
+    return _reply(ctx, chat_id, message_id,
+                  f"💳 <b>شارژ کیف پول</b>\n\n"
+                  f"مبلغ: <b>{core.toman(amount)}</b> تومان\n\n"
+                  f"به این کارت واریز کنید:\n"
+                  f"<code>{esc(card['number'])}</code>\n"
+                  f"به نام: {esc(card['holder'])}\n\n"
+                  f"بعد <b>عکس یا متن رسید</b> را همین‌جا بفرستید.",
+                  kb([[("‹ انصراف", "wallet")]]))
 
 
 def show_coins(ctx, user, chat_id, message_id):
@@ -1714,6 +1785,7 @@ _SIMPLE = {
     "affiliate": lambda ctx, u, c, m: affiliate_panel(ctx, u, c, m),
     "aff_list": lambda ctx, u, c, m: affiliate_list(ctx, u, c, m),
     "wallet":  lambda ctx, u, c, m: show_wallet(ctx, u, c, m),
+    "topup":   lambda ctx, u, c, m: wallet_topup(ctx, u, c, m),
     "coins":   lambda ctx, u, c, m: show_coins(ctx, u, c, m),
     "ref":     lambda ctx, u, c, m: show_referral(ctx, u, c, m),
     "help":    lambda ctx, u, c, m: show_help(ctx, u, c, m),
@@ -1754,6 +1826,8 @@ def _on_callback(ctx, cq):
             return checkout(ctx, user, chat_id, mid, int(pid), flag == "1")
         if action == "wpay":
             return wallet_pay(ctx, user, chat_id, mid, int(arg))
+        if action == "topup":
+            return wallet_topup_amount(ctx, user, chat_id, mid, int(arg))
         if action == "cancel":
             ctx.db.exec("UPDATE orders SET status='expired' WHERE tenant_id=? AND id=?",
                         (ctx.tid, int(arg)))
