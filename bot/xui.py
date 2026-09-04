@@ -247,7 +247,17 @@ class XUI:
         # در معماری جدید، کلاینت جدا ساخته می‌شود و بعد به یک یا
         # چند inbound وصل می‌شود. این با مدل قدیمی که کلاینت داخل
         # JSON اینباند بود کاملاً فرق دارد.
-        if self.has_route("/panel/api/clients", "POST") is not False:
+        # مسیر ساخت در نسخه‌ی ۳ — از فهرست واقعی مسیرهای پنل
+        create_path = None
+        for cand in ("/panel/api/clients/add", "/panel/api/clients",
+                     "/panel/api/clients/create"):
+            if self.has_route(cand, "POST"):
+                create_path = cand
+                break
+        if create_path is None and self.has_route("/panel/api/clients", "POST") is None:
+            create_path = "/panel/api/clients"
+
+        if create_path:
             # شکل بدنه بین نسخه‌های ۳.x فرق کرده. همان روش کشف
             # مسیر را برای شکل بدنه هم به‌کار می‌بریم: هرکدام که
             # پذیرفته شد را نگه می‌داریم.
@@ -268,7 +278,7 @@ class XUI:
             # اگر پنل شکل بدنه را اعلام کرده باشد، همان را می‌سازیم
             # به‌جای اینکه حدس بزنیم
             shapes = []
-            schema = self.request_schema("/panel/api/clients", "post")
+            schema = self.request_schema(create_path, "post")
             if schema:
                 props = schema.get("properties") or {}
                 if props:
@@ -320,7 +330,7 @@ class XUI:
             last_err = None
             for shape in shapes:
                 try:
-                    self._req("POST", "/panel/api/clients", json=shape)
+                    self._req("POST", create_path, json=shape)
                     last_err = None
                     break
                 except XUIError as e:
@@ -333,16 +343,41 @@ class XUI:
 
             if last_err is None:
                 # وصل کردن به اینباند — بدون این، کلاینت ساخته
-                # می‌شود ولی هیچ‌جا فعال نیست
-                for p in (f"/panel/api/clients/{email}/attach",
-                          f"/panel/api/clients/{email}/inbounds"):
+                # می‌شود ولی هیچ‌جا فعال نیست و مشتری چیزی نمی‌گیرد.
+                #
+                # نام مسیر و شکل بدنه بین نسخه‌ها فرق دارد، پس چند
+                # ترکیب امتحان می‌شود تا یکی بگیرد.
+                attach_tries = [
+                    ("/panel/api/clients/bulkAttach",
+                     {"emails": [email], "inboundIds": [inbound_id]}),
+                    ("/panel/api/clients/attach",
+                     {"email": email, "inboundIds": [inbound_id]}),
+                    (f"/panel/api/clients/{email}/attach",
+                     {"inboundIds": [inbound_id]}),
+                    (f"/panel/api/clients/attach/{email}",
+                     {"inboundIds": [inbound_id]}),
+                    (f"/panel/api/clients/{email}/inbounds",
+                     {"inboundIds": [inbound_id]}),
+                ]
+                attached = False
+                for p, body in attach_tries:
+                    if self.has_route(p, "POST") is False:
+                        continue
                     try:
-                        self._req("POST", p, json={"inboundIds": [inbound_id]})
+                        self._req("POST", p, json=body)
+                        attached = True
                         break
                     except XUIError:
                         continue
 
-                self._path_cache["افزودن کلاینت"] = "/panel/api/clients"
+                if not attached:
+                    # کلاینت ساخته شده ولی به جایی وصل نیست — این
+                    # حالت بدتر از شکست کامل است چون بی‌صدا می‌ماند
+                    raise XUIError(
+                        f"کلاینت {email} ساخته شد ولی به اینباند {inbound_id} "
+                        "وصل نشد. مسیر اتصال در این نسخه‌ی پنل شناخته نشد.")
+
+                self._path_cache["افزودن کلاینت"] = create_path
                 return client
 
         # ── نسخه‌های قدیمی‌تر ──

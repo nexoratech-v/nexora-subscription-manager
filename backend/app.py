@@ -1094,6 +1094,140 @@ def bot_affiliate_payout(aid: int, payload: dict,
         con.close()
 
 
+@app.post("/api/admin/bot/xui-trace")
+def bot_xui_trace(x_admin_password: str = Header(...)):
+    """
+    تشخیص کامل ساخت کانفیگ — همان چیزی که xui-trace.py می‌کند،
+    ولی از داخل پنل تا نیازی به SSH نباشد.
+
+    هر مرحله جدا گزارش می‌شود، و اگر جایی شکست بخورد پیام خام
+    پنل ۳x-ui بدون تفسیر نمایش داده می‌شود — چون همان پیام است
+    که می‌گوید چه چیزی کم است.
+    """
+    check_auth(x_admin_password)
+    steps = []
+
+    def step(title, ok, detail="", hint=""):
+        steps.append({"title": title, "ok": ok, "detail": detail, "hint": hint})
+        return ok
+
+    con = _bot_conn()
+    if not con:
+        step("خواندن تنظیمات", False, "دیتابیس ربات در دسترس نیست")
+        return {"ok": False, "steps": steps}
+
+    try:
+        r = con.execute(
+            "SELECT panel_url, panel_user, panel_pass, panel_token, "
+            "default_inbound FROM tenants LIMIT 1").fetchone()
+        t = dict(r) if r else {}
+    finally:
+        con.close()
+
+    if not t.get("panel_url"):
+        step("آدرس پنل", False, "تنظیم نشده",
+             "بخش اتصال و تنظیمات را پر کنید")
+        return {"ok": False, "steps": steps}
+
+    step("آدرس پنل", True, t["panel_url"])
+    step("روش احراز هویت", True,
+         "توکن API" if t.get("panel_token") else f"نام کاربری ({t.get('panel_user')})")
+
+    sys.path.insert(0, str(_bot_dir()))
+    try:
+        from xui import XUI, XUIError
+    except Exception as e:
+        step("بارگذاری کلاینت", False, str(e)[:120])
+        return {"ok": False, "steps": steps}
+
+    client = XUI(t["panel_url"], t.get("panel_user"),
+                 t.get("panel_pass"), t.get("panel_token"))
+
+    try:
+        client.login()
+        step("ورود به پنل", True, "موفق")
+    except Exception as e:
+        step("ورود به پنل", False, str(e)[:160],
+             "رمز یا توکن را بررسی کنید")
+        return {"ok": False, "steps": steps}
+
+    try:
+        inbounds = client.inbounds()
+        step("خواندن inboundها", True,
+             " · ".join(f"#{i.get('id')} {i.get('remark','')}"
+                        for i in inbounds[:5]))
+    except Exception as e:
+        step("خواندن inboundها", False, str(e)[:160])
+        return {"ok": False, "steps": steps}
+
+    if not inbounds:
+        step("inbound موجود", False, "هیچ inboundی نیست",
+             "در ۳x-ui حداقل یک inbound بسازید")
+        return {"ok": False, "steps": steps}
+
+    try:
+        routes = client.discover()
+    except Exception:
+        routes = {}
+
+    if routes:
+        client_routes = [p for p in routes if "client" in p.lower()]
+        step("مسیرهای API", True,
+             f"{len(routes)} مسیر · " +
+             (", ".join(sorted(client_routes)[:3]) if client_routes
+              else "بدون مسیر کلاینت"))
+    else:
+        step("مسیرهای API", True, "پنل مشخصات OpenAPI ندارد",
+             "مسیرها با آزمون‌وخطا پیدا می‌شوند")
+
+    schema = None
+    try:
+        schema = client.request_schema("/panel/api/clients", "post")
+    except Exception:
+        pass
+
+    if schema:
+        props = list((schema.get("properties") or {}).keys())
+        req = schema.get("required") or []
+        step("فیلدهایی که پنل می‌خواهد", True,
+             f"{', '.join(props[:10])}" +
+             (f" · اجباری: {', '.join(req)}" if req else ""))
+    else:
+        step("فیلدهایی که پنل می‌خواهد", True,
+             "اعلام نشده — شکل‌های شناخته‌شده امتحان می‌شوند")
+
+    target = t.get("default_inbound") or inbounds[0].get("id")
+    email = f"nexora_test_{secrets.token_hex(3)}"
+
+    created = None
+    try:
+        created = client.add_client(int(target), email, gb=1, days=1)
+        step("ساخت کانفیگ آزمایشی", True, f"{email} روی inbound #{target}")
+    except Exception as e:
+        step("ساخت کانفیگ آزمایشی", False, str(e)[:300],
+             "پیام بالا مستقیم از پنل ۳x-ui است. اگر نام فیلدی را "
+             "می‌گوید، همان فیلد در این نسخه جای دیگری است.")
+        return {"ok": False, "steps": steps}
+
+    try:
+        found = client.find_client(int(target), email=email)
+        step("بازخوانی از پنل", bool(found),
+             "پیدا شد" if found else "ساخته شد ولی پیدا نشد",
+             "" if found else "احتمالاً به inbound وصل نشده — "
+             "کلاینت هست ولی هیچ‌جا فعال نیست")
+    except Exception as e:
+        step("بازخوانی از پنل", False, str(e)[:160])
+
+    try:
+        if created and created.get("id"):
+            client.delete_client(int(target), created["id"])
+            step("پاکسازی", True, "کانفیگ آزمایشی حذف شد")
+    except Exception as e:
+        step("پاکسازی", False, f"{str(e)[:120]} — {email} را دستی حذف کنید")
+
+    return {"ok": all(s["ok"] for s in steps), "steps": steps}
+
+
 @app.get("/api/admin/bot/status")
 def bot_status(x_admin_password: str = Header(...)):
     """وضعیت کلی ربات — نصب شده؟ فعال است؟ چند کاربر؟"""

@@ -1,6 +1,28 @@
 # Changelog
 
+## [1.1.5]
+
+### Added
+- **«تشخیص عمیق»** next to the connection test. It walks the whole path — login,
+  inbounds, the routes the panel serves, the field names it declares, creating a real
+  config, reading it back, cleaning up — and shows the panel'''s own error verbatim when
+  a step fails. No SSH needed to find out why a config will not build
+
 ## [1.1.4]
+
+### Fixed — Config creation, for real this time
+The trace against a live 3.7 panel read 183 routes and showed the create path is
+`/panel/api/clients/add`, not `/panel/api/clients`. Every attempt was hitting a path
+that does not exist, which the panel answered with a message about a missing email field
+— misleading, since the body was fine.
+
+Attaching to an inbound had the same problem: this version uses `bulkAttach`. Both are
+now chosen from the panel's own route list rather than assumed, and a client that gets
+created but not attached raises an error instead of leaving a config that exists
+nowhere.
+
+`xui-trace.py` now prints which create path it picked and, on failure, every body it
+tried — so the panel's complaint can be read against what was actually sent.
 
 ### Fixed — Buttons across the whole panel looked wrong
 Adding the form-font rule in 1.1.3 accidentally pulled three `body` properties into it,

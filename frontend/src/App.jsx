@@ -1838,6 +1838,22 @@ function ConnectionTest({ password, tenant }) {
   const [busy, setBusy] = useState(false);
   const [result, setResult] = useState(null);
 
+  const runTrace = async () => {
+    setBusy(true);
+    setResult(null);
+    try {
+      const res = await fetch(`${API_URL}/api/admin/bot/xui-trace`, {
+        method: "POST",
+        headers: { "X-Admin-Password": password },
+      });
+      const d = await res.json();
+      setResult(d);
+    } catch {
+      setResult({ ok: false, steps: [
+        { title: "اتصال به سرور", ok: false, detail: "برقرار نشد" }] });
+    } finally { setBusy(false); }
+  };
+
   const run = async () => {
     setBusy(true);
     setResult(null);
@@ -1880,12 +1896,19 @@ function ConnectionTest({ password, tenant }) {
             ربات واقعاً می‌تواند برای مشتری کانفیگ بسازد، نه فقط وصل شود.
           </p>
         </div>
-        <button onClick={run} disabled={busy || !tenant.panel_url}
-          className="fx-btn px-4 py-2.5 text-[12.5px] flex items-center gap-1.5 shrink-0"
-          style={!tenant.panel_url ? { opacity: 0.45, cursor: "not-allowed" } : {}}>
-          {busy ? <Loader2 size={14} className="animate-spin" /> : <Zap size={14} />}
-          {busy ? "در حال بررسی..." : "اجرای تست"}
-        </button>
+        <div className="flex gap-2 shrink-0">
+          <button onClick={run} disabled={busy || !tenant.panel_url}
+            className="fx-btn px-4 py-2.5 text-[12.5px] flex items-center gap-1.5"
+            style={!tenant.panel_url ? { opacity: 0.45, cursor: "not-allowed" } : {}}>
+            {busy ? <Loader2 size={14} className="animate-spin" /> : <Zap size={14} />}
+            {busy ? "در حال بررسی..." : "اجرای تست"}
+          </button>
+          <button onClick={runTrace} disabled={busy || !tenant.panel_url}
+            className="fx-btn-g px-3 py-2.5 text-[12px] flex items-center gap-1.5"
+            style={!tenant.panel_url ? { opacity: 0.45, cursor: "not-allowed" } : {}}>
+            <HelpCircle size={13} /> تشخیص عمیق
+          </button>
+        </div>
       </div>
 
       {!tenant.panel_url && (

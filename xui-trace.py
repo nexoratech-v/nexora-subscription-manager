@@ -125,9 +125,27 @@ else:
 # ── request schema ──
 head("4. Expected request body")
 
+# which path will actually be used
+create_path = None
+for cand in ("/panel/api/clients/add", "/panel/api/clients",
+             "/panel/api/clients/create"):
+    if client.has_route(cand, "POST"):
+        create_path = cand
+        break
+
+if create_path:
+    ok(f"Create path: {create_path}")
+else:
+    info("No create path found among the known candidates")
+    create_path = "/panel/api/clients"
+
+attach = [p for p in (routes or {}) if "attach" in p.lower()]
+if attach:
+    info(f"Attach paths available: {', '.join(sorted(attach)[:3])}")
+
 schema = None
 try:
-    schema = client.request_schema("/panel/api/clients", "post")
+    schema = client.request_schema(create_path, "post")
 except Exception as e:
     info(f"request_schema raised: {e}")
 
@@ -153,15 +171,31 @@ import secrets as _s
 email = f"nexora_trace_{_s.token_hex(3)}"
 info(f"inbound {inbound}, email {email}")
 
+# capture what gets sent, so a rejection can be read against it
+sent = []
+_orig = client._req
+def _spy(method, path, raw=False, **kw):
+    if kw.get("json") and "client" in path:
+        sent.append((path, list((kw["json"] or {}).keys())))
+    return _orig(method, path, raw=raw, **kw)
+client._req = _spy
+
 created = None
 try:
     created = client.add_client(int(inbound), email, gb=1, days=1)
     ok("Panel accepted the request")
+    if sent:
+        info(f"Used: {sent[-1][0]}")
 except XUIError as e:
     bad(f"{e}")
     print()
-    info("What the panel rejected is printed above. If it names a field,")
-    info("that field is missing or differently named in this version.")
+    if sent:
+        info("Bodies that were tried:")
+        for p, keys in sent:
+            info(f"  {p}  ->  {', '.join(keys[:8])}")
+    print()
+    info("The panel names the field it wants in the message above.")
+    info("Compare it with the fields sent and report both.")
     sys.exit(1)
 except Exception as e:
     bad(f"{type(e).__name__}: {e}")
