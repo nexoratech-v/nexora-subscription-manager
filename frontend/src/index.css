@@ -43,15 +43,16 @@
 
 body {
   font-family: "IRANSansX", "Vazirmatn", sans-serif;
-}
-
-/* عناصر فرم فونت خودشان را از مرورگر می‌گیرند، نه از body —
-   بدون این خط، دکمه‌ها و فیلدها با فونت پیش‌فرض سیستم می‌مانند */
-input, select, textarea, button, optgroup {
-  font-family: inherit;
   background: var(--bg);
   color: var(--text);
   overscroll-behavior-y: none;
+}
+
+/* فقط فونت — عناصر فرم آن را از body ارث نمی‌برند.
+   هیچ خصوصیت دیگری اینجا نیاید؛ رنگ و ابعاد دکمه‌ها از کلاس
+   خودشان می‌آید و بازنویسی‌شان ظاهر همه را به هم می‌ریزد. */
+input, select, textarea, button, optgroup {
+  font-family: inherit;
 }
 
 ::-webkit-scrollbar { width: 7px; height: 7px; }

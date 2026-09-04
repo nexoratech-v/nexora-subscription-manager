@@ -2,6 +2,14 @@
 
 ## [1.1.4]
 
+### Fixed — Buttons across the whole panel looked wrong
+Adding the form-font rule in 1.1.3 accidentally pulled three `body` properties into it,
+so every button and input took the page background and lost the sizing from its own
+class. `body` gets them back, and the font rule now carries nothing but the font.
+
+`tools/check-api-contract.py` checks for both: that the form-font rule holds only a
+font, and that `body` still has a background.
+
 ### Added — Server health monitoring
 Eleven checks across every server, run automatically every five minutes, with a Telegram
 alert when something changes:

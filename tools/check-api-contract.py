@@ -128,6 +128,28 @@ if css_path.exists():
     else:
         print(f"  {G}✓{X} Tailwind directives present")
 
+    # قانون فونت عناصر فرم نباید چیز دیگری داشته باشد.
+    # یک‌بار خصوصیات body داخلش افتاد و همه‌ی دکمه‌ها پس‌زمینه‌ی
+    # صفحه گرفتند — ظاهرشان کاملاً به هم ریخت.
+    m = re.search(r'input[^{]*button[^{]*\{([^}]*)\}', css)
+    if m:
+        body_rule = m.group(1)
+        extras = [p.split(":")[0].strip() for p in body_rule.split(";")
+                  if p.strip() and "font-family" not in p]
+        if extras:
+            problems += 1
+            print(f"  {R}✗{X} قانون فونت فرم‌ها خصوصیات اضافه دارد: {extras}")
+            print(f"      این‌ها ظاهر دکمه‌ها را بازنویسی می‌کنند")
+        else:
+            print(f"  {G}✓{X} قانون فونت فرم‌ها فقط فونت دارد")
+
+    # body باید رنگ و پس‌زمینه داشته باشد
+    if not re.search(r'body\s*\{[^}]*background', css):
+        problems += 1
+        print(f"  {R}✗{X} body پس‌زمینه ندارد — صفحه بی‌رنگ می‌شود")
+    else:
+        print(f"  {G}✓{X} body پس‌زمینه دارد")
+
     # فونت باید هم تعریف و هم اعمال شود
     has_face = "@font-face" in css
     # فونت باید روی body یا html اعمال شده باشد — هر شکلی که نوشته شده
