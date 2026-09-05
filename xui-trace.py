@@ -223,16 +223,25 @@ except Exception as e:
 # ── verify ──
 head("6. Reading it back")
 
+# which GET routes the panel offers for reading a client back
+gets = sorted(p for p, ms in (routes or {}).items()
+              if "GET" in ms and "client" in p.lower())
+if gets:
+    info(f"Client GET routes ({len(gets)}):")
+    for p in gets[:10]:
+        info(f"  {p}")
+
 try:
     found = client.find_client(int(inbound), email=email)
     if found:
         ok("Config exists in the panel")
+        info(f"  fields: {', '.join(list(found.keys())[:10])}")
     else:
-        bad("Panel accepted the request but the config is not there")
-        info("This usually means it was created without being attached")
-        info("to the inbound - it exists but is not active anywhere.")
+        bad("Panel accepted the request but the config could not be read")
+        info("Every GET route above was tried. If one of them is the right")
+        info("one, report it and the lookup will use it directly.")
 except Exception as e:
-    info(f"Lookup raised: {e}")
+    info(f"Lookup raised: {type(e).__name__}: {e}")
 
 # ── cleanup ──
 head("7. Cleanup")

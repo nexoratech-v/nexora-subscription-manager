@@ -517,9 +517,14 @@ class XUI:
         # پس اول همان‌جا می‌پرسیم — سریع‌تر و درست‌تر است
         # مسیر خواندن از فهرست واقعی پنل — نه حدس
         if email:
-            for p in (f"/panel/api/clients/{email}",
-                      f"/panel/api/clients/get/{email}",
-                      f"/panel/api/clients/byEmail/{email}"):
+            candidates = [
+                f"/panel/api/clients/{email}",
+                f"/panel/api/clients/get/{email}",
+                f"/panel/api/clients/byEmail/{email}",
+                f"/panel/api/clients/getClient/{email}",
+            ]
+
+            for p in candidates:
                 if self.has_route(p, "GET") is False:
                     continue
                 try:
@@ -528,6 +533,24 @@ class XUI:
                         return found
                     if isinstance(found, list) and found:
                         return found[0]
+                except (XUIError, TypeError, ValueError):
+                    continue
+
+            # هیچ مسیر تکی جواب نداد — از فهرست کامل می‌گردیم.
+            # کندتر است ولی وقتی نام مسیر عوض شده باشد تنها راه است.
+            for p in ("/panel/api/clients", "/panel/api/clients/list",
+                      "/panel/api/clients/all"):
+                if self.has_route(p, "GET") is False:
+                    continue
+                try:
+                    rows = self._req("GET", p)
+                    if isinstance(rows, dict):
+                        rows = (rows.get("clients") or rows.get("data")
+                                or rows.get("items") or [])
+                    if isinstance(rows, list):
+                        for r in rows:
+                            if isinstance(r, dict) and r.get("email") == email:
+                                return r
                 except (XUIError, TypeError, ValueError):
                     continue
 

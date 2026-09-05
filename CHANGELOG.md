@@ -2,6 +2,12 @@
 
 ## [1.1.5]
 
+### Fixed — Reading a config back after creating it
+The lookup tried four guessed paths and gave up. It now falls back to fetching the full
+client list and matching on email, which works whatever the single-client route is
+called. `xui-trace.py` lists every client GET route the panel offers, so the right one
+can be used directly instead of searched for.
+
 ### Fixed — Reading back and deleting a config
 Creation works, but the two operations around it did not. Lookup assumed a string
 response and crashed on the dict the panel returns. Delete used paths from older
