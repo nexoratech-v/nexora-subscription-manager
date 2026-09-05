@@ -175,8 +175,11 @@ info(f"inbound {inbound}, email {email}")
 sent = []
 _orig = client._req
 def _spy(method, path, raw=False, **kw):
-    if kw.get("json") and "client" in path:
-        sent.append((path, list((kw["json"] or {}).keys())))
+    if "client" in path:
+        body = kw.get("json") or kw.get("data")
+        if body:
+            kind = "json" if kw.get("json") else "form"
+            sent.append((path, kind, list(body.keys())))
     return _orig(method, path, raw=raw, **kw)
 client._req = _spy
 
@@ -185,14 +188,16 @@ try:
     created = client.add_client(int(inbound), email, gb=1, days=1)
     ok("Panel accepted the request")
     if sent:
-        info(f"Used: {sent[-1][0]}")
+        p, kind, keys = sent[-1]
+        info(f"Used: {p} as {kind}")
+        info(f"Fields: {', '.join(keys[:8])}")
 except XUIError as e:
     bad(f"{e}")
     print()
     if sent:
-        info("Bodies that were tried:")
-        for p, keys in sent:
-            info(f"  {p}  ->  {', '.join(keys[:8])}")
+        info(f"Bodies that were tried ({len(sent)}):")
+        for p, kind, keys in sent:
+            info(f"  [{kind:4}] {p}  ->  {', '.join(keys[:7])}")
     print()
     info("The panel names the field it wants in the message above.")
     info("Compare it with the fields sent and report both.")

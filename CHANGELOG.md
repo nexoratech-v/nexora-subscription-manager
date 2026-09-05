@@ -8,7 +8,15 @@
   config, reading it back, cleaning up — and shows the panel'''s own error verbatim when
   a step fails. No SSH needed to find out why a config will not build
 
-## [1.1.4]
+## [1.1.5]
+
+### Fixed — The panel reads form data, not JSON
+Every attempt was sent as JSON. 3x-ui reads form-urlencoded — which is why the legacy
+addClient path always used data=. The panel never parsed the body at all, then reported
+the email field as missing when it was right there.
+
+Each body shape is now sent as form first and JSON second, with nested values serialised
+for the form encoding. The style that works is remembered.
 
 ### Fixed — Config creation, for real this time
 The trace against a live 3.7 panel read 183 routes and showed the create path is

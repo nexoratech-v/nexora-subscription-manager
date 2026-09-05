@@ -35,6 +35,7 @@ class XUI:
         self._path_cache = {}
         self._routes = None
         self._spec = None
+        self._body_style = None
         self._api_mode = None
 
     # ---------- احراز هویت ----------
@@ -327,19 +328,40 @@ class XUI:
                 {"inboundIds": [inbound_id], **base},
             ]
 
+            # ۳x-ui تاریخاً form-urlencoded می‌خواند، نه JSON. مسیر
+            # قدیمی addClient هم همیشه با data= کار می‌کرد. پس هر
+            # شکل را با هر دو قالب می‌فرستیم — وگرنه پنل بدنه را
+            # اصلاً نمی‌خواند و می‌گوید فیلد نیست، در حالی که هست.
             last_err = None
+            done = False
+
             for shape in shapes:
-                try:
-                    self._req("POST", create_path, json=shape)
-                    last_err = None
+                if done:
                     break
-                except XUIError as e:
-                    last_err = e
-                    # ۴۰۴ یعنی این مسیر اصلاً نیست — امتحان شکل‌های
-                    # دیگر بی‌فایده است، مستقیم می‌رویم سراغ مسیر قدیمی
-                    if "404" in str(e):
+
+                # form اول، چون احتمالش بیشتر است
+                form = {}
+                for k, v in shape.items():
+                    if isinstance(v, (dict, list)):
+                        form[k] = json.dumps(v, ensure_ascii=False)
+                    elif isinstance(v, bool):
+                        form[k] = "true" if v else "false"
+                    elif v is not None:
+                        form[k] = str(v)
+
+                for kind, kwargs in (("form", {"data": form}),
+                                     ("json", {"json": shape})):
+                    try:
+                        self._req("POST", create_path, **kwargs)
+                        self._body_style = kind
+                        last_err = None
+                        done = True
                         break
-                    continue
+                    except XUIError as e:
+                        last_err = e
+                        if "404" in str(e):
+                            done = True
+                            break
 
             if last_err is None:
                 # وصل کردن به اینباند — بدون این، کلاینت ساخته
@@ -363,12 +385,18 @@ class XUI:
                 for p, body in attach_tries:
                     if self.has_route(p, "POST") is False:
                         continue
-                    try:
-                        self._req("POST", p, json=body)
-                        attached = True
+                    form = {k: (json.dumps(v) if isinstance(v, (list, dict))
+                                else str(v))
+                            for k, v in body.items()}
+                    for kwargs in ({"data": form}, {"json": body}):
+                        try:
+                            self._req("POST", p, **kwargs)
+                            attached = True
+                            break
+                        except XUIError:
+                            continue
+                    if attached:
                         break
-                    except XUIError:
-                        continue
 
                 if not attached:
                     # کلاینت ساخته شده ولی به جایی وصل نیست — این
