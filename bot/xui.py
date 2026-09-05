@@ -319,6 +319,17 @@ class XUI:
                             next((n for n in aliases["email"] if n in props), "email")):
                         shapes.append(built)
 
+            # شکل تاریخی ۳x-ui: کلاینت داخل settings به‌صورت رشته‌ی
+            # JSON، همراه شناسه‌ی اینباند. مسیر addClient همیشه همین
+            # را می‌خواست و مسیر جدید هم احتمالاً همان را نگه داشته.
+            settings_str = json.dumps({"clients": [base]}, ensure_ascii=False)
+            shapes += [
+                {"id": inbound_id, "settings": settings_str},
+                {"inboundId": inbound_id, "settings": settings_str},
+                {"inbound_id": inbound_id, "settings": settings_str},
+                {"settings": settings_str},
+            ]
+
             # اگر schema نبود یا ناقص بود، شکل‌های شناخته‌شده
             shapes += [
                 base,

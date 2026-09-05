@@ -143,6 +143,20 @@ attach = [p for p in (routes or {}) if "attach" in p.lower()]
 if attach:
     info(f"Attach paths available: {', '.join(sorted(attach)[:3])}")
 
+# Print the panel's own definition for this route. If the parser
+# above misses it, the raw spec still shows what the panel wants.
+spec = getattr(client, "_spec", None)
+if spec:
+    node = (spec.get("paths") or {}).get(create_path, {}).get("post")
+    if node:
+        import json as _j
+        raw = _j.dumps(node, ensure_ascii=False)
+        info("Panel's definition for this route:")
+        for i in range(0, min(len(raw), 1400), 110):
+            info("  " + raw[i:i + 110])
+    else:
+        info(f"The spec has no POST entry for {create_path}")
+
 schema = None
 try:
     schema = client.request_schema(create_path, "post")
