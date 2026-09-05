@@ -36,6 +36,7 @@ class XUI:
         self._routes = None
         self._spec = None
         self._body_style = None
+        self._used_shape_attaches = False
         self._api_mode = None
 
     # ---------- احراز هویت ----------
@@ -319,14 +320,38 @@ class XUI:
                             next((n for n in aliases["email"] if n in props), "email")):
                         shapes.append(built)
 
-            # شکل تاریخی ۳x-ui: کلاینت داخل settings به‌صورت رشته‌ی
-            # JSON، همراه شناسه‌ی اینباند. مسیر addClient همیشه همین
-            # را می‌خواست و مسیر جدید هم احتمالاً همان را نگه داشته.
+            # شکل رسمی نسخه‌ی ۳ — از مثالی که خود پنل در مشخصات
+            # OpenAPI می‌دهد:
+            #
+            #   {"client": {...}, "inboundIds": [3, 5]}
+            #
+            # این یک درخواست هم کلاینت را می‌سازد و هم به اینباند
+            # وصل می‌کند، پس مرحله‌ی attach جدا لازم ندارد.
+            # شناسه‌ی uuid فرستاده نمی‌شود؛ پنل خودش می‌سازد.
+            official = {
+                "client": {
+                    "email": email,
+                    "totalGB": base.get("totalGB", 0),
+                    "expiryTime": base.get("expiryTime", 0),
+                    "tgId": int(tg_id or 0),
+                    "limitIp": int(ip_limit or 0),
+                    "limitHwid": 0,
+                    "enable": True,
+                },
+                "inboundIds": [int(inbound_id)],
+            }
+            if group:
+                official["client"]["groupName"] = group
+            if base.get("subId"):
+                official["client"]["subId"] = base["subId"]
+
+            shapes.insert(0, official)
+
             settings_str = json.dumps({"clients": [base]}, ensure_ascii=False)
             shapes += [
+                {"client": base, "inboundIds": [int(inbound_id)]},
                 {"id": inbound_id, "settings": settings_str},
                 {"inboundId": inbound_id, "settings": settings_str},
-                {"inbound_id": inbound_id, "settings": settings_str},
                 {"settings": settings_str},
             ]
 
@@ -365,6 +390,7 @@ class XUI:
                     try:
                         self._req("POST", create_path, **kwargs)
                         self._body_style = kind
+                        self._used_shape_attaches = "inboundIds" in shape
                         last_err = None
                         done = True
                         break
@@ -392,6 +418,19 @@ class XUI:
                     (f"/panel/api/clients/{email}/inbounds",
                      {"inboundIds": [inbound_id]}),
                 ]
+                # شکل رسمی خودش وصل می‌کند
+                if self._body_style and self._used_shape_attaches:
+                    self._path_cache["افزودن کلاینت"] = create_path
+                    # پنل خودش uuid می‌سازد؛ همان را برمی‌داریم وگرنه
+                    # حذف و به‌روزرسانی بعدی روی شناسه‌ی اشتباه می‌روند
+                    try:
+                        made = self._req("GET", f"/panel/api/clients/{email}")
+                        if made and made.get("id"):
+                            client["id"] = made["id"]
+                    except XUIError:
+                        pass
+                    return client
+
                 attached = False
                 for p, body in attach_tries:
                     if self.has_route(p, "POST") is False:

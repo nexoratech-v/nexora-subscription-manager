@@ -2,6 +2,25 @@
 
 ## [1.1.5]
 
+### Fixed — Config creation, from the panel own example
+The OpenAPI spec for `/panel/api/clients/add` carries an example, and it settles the
+question:
+
+    {"client": {"email": ..., "totalGB": ..., "expiryTime": ...,
+                "tgId": 0, "limitIp": 0, "limitHwid": 0, "enable": true},
+     "inboundIds": [3, 5]}
+
+Nineteen shapes had been tried and every one missed it. The closest was `{"client": ...}`
+without `inboundIds`, which the panel rejects with a message about a missing email — the
+field was there, but the request was incomplete.
+
+This one call both creates the client and attaches it, so the separate attach step is
+skipped. The panel generates the UUID, so it is read back afterwards; using our own would
+have broken later deletes and renewals.
+
+`xui-trace.py` now prints the panel own definition for the route, which is what should
+have been read first.
+
 ### Added
 - **«تشخیص عمیق»** next to the connection test. It walks the whole path — login,
   inbounds, the routes the panel serves, the field names it declares, creating a real
