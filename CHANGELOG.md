@@ -2,6 +2,14 @@
 
 ## [1.1.5]
 
+### Fixed — Nested response and traffic paths
+Version 3 returns a client wrapped in a `client` key with usage and inbound ids beside
+it, not flattened. Reads are now unwrapped so the rest of the code keeps working with a
+plain dictionary.
+
+Traffic and traffic-reset also moved: `/panel/api/clients/traffic/{email}` and
+`bulkResetTraffic` on this version. Both fall back to the inbound paths on older panels.
+
 ### Fixed — Reading a config back after creating it
 The lookup tried four guessed paths and gave up. It now falls back to fetching the full
 client list and matching on email, which works whatever the single-client route is

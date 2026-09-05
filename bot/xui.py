@@ -516,10 +516,29 @@ class XUI:
         # در نسخه‌ی ۳ کلاینت‌ها مستقل‌اند و داخل JSON اینباند نیستند،
         # پس اول همان‌جا می‌پرسیم — سریع‌تر و درست‌تر است
         # مسیر خواندن از فهرست واقعی پنل — نه حدس
+        def _unwrap(d):
+            """
+            پاسخ نسخه‌ی ۳ تودرتوست: داده‌های کلاینت داخل کلید
+            client، و مصرف و اینباندها کنارش. صافش می‌کنیم تا
+            بقیه‌ی کد مثل قبل با یک دیکشنری ساده کار کند.
+            """
+            if not isinstance(d, dict):
+                return d
+            inner = d.get("client")
+            if not isinstance(inner, dict):
+                return d
+            flat = dict(inner)
+            for k in ("inboundIds", "usedTraffic", "externalLinks",
+                      "tunnelAllowedIPs", "up", "down", "total"):
+                if k in d:
+                    flat[k] = d[k]
+            return flat
+
         if email:
+            # مسیر واقعی نسخه‌ی ۳ اول می‌آید
             candidates = [
-                f"/panel/api/clients/{email}",
                 f"/panel/api/clients/get/{email}",
+                f"/panel/api/clients/{email}",
                 f"/panel/api/clients/byEmail/{email}",
                 f"/panel/api/clients/getClient/{email}",
             ]
@@ -530,15 +549,15 @@ class XUI:
                 try:
                     found = self._req("GET", p)
                     if isinstance(found, dict) and found:
-                        return found
+                        return _unwrap(found)
                     if isinstance(found, list) and found:
-                        return found[0]
+                        return _unwrap(found[0])
                 except (XUIError, TypeError, ValueError):
                     continue
 
             # هیچ مسیر تکی جواب نداد — از فهرست کامل می‌گردیم.
             # کندتر است ولی وقتی نام مسیر عوض شده باشد تنها راه است.
-            for p in ("/panel/api/clients", "/panel/api/clients/list",
+            for p in ("/panel/api/clients/list", "/panel/api/clients",
                       "/panel/api/clients/all"):
                 if self.has_route(p, "GET") is False:
                     continue
@@ -549,8 +568,9 @@ class XUI:
                                 or rows.get("items") or [])
                     if isinstance(rows, list):
                         for r in rows:
-                            if isinstance(r, dict) and r.get("email") == email:
-                                return r
+                            flat = _unwrap(r)
+                            if isinstance(flat, dict) and flat.get("email") == email:
+                                return flat
                 except (XUIError, TypeError, ValueError):
                     continue
 
@@ -601,15 +621,38 @@ class XUI:
         return self._try_paths(known or tries, "حذف کلاینت")
 
     def client_traffic(self, email):
-        """مصرف کلاینت بر اساس ایمیل."""
-        try:
-            return self._req("GET", f"/panel/api/inbounds/getClientTraffics/{email}")
-        except XUIError:
-            return None
+        """
+        مصرف کلاینت بر اساس ایمیل.
+
+        نسخه‌ی ۳ مسیر اختصاصی دارد؛ نسخه‌های قدیمی‌تر از inbounds
+        می‌خوانند. هر کدام که پنل داشته باشد استفاده می‌شود.
+        """
+        for p in (f"/panel/api/clients/traffic/{email}",
+                  f"/panel/api/inbounds/getClientTraffics/{email}"):
+            if self.has_route(p, "GET") is False:
+                continue
+            try:
+                r = self._req("GET", p)
+                if r:
+                    return r
+            except XUIError:
+                continue
+        return None
 
     def reset_client_traffic(self, inbound_id, email):
-        return self._req("POST",
-                         f"/panel/api/inbounds/{inbound_id}/resetClientTraffic/{email}")
+        for method, p, body in (
+            ("POST", f"/panel/api/clients/resetTraffic/{email}", {}),
+            ("POST", "/panel/api/clients/bulkResetTraffic",
+             {"json": {"emails": [email]}}),
+            ("POST", f"/panel/api/inbounds/{inbound_id}/resetClientTraffic/{email}", {}),
+        ):
+            if self.has_route(p, method) is False:
+                continue
+            try:
+                return self._req(method, p, **body)
+            except XUIError:
+                continue
+        raise XUIError("مسیر ریست ترافیک در این نسخه‌ی پنل پیدا نشد")
 
     # ---------- عملیات سطح بالا ----------
     def create_subscription(self, inbound_id, email, gb, days, ip_limit=2,
