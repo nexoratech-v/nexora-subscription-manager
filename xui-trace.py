@@ -239,7 +239,7 @@ head("7. Cleanup")
 
 try:
     if created and created.get("id"):
-        client.delete_client(int(inbound), created["id"])
+        client.delete_client(int(inbound), created["id"], email=email)
         ok("Test config removed")
 except Exception as e:
     info(f"Could not remove it: {e}")

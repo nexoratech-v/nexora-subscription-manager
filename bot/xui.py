@@ -92,7 +92,14 @@ class XUI:
         try:
             data = r.json()
         except ValueError:
-            raise XUIError(f"پاسخ غیر JSON از {path} (HTTP {r.status_code})")
+            # بعضی مسیرها — مثل حذف — بدنه‌ی خالی برمی‌گردانند.
+            # اگر کد وضعیت موفق بود، این خطا نیست.
+            if 200 <= r.status_code < 300:
+                return None
+            snippet = (r.text or "")[:120].replace("\n", " ")
+            raise XUIError(
+                f"پاسخ غیر JSON از {path} (HTTP {r.status_code})"
+                + (f": {snippet}" if snippet else ""))
 
         if raw:
             return data
@@ -508,13 +515,21 @@ class XUI:
         """
         # در نسخه‌ی ۳ کلاینت‌ها مستقل‌اند و داخل JSON اینباند نیستند،
         # پس اول همان‌جا می‌پرسیم — سریع‌تر و درست‌تر است
-        if email and self.has_route(f"/panel/api/clients/{email}", "GET") is not False:
-            try:
-                found = self._req("GET", f"/panel/api/clients/{email}")
-                if found:
-                    return found
-            except XUIError:
-                pass
+        # مسیر خواندن از فهرست واقعی پنل — نه حدس
+        if email:
+            for p in (f"/panel/api/clients/{email}",
+                      f"/panel/api/clients/get/{email}",
+                      f"/panel/api/clients/byEmail/{email}"):
+                if self.has_route(p, "GET") is False:
+                    continue
+                try:
+                    found = self._req("GET", p)
+                    if isinstance(found, dict) and found:
+                        return found
+                    if isinstance(found, list) and found:
+                        return found[0]
+                except (XUIError, TypeError, ValueError):
+                    continue
 
         try:
             inb = self.inbound(inbound_id)
@@ -533,12 +548,34 @@ class XUI:
                 return c
         return None
 
-    def delete_client(self, inbound_id, client_uuid):
-        return self._try_paths([
+    def delete_client(self, inbound_id, client_uuid, email=None):
+        """
+        حذف کلاینت.
+
+        نسخه‌ی ۳ با ایمیل کار می‌کند نه uuid، و مسیرش بین نسخه‌ها
+        فرق دارد — پس از فهرست واقعی مسیرهای پنل انتخاب می‌شود.
+        """
+        tries = []
+
+        if email:
+            tries += [
+                ("POST", f"/panel/api/clients/del/{email}", {}),
+                ("POST", f"/panel/api/clients/delete/{email}", {}),
+                ("DELETE", f"/panel/api/clients/{email}", {}),
+                ("POST", "/panel/api/clients/bulkDel",
+                 {"json": {"emails": [email]}}),
+            ]
+
+        tries += [
             ("POST", f"/panel/api/inbounds/{inbound_id}/delClient/{client_uuid}", {}),
-            ("POST", f"/panel/api/clients/{client_uuid}/delete", {}),
+            ("POST", f"/panel/api/clients/del/{client_uuid}", {}),
             ("DELETE", f"/panel/api/clients/{client_uuid}", {}),
-        ], "حذف کلاینت")
+        ]
+
+        # فقط مسیرهایی که پنل واقعاً دارد
+        known = [t for t in tries
+                 if self.has_route(t[1], t[0]) is not False]
+        return self._try_paths(known or tries, "حذف کلاینت")
 
     def client_traffic(self, email):
         """مصرف کلاینت بر اساس ایمیل."""

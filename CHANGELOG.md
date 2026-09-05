@@ -2,6 +2,15 @@
 
 ## [1.1.5]
 
+### Fixed — Reading back and deleting a config
+Creation works, but the two operations around it did not. Lookup assumed a string
+response and crashed on the dict the panel returns. Delete used paths from older
+versions and passed a UUID where this version wants an email — and it treats an empty
+204 body as an error when that is exactly what a successful delete returns.
+
+Both now pick their path from the panel route list, delete falls back to bulkDel, and an
+empty body with a 2xx status counts as success.
+
 ### Fixed — Config creation, from the panel own example
 The OpenAPI spec for `/panel/api/clients/add` carries an example, and it settles the
 question:
